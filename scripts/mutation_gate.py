@@ -55,6 +55,7 @@ Run: ``make mutants`` (or ``uv run python scripts/mutation_gate.py``).
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -335,7 +336,35 @@ def _digests(paths: tuple[str, ...]) -> dict[str, str]:
     return {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest() for path in paths}
 
 
+def _wrong_interpreter() -> str | None:
+    """A message when this interpreter cannot see the packages at all, else None.
+
+    Every subprocess here uses ``sys.executable``, so running the script with an
+    interpreter that has no editable install -- a system ``python3`` rather than
+    ``uv run python`` -- makes all ten mutants fail on ``ModuleNotFoundError``
+    before any of them tests anything. That is loud rather than silent, so it is
+    a smaller problem than the shadowing :func:`_unredirected_imports` guards,
+    but a traceback from inside a pytest subprocess is a poor way to learn you
+    used the wrong command. Checked here, in-process, before a tempdir exists.
+    """
+    absent = [
+        name for name in ("aletheia", "trialkeeper") if importlib.util.find_spec(name) is None
+    ]
+    if not absent:
+        return None
+    return (
+        f"{sys.executable} cannot import {', '.join(absent)}, so every mutant would fail "
+        "for that reason instead of being tested.\n"
+        "      Run `make mutants`, or `uv run python scripts/mutation_gate.py`."
+    )
+
+
 def main() -> int:
+    wrong = _wrong_interpreter()
+    if wrong:
+        print(f"FAIL  {wrong}")
+        return 1
+
     targets = tuple(sorted({mutant.path for mutant in MUTANTS}))
     for missing in (p for p in targets if not (ROOT / p).exists()):
         print(f"FAIL  target file does not exist: {missing}")

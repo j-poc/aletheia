@@ -744,6 +744,17 @@ mechanism still sitting in `/tmp` — six flattened backup files, confirmed
 byte-identical to their tracked originals, and removed. The litter this class of
 bug produces is not hypothetical here.
 
+**The wrong interpreter now fails on the first line, not the tenth mutant.**
+Every subprocess uses `sys.executable`, so running the script under a system
+`python3` rather than `uv run python` means no editable install, no importable
+packages, and ten mutants all failing on `ModuleNotFoundError` before testing
+anything. That is loud rather than silent, which makes it much less dangerous
+than the shadowing case — but it is a confusing traceback from inside a pytest
+subprocess when it could be one sentence. `_wrong_interpreter` checks
+`importlib.util.find_spec` in-process before a tempdir exists, and names the
+command to use instead. Under `/opt/homebrew/bin/python3`: exit 1, the message,
+and zero tempdirs created. Under `uv run python`: silent, and the gate proceeds.
+
 **What this harness structurally cannot test.** The sandbox is a plain directory
 copy, so it is not a git repository, so `code_version()` correctly returns
 `"unknown"` inside it. Provenance stamping therefore cannot be mutation-tested
