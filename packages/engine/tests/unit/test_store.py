@@ -321,3 +321,66 @@ class TestFilingsAreVisibleToResearch:
             [make_filing(accn="0000320193-09-214859", filed_at=date(2009, 10, 27))]
         )
         assert warehouse.backfill_filing_filers() == 0
+
+
+class TestReconcilingInterruptedRuns:
+    """A killed process leaves its run row claiming the system is mid-ingest.
+
+    Five such rows were sitting in the production warehouse: a crashed company
+    ingest, a killed price run, and three throttled attempts. The row is a small
+    lie that makes every later coverage question harder to answer.
+    """
+
+    def test_a_stale_running_row_becomes_interrupted(self, warehouse: Warehouse) -> None:
+        warehouse.reconcile_interrupted_runs()  # the fixture opens one of its own
+        warehouse.start_run(source="edgar.company", params={}, run_id="run-dead-0001")
+        assert warehouse.reconcile_interrupted_runs() == 1
+        status = warehouse.execute(
+            "SELECT status FROM ingest_runs WHERE run_id = 'run-dead-0001'"
+        ).fetchone()
+        assert status is not None
+        assert status[0] == "interrupted"
+
+    def test_interrupted_is_neither_ok_nor_failed(self, warehouse: Warehouse) -> None:
+        """What was written is real; what was not is unknown. Say so."""
+        warehouse.reconcile_interrupted_runs()
+        warehouse.start_run(source="edgar.company", params={}, run_id="run-dead-0002")
+        warehouse.reconcile_interrupted_runs()
+        rows = warehouse.execute(
+            "SELECT count(*) FROM ingest_runs WHERE status IN ('ok', 'failed')"
+        ).fetchone()
+        assert rows is not None
+        assert rows[0] == 0
+
+    def test_a_second_pass_finds_nothing(self, warehouse: Warehouse) -> None:
+        """Idempotent, so a caller can confirm the warehouse is clean."""
+        warehouse.start_run(source="edgar.company", params={}, run_id="run-dead-0003")
+        warehouse.reconcile_interrupted_runs()
+        assert warehouse.reconcile_interrupted_runs() == 0
+
+
+class TestPayloadLedgerCoverageIsReportedNotFaked:
+    """The store keeps bytes keyed by hash and no metadata.
+
+    So a warehouse written before payload indexing moved into the fetcher has the
+    blobs on disk and no way to reconstruct source_uri or retrieved_at. The gap is
+    counted and shown rather than filled with invented provenance, which could not
+    be told apart from the real thing.
+    """
+
+    def test_the_gap_between_index_and_disk_is_visible(
+        self, warehouse: Warehouse, tmp_path: Path
+    ) -> None:
+        raw = tmp_path / "raw"
+        (raw / "ab" / "cd").mkdir(parents=True)
+        for name in ("one.json.gz", "two.json.gz", "three.json.gz"):
+            (raw / "ab" / "cd" / name).write_bytes(b"x")
+
+        indexed, on_disk = warehouse.payload_ledger_coverage(raw)
+        assert indexed == 0
+        assert on_disk == 3
+
+    def test_a_missing_raw_directory_reports_zero_rather_than_raising(
+        self, warehouse: Warehouse, tmp_path: Path
+    ) -> None:
+        assert warehouse.payload_ledger_coverage(tmp_path / "absent") == (0, 0)

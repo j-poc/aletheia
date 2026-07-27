@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
     params_json   VARCHAR      NOT NULL,
     started_at    TIMESTAMPTZ  NOT NULL,
     finished_at   TIMESTAMPTZ,
-    status        VARCHAR      NOT NULL,   -- running | ok | failed
+    status        VARCHAR      NOT NULL,   -- running | ok | failed | interrupted
     rows_written  BIGINT       NOT NULL DEFAULT 0,
     bytes_fetched BIGINT       NOT NULL DEFAULT 0,
     code_version  VARCHAR      NOT NULL,   -- git describe of the engine at run time

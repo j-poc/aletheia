@@ -517,6 +517,44 @@ class Warehouse:
         )
         return self.count("filings") - before
 
+    def reconcile_interrupted_runs(self) -> int:
+        """Close out runs that are still marked ``running`` but cannot be.
+
+        A process that is killed -- OOM, a throttled source, an operator -- leaves
+        its run row open forever. The row then claims the system is mid-ingest when
+        nothing is, which is a small lie that makes every later question about
+        coverage harder to answer.
+
+        They are marked ``interrupted``, not ``ok`` and not ``failed``: what was
+        written before the process died is real and stays, and what was not written
+        is unknown. Saying so is the honest state.
+
+        Only runs with no live process can be reconciled, which this cannot verify
+        -- so it is a manual operation, never automatic on open.
+        """
+        before = self._scalar("SELECT count(*) FROM ingest_runs WHERE status = 'running'")
+        self._con.execute(
+            "UPDATE ingest_runs SET status = 'interrupted', finished_at = ? "
+            "WHERE status = 'running'",
+            [datetime.now(UTC)],
+        )
+        return int(before)
+
+    def payload_ledger_coverage(self, raw_dir: Path) -> tuple[int, int]:
+        """``(indexed, on_disk)`` for the provenance ledger.
+
+        These diverge on any warehouse written before payload indexing moved into
+        the fetcher: the blobs are all on disk and addressable by hash, but the
+        index that enumerates them is short. The gap is reported rather than
+        backfilled, because the store keeps only bytes -- no ``source_uri``, no
+        ``retrieved_at`` -- and a backfill would have to invent both. Fabricated
+        provenance is worse than absent provenance; it cannot be told apart from
+        the real thing.
+        """
+        indexed = self.count("raw_payloads")
+        on_disk = sum(1 for path in raw_dir.rglob("*") if path.is_file()) if raw_dir.exists() else 0
+        return indexed, on_disk
+
     def backfill_filing_filers(self) -> int:
         """Link any filing that has no filer row, using its own ``filings.cik``.
 
@@ -792,7 +830,16 @@ class Warehouse:
         return self.count(table) - before
 
     def _scalar(self, sql: str, params: Sequence[Any] | None = None) -> int:
-        result = self._con.execute(sql, list(params) if params else None).fetchone()
+        """Read a single aggregate, on this thread's own cursor.
+
+        Going through :meth:`execute` rather than ``self._con`` directly is the
+        whole point: ``count()`` is a read, reads happen concurrently under the
+        API's threadpool, and a shared connection interleaves them. Fixing only
+        ``execute`` left this path still racing -- it surfaced as
+        ``query returned no row: SELECT count(*) FROM raw_payloads``, which for an
+        aggregate is impossible unless another thread consumed the result.
+        """
+        result = self.execute(sql, params).fetchone()
         if result is None:  # pragma: no cover - DuckDB always returns a row for aggregates
             raise StoreError(f"query returned no row: {sql}")
         return int(result[0])

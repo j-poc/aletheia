@@ -355,6 +355,7 @@ def quality(warehouse: Warehouse = Depends(get_warehouse)) -> dict[str, Any]:
           FROM ingest_runs GROUP BY source ORDER BY source
         """
     ).fetchall()
+    indexed, on_disk = warehouse.payload_ledger_coverage(load_settings().raw_dir)
 
     return {
         "data_vintage": _data_vintage(warehouse).isoformat(),
@@ -366,6 +367,21 @@ def quality(warehouse: Warehouse = Depends(get_warehouse)) -> dict[str, Any]:
         "ingest_runs": [
             {"source": row[0], "runs": int(row[1]), "last_started": str(row[2])} for row in runs
         ],
+        "payload_ledger": {
+            "indexed": indexed,
+            "on_disk": on_disk,
+            # Reported, not reconciled. The store keeps bytes keyed by hash and no
+            # metadata, so a backfill would have to invent source_uri and
+            # retrieved_at -- and fabricated provenance cannot be told apart from
+            # the real thing. Every fact still carries its own content hash, which
+            # resolves to a file on disk; this counts the index, not the evidence.
+            "note": (
+                "payloads fetched before indexing moved into the fetcher are on "
+                "disk and addressable by hash, but not enumerated here"
+            )
+            if on_disk > indexed
+            else "complete",
+        },
     }
 
 
