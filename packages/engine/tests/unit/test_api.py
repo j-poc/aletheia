@@ -246,3 +246,45 @@ class TestReadOnly:
         )
         after = warehouse.execute("SELECT count(*) FROM facts").fetchone()
         assert before == after
+
+
+class TestConcurrentRequests:
+    """A DuckDB connection carries one result set; a browser makes several requests.
+
+    Two threads sharing a connection interleave -- thread A executes, thread B
+    executes, and A's fetch returns B's row. Loading two pages at once was enough
+    to make /api/quality read an accession number where it expected a row count
+    and return a 500. Every existing test was sequential, so none of them could
+    have caught it.
+    """
+
+    def test_parallel_requests_do_not_return_each_others_rows(self, client: TestClient) -> None:
+        import concurrent.futures
+
+        def fetch(path: str) -> tuple[int, object]:
+            response = client.get(path)
+            return response.status_code, response.json()
+
+        paths = ["/api/quality", "/api/feed?day=2010-01-25", "/api/revisions/AAPL"] * 8
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(fetch, paths))
+
+        assert all(status == 200 for status, _ in results), [
+            (path, status)
+            for path, (status, _) in zip(paths, results, strict=True)
+            if status != 200
+        ]
+
+    def test_row_counts_stay_correct_under_load(self, client: TestClient) -> None:
+        """Not just 200s -- the same query must keep returning the same answer."""
+        import concurrent.futures
+
+        def counts() -> dict[str, int]:
+            payload = client.get("/api/quality").json()
+            return payload["row_counts"]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            observed = list(pool.map(lambda _: counts(), range(16)))
+
+        assert all(item == observed[0] for item in observed)
+        assert observed[0]["facts"] == 2

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from decimal import Context, Decimal
@@ -116,6 +117,9 @@ class Warehouse:
         self.path = path
         self.current_run_id: str | None = None
         """The run most recently opened, so fetched payloads can be attributed."""
+        self._owner_thread = threading.get_ident()
+        self._cursors: dict[int, duckdb.DuckDBPyConnection] = {}
+        self._cursor_lock = threading.Lock()
 
     # ------------------------------------------------------------ lifecycle --
 
@@ -728,8 +732,31 @@ class Warehouse:
         )
 
     def execute(self, sql: str, params: Sequence[Any] | None = None) -> duckdb.DuckDBPyConnection:
-        """Escape hatch for ingest-side SQL. Not for research code."""
-        return self._con.execute(sql, list(params) if params else None)
+        """Run SQL on a cursor private to the calling thread.
+
+        A DuckDB connection carries **one** result set. Two threads sharing it
+        interleave: thread A calls ``execute``, thread B calls ``execute``, and
+        A's ``fetchone`` returns B's row. FastAPI runs synchronous endpoints in a
+        threadpool, so an ordinary browser loading two pages at once was enough --
+        ``/api/quality`` read an accession number where it expected a row count and
+        returned a 500.
+
+        ``cursor()`` yields an independent handle onto the same database, cached
+        per thread so the cost is paid once rather than per query. Sequential
+        callers -- every test, and every ingest -- keep the original connection.
+        """
+        return self._thread_connection().execute(sql, list(params) if params else None)
+
+    def _thread_connection(self) -> duckdb.DuckDBPyConnection:
+        thread_id = threading.get_ident()
+        if thread_id == self._owner_thread:
+            return self._con
+        cursor = self._cursors.get(thread_id)
+        if cursor is None:
+            with self._cursor_lock:
+                cursor = self._con.cursor()
+                self._cursors[thread_id] = cursor
+        return cursor
 
     def count(self, table: str) -> int:
         if not table.isidentifier():

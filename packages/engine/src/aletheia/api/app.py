@@ -368,7 +368,9 @@ def evidence_index() -> dict[str, Any]:
     rather than as an error -- a fresh checkout legitimately has no results.
     """
     directory = load_settings().data_dir / "evidence"
-    if not directory.exists():
+    if not directory.exists() or not any(directory.glob("*.json")):
+        # An existing-but-empty directory is the common case -- the study writes it
+        # before it writes a card -- and must read the same as no directory at all.
         return {"cards": [], "note": "no study has been run in this warehouse yet"}
     cards = []
     for path in sorted(directory.glob("*.json")):
