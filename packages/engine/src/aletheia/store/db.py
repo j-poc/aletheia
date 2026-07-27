@@ -531,6 +531,11 @@ class Warehouse:
 
         Only runs with no live process can be reconciled, which this cannot verify
         -- so it is a manual operation, never automatic on open.
+
+        The comment in ``001_initial.sql`` lists only ``running | ok | failed``
+        because that migration has shipped and its hash is checked on open;
+        editing it -- even a comment -- makes every existing warehouse
+        unopenable. The status vocabulary is documented here instead.
         """
         before = self._scalar("SELECT count(*) FROM ingest_runs WHERE status = 'running'")
         self._con.execute(

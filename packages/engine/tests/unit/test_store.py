@@ -16,7 +16,8 @@ from pathlib import Path
 import pytest
 
 from aletheia.core.errors import IntegrityViolation, MigrationError
-from aletheia.store.db import Warehouse
+from aletheia.core.hashing import sha256_bytes
+from aletheia.store.db import Warehouse, _discover_migrations
 from tests._factories import FY2008_END, first_report, make_fact, make_filing, restatement
 
 FIRST_REPORT = first_report()
@@ -61,6 +62,43 @@ class TestMigrations:
             store.execute("UPDATE schema_migrations SET checksum = 'tampered' WHERE version = 1")
             with pytest.raises(MigrationError, match="changed after being applied"):
                 store.migrate()
+
+    def test_shipped_migrations_are_byte_frozen(self) -> None:
+        """Pin the checksum of every migration that has shipped.
+
+        :meth:`Warehouse.migrate` already refuses to open a warehouse whose
+        applied migrations no longer match the files on disk. That check only
+        fires against a warehouse that *has* the old version applied -- so it
+        protects users and misses the author, because every test here builds a
+        fresh warehouse and re-applies whatever is currently on disk.
+
+        The hole is not hypothetical: a one-character comment change to
+        ``001_initial.sql`` shipped in a commit with the whole suite green, and
+        made every pre-existing warehouse -- including this machine's 1.36M-filing
+        one -- refuse to open. It surfaced only by chance, running an unrelated
+        script.
+
+        A migration that has shipped is immutable, comments included. Changing
+        one means adding the next file, not editing this list. If this test fails,
+        the fix is almost always ``git checkout`` on the migration, not a new hash
+        pasted in here.
+        """
+        frozen = {
+            1: "ab0e40174fd8763d6dc748713430cd7e0ede9c1b55424528d919b9dc3929dbac",
+            2: "655ed8004b83affc2baaba96719d5e551d4f87f88314d73709473f951e9ceff2",
+            3: "1858eaec15eb265eb7af1fc719a61b19694dd1f5ca4a612d3bedf1df492f99ea",
+            4: "ce47cd88dc52afcc874832135eab61ed676cf820ec24378c0099f29ac816dacb",
+        }
+        on_disk = {
+            version: sha256_bytes(path.read_text(encoding="utf-8").encode("utf-8"))
+            for version, _name, path in _discover_migrations()
+        }
+        assert on_disk.keys() >= frozen.keys(), "a shipped migration file has disappeared"
+        for version, checksum in frozen.items():
+            assert on_disk[version] == checksum, (
+                f"migration {version:03d} was edited after shipping. Existing warehouses "
+                f"will refuse to open. Revert it and add a new migration instead."
+            )
 
 
 class TestFactWrites:
