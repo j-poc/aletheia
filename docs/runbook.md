@@ -98,7 +98,7 @@ present in the table and invisible to every query that asks what a company
 published. Repair:
 
 ```python
-warehouse.backfill_filing_filers()   # idempotent; returns rows inserted
+warehouse.backfill_filing_filers()  # idempotent; returns rows inserted
 ```
 
 A return of `0` on a warehouse you suspect means the problem is elsewhere.
@@ -112,6 +112,13 @@ Two processes, two shells:
 ```bash
 make api    # uvicorn on 127.0.0.1:8000
 make web    # next dev on localhost:3000
+```
+
+If either port is taken, override and point the frontend at the API:
+
+```bash
+uv run uvicorn aletheia.api.app:app --host 127.0.0.1 --port 8040
+cd apps/web && ALETHEIA_API=http://127.0.0.1:8040 npx next dev -p 3040
 ```
 
 The API opens the warehouse **read-only**. DuckDB permits a single writer, so the
@@ -184,8 +191,8 @@ past run are still on disk under their sha256 even after the warehouse moves on.
 
 ```python
 book.record(as_of=..., holdings=[...], cash=Decimal("..."), recorded_at=...)
-book.verify()      # recomputes the chain; reports the first broken mark
-book.head()        # the value worth committing publicly
+book.verify()  # recomputes the chain; reports the first broken mark
+book.head()  # the value worth committing publicly
 ```
 
 The chain proves the file has not been rewritten since it was written. It becomes
