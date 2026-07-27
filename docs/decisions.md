@@ -801,3 +801,30 @@ Measured by mutating the depth in `version.py` and restoring it:
 
 The bottom-right cell is the whole point. Under the previous test that run was a
 silent skip, reported as success by every summary line in the build.
+
+**And these two tests skip inside the mutation gate.** The sandbox is a copy
+under `/tmp` with no `.git` anywhere above it, so `_discoverable_repository()`
+correctly returns `None` and both tests decline to run there — measured, not
+assumed:
+
+```
+sandbox        /var/folders/.../T/aletheia-skipcheck-yftq5rst
+.git above it? False
+
+in sandbox   test_the_stamp_is_the_real_commit_when_the_source_is_in_a_repository
+             SKIPPED [1] ...: source tree is not in a git repository, so there is no sha to expect
+in sandbox   test_the_derived_root_is_the_actual_repository_root
+             SKIPPED [1] ...: source tree is not in a git repository, so there is no root to compare
+
+--- same two nodes against the real tree, for contrast ---
+real tree    test_the_stamp_is_the_real_commit_when_the_source_is_in_a_repository   .
+real tree    test_the_derived_root_is_the_actual_repository_root                    .
+```
+
+So the harness that proves tests-would-fail structurally cannot cover the two
+tests written to close an unearned skip. The fix is still proven — the depth
+mutation above ran against the real working tree, where they do run — but the
+proof comes from a one-off control rather than from the standing gate, and
+nobody should read `all 10 mutants caught` as covering these. Naming that here
+is the same discipline the decision is about: a gate's blind spot reported as
+coverage is an unearned skip one level up.

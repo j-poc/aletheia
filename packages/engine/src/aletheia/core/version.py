@@ -36,11 +36,14 @@ def code_version(repo_root: Path | None = None) -> str:
 def source_tree_root() -> Path:
     """The repository root, given this file at ``<root>/packages/engine/src/aletheia/core/``.
 
-    Six levels up, not five. It was five, which resolved to ``<root>/packages``
-    and worked anyway: ``git -C`` searches upward, so any directory inside the
-    working tree answers correctly. A review caught it because the off-by-one
-    was silently harmless in one direction and fatal in the other -- one level
-    further up leaves the repository entirely and ``rev-parse`` returns
+    ``parents[5]``, not ``parents[4]`` -- written as indices rather than as
+    "five levels up", because prose counting and ``parents`` indexing are
+    off by one from each other and this docstring documents an off-by-one.
+    It was ``parents[4]``, which resolved to ``<root>/packages`` and worked
+    anyway: ``git -C`` searches upward, so any directory inside the working
+    tree answers correctly. A review caught it because the off-by-one was
+    silently harmless in one direction and fatal in the other -- ``parents[6]``
+    leaves the repository entirely and ``rev-parse`` returns
     ``fatal: not a git repository``, which this function reports as ``unknown``
     rather than as an error. Pinned by
     ``test_the_derived_root_is_the_actual_repository_root``.
