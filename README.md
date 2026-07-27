@@ -247,6 +247,17 @@ both migrations above, so they are not optional before trusting a change to a so
   without touching research code.
 - **Not a claim that the signals here make money.** The evidence engine is the
   point. A signal that dies once its trial count is honest is published as dying.
+- **Not free of a residual dating assumption on backfilled filings.** EDGAR's daily
+  index is a *dissemination* feed, not a filing-date feed: of 4,005 entries
+  disseminated on 2026-07-24, 123 (3.1%) carried an earlier filing date, the oldest
+  by eleven months. The knowledge date is therefore `max(filed_at, disseminated_at)`
+  — but `disseminated_at` is NULL for every filing learned from the submissions
+  API, because that endpoint does not report it, and those rows fall back to
+  `filed_at`. For that slice the knowledge date can be **too early**, by up to the
+  observed eleven months. It is the same assumption every vendor makes silently;
+  the difference is that it is written down here, bounded by a measured figure, and
+  it stops being an assumption for everything captured forward from today via the
+  daily index. `002_dissemination.sql` carries the full note.
 
 ### The flagship study has not run
 
