@@ -185,3 +185,96 @@ class TestReadOnlySchemaGuard:
             pass
         with Warehouse.open(path, read_only=True) as store:
             assert store.count("facts") == 0
+
+
+class TestLargeValuesFromRealFilers:
+    """A filer scaling error killed a 350-company ingest. It must not again.
+
+    Advanced Energy Industries (CIK 927003) tagged ``EntityPublicFloat`` as
+    2,563,579,586,000,000,000 USD in its 2020 10-K -- $2.56 quintillion, off by
+    about a factor of a billion from its real float. The number fits DECIMAL(38,10)
+    with room to spare, but quantising it to ten decimal places needs 29
+    significant digits and Decimal's default context carries 28, so the write
+    raised ``InvalidOperation`` and took the whole run down.
+    """
+
+    REAL_BAD_FLOAT = "2563579586000000000"
+
+    def test_the_filers_value_is_stored_exactly_as_filed(self, warehouse: Warehouse) -> None:
+        """Stored, not rejected. The record is of what was filed, not what is plausible."""
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value=self.REAL_BAD_FLOAT,
+                    filed_at=date(2021, 2, 18),
+                    accn="0001558370-21-001513",
+                    concept="EntityPublicFloat",
+                    unit="USD",
+                    period_start=None,
+                    period_end=date(2020, 6, 30),
+                    cik=927003,
+                )
+            ]
+        )
+        stored = warehouse.execute(
+            "SELECT value FROM facts WHERE cik = 927003 AND concept = 'EntityPublicFloat'"
+        ).fetchone()
+        assert stored is not None
+        assert Decimal(stored[0]) == Decimal(self.REAL_BAD_FLOAT)
+
+    def test_a_value_too_large_for_the_column_is_refused_with_a_clear_reason(
+        self, warehouse: Warehouse
+    ) -> None:
+        """The genuinely-unstorable case, distinguished from the one above."""
+        too_big = "1" + "0" * 28  # 10^28, the first value outside DECIMAL(38,10)
+        with pytest.raises(IntegrityViolation, match="too large for DECIMAL"):
+            warehouse.write_facts(
+                [
+                    make_fact(
+                        value=too_big,
+                        filed_at=date(2021, 2, 18),
+                        accn="0001558370-21-001513",
+                        concept="Assets",
+                        unit="USD",
+                        period_start=None,
+                        period_end=date(2020, 6, 30),
+                    )
+                ]
+            )
+
+    def test_the_largest_representable_value_is_accepted(self, warehouse: Warehouse) -> None:
+        """Boundary control: one below the bound must go in, or the check is too tight."""
+        largest = "9" * 28
+        assert (
+            warehouse.write_facts(
+                [
+                    make_fact(
+                        value=largest,
+                        filed_at=date(2021, 2, 18),
+                        accn="0001558370-21-001513",
+                        concept="Assets",
+                        unit="USD",
+                        period_start=None,
+                        period_end=date(2020, 6, 30),
+                    )
+                ]
+            )
+            == 1
+        )
+
+    def test_excess_decimal_places_are_still_refused(self, warehouse: Warehouse) -> None:
+        """The wider context must not have quietly relaxed the precision guarantee."""
+        with pytest.raises(IntegrityViolation, match="more than 10 decimal places"):
+            warehouse.write_facts(
+                [
+                    make_fact(
+                        value="1.00000000001",
+                        filed_at=date(2021, 2, 18),
+                        accn="0001558370-21-001513",
+                        concept="Assets",
+                        unit="USD",
+                        period_start=None,
+                        period_end=date(2020, 6, 30),
+                    )
+                ]
+            )

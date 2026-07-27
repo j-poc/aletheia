@@ -23,7 +23,7 @@ import json
 import re
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Context, Decimal
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Final, Self
@@ -46,6 +46,22 @@ MIGRATIONS_DIR: Final = Path(__file__).parent / "migrations"
 _MIGRATION_RE: Final = re.compile(r"^(\d{3})_(\w+)\.sql$")
 VALUE_SCALE: Final = 10
 """Decimal places stored for `facts.value`. Exceeding it is an error, not a round."""
+VALUE_PRECISION: Final = 38
+"""Total significant digits in the stored DECIMAL, so 28 digits ahead of the point."""
+
+_VALUE_CONTEXT: Final = Context(prec=VALUE_PRECISION + 2)
+"""Decimal's default context carries 28 digits, which is *fewer* than the column
+holds. Quantising a large value to 10 decimal places under it raises
+``InvalidOperation`` -- and filers do report such values. Advanced Energy
+Industries (CIK 927003) tagged ``EntityPublicFloat`` as 2,563,579,586,000,000,000
+USD in its 2020 10-K, off by a factor of a billion. That is 19 integer digits;
+with 10 decimal places it needs 29, and the ingest died on it after 350
+companies. The value fits DECIMAL(38,10) perfectly well; only the arithmetic
+context was too small."""
+
+_MAX_ABS_VALUE: Final = Decimal(10) ** (VALUE_PRECISION - VALUE_SCALE)
+"""Exclusive bound. Beyond this the column genuinely cannot hold the number, which
+is a different problem from the one above and gets its own message."""
 
 _FACT_COLUMNS: Final = (
     "fact_key",
@@ -713,8 +729,26 @@ def _dedupe[T](items: Iterable[T], *, key: Any) -> list[T]:
 
 
 def _scaled(value: Decimal, fact: Fact) -> Decimal:
-    """Fit ``value`` to the stored scale, refusing to lose precision silently."""
-    quantized = value.quantize(Decimal(1).scaleb(-VALUE_SCALE))
+    """Fit ``value`` to the stored scale, refusing to lose precision silently.
+
+    An implausible number is still stored. This layer records what was filed; a
+    filer that reports a public float a billion times too large has said that, and
+    the faithful record is the one that says it too, with the accession number
+    attached. Judging plausibility is a separate concern and belongs somewhere it
+    can be seen, not in a silent write-time filter.
+    """
+    if not value.is_finite():
+        raise IntegrityViolation(
+            f"{fact.concept} for CIK {int(fact.cik)} period ending {fact.period_end} "
+            f"is {value}, which is not a number that can be stored or reasoned about"
+        )
+    if abs(value) >= _MAX_ABS_VALUE:
+        raise IntegrityViolation(
+            f"{fact.concept} for CIK {int(fact.cik)} period ending {fact.period_end} "
+            f"is {value}, too large for DECIMAL({VALUE_PRECISION},{VALUE_SCALE}); "
+            f"storing it would truncate the reported number"
+        )
+    quantized = value.quantize(Decimal(1).scaleb(-VALUE_SCALE), context=_VALUE_CONTEXT)
     if quantized != value:
         raise IntegrityViolation(
             f"{fact.concept} for CIK {int(fact.cik)} period ending {fact.period_end} "
@@ -724,4 +758,4 @@ def _scaled(value: Decimal, fact: Fact) -> Decimal:
     return quantized
 
 
-__all__ = ["VALUE_SCALE", "Warehouse"]
+__all__ = ["VALUE_PRECISION", "VALUE_SCALE", "Warehouse"]
