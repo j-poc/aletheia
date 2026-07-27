@@ -504,20 +504,23 @@ class PitView:
             )
             params.append(Decimal(str(min_relative_change)))
 
+        # `v_fact_revisions`, not a window written out again here. This method
+        # used to build its own LAG over `v_facts_pit` while the view of the same
+        # name carried a second, stale definition ordered by `filed_at` -- two
+        # answers to "which report came first" in one schema, differing exactly
+        # on late-disseminated filings. Migration 006 rebuilt the view on
+        # `v_facts_pit`; reading it is what keeps there being one answer.
         rows = self._warehouse.execute(
             f"""
             SELECT cik, concept, unit, period_end, prior_value, prior_knowledge_date,
                    value, knowledge_date, accn, form
-              FROM (
-                SELECT *,
-                       LAG(value)          OVER w AS prior_value,
-                       LAG(knowledge_date) OVER w AS prior_knowledge_date
-                  FROM v_facts_pit
-                WINDOW w AS (
-                    PARTITION BY cik, taxonomy, concept, unit, period_start, period_end
-                    ORDER BY knowledge_date, accn
-                )
-              )
+              FROM v_fact_revisions
+             -- `<>`, not `IS DISTINCT FROM` -- the reverse of the choice made one
+             -- layer down in migration 005. There a NULL was a missing *value*;
+             -- here `prior_value IS NULL` is the first-report sentinel, so
+             -- `IS DISTINCT FROM` would call every first report a revision if the
+             -- `prior_value IS NOT NULL` guard above ever moved. `<>` yields NULL
+             -- and drops the row, which is the behaviour that fails safe.
              WHERE {" AND ".join(conditions)} AND value <> prior_value
              ORDER BY knowledge_date DESC, cik, concept
             """,  # noqa: S608 - conditions are literals, every value is bound

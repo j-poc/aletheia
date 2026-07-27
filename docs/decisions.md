@@ -506,3 +506,53 @@ net income and both balance-sheet dates moved — one vintage, both cases.
 **Also fixed here:** `features/vintage._replace_dates` rebuilt `PitFact` field by
 field, so a new field silently vanished from any fact passing through it rather
 than raising. It now uses `dataclasses.replace`.
+
+## D15 — Publication order is defined once, and every view inherits it
+
+`v_fact_revisions` (migration 001) predates `v_facts_pit` (004) and predates the
+filed-vs-disseminated distinction (002). It built its own window straight off
+`facts` with `ORDER BY filed_at, accn`, so the schema held two independent
+answers to "which report came first" — and therefore to "which value did this
+revision revise". The two disagree on exactly one input: a filing that became
+public later than it was filed.
+
+Nothing in production read it. `PitView.revisions()` had reimplemented the same
+LAG inline over `v_facts_pit`, correctly, and the stale view was held alive by a
+single test. That is the worst version of this defect, not the mildest: the
+correct definition was maintained a few files away while the wrong one sat in
+the schema looking authoritative, waiting for the next reader.
+
+**Migration 006 rebuilds the view on `v_facts_pit`** rather than re-fixing its
+window, and `revisions()` now reads the view instead of duplicating it. Ordering,
+dissemination lag, `report_seq`, `differs_from_first_report` and
+`period_distinct_values` are all inherited. The divergence becomes structurally
+impossible rather than currently-absent — the same move D14 made one layer up,
+applied to the layer that defines the order D14 depends on.
+
+**Measured, both sides.** Of the 3,168 filings captured from the dissemination
+feed, 122 became public later than they were filed — one draft registration
+statement by 331 days. None of them carry XBRL facts yet, so the two orderings
+agree on every row here today: both produce 394,320 revisions across 13.4m facts,
+and `EXCEPT` in both directions returns zero. This refactor changes no number on
+this warehouse. It changes what happens to the first late-disseminated filing
+that revises a period, which forward capture makes a matter of time.
+
+**The fixture is constructed, and says so.** No reordered chain exists in the
+record yet, so the test builds the case that has not happened: a filing filed in
+January and disseminated in June, beaten into the public record by a March
+filing. Under the old ordering every assertion in it inverts. The filer is a
+synthetic CIK — inventing a dissemination date for a real accession number would
+read as a claim about a filing that was never late.
+
+**Two `NULL` conventions, deliberately opposite.** Migration 005 uses
+`IS DISTINCT FROM` because there a null is a missing *value* and `<>` would yield
+a null boolean read as "not restated". `revisions()` keeps `<>` because there
+`prior_value IS NULL` is the *first-report sentinel*: `IS DISTINCT FROM` would
+call every first report a revision if the `prior_value IS NOT NULL` guard above
+it ever moved, while `<>` yields null and drops the row. Same operator choice,
+reversed, because the null means the opposite thing.
+
+**Also fixed here:** `test_shipped_migrations_are_byte_frozen` pinned migrations
+1–4 and stayed green when 005 shipped unpinned — it only guarded what somebody
+remembered to list. It now asserts the pinned set *equals* the set on disk, so an
+unpinned migration fails the suite instead of passing it.

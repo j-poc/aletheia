@@ -17,8 +17,19 @@ import pytest
 
 from aletheia.core.errors import IntegrityViolation, MigrationError
 from aletheia.core.hashing import sha256_bytes
+from aletheia.core.types import Accession, Cik
+from aletheia.pit import as_of
 from aletheia.store.db import Warehouse, _discover_migrations
-from tests._factories import FY2008_END, first_report, make_fact, make_filing, restatement
+from aletheia.store.records import DisseminatedFiling
+from tests._factories import (
+    FY2008_END,
+    RETRIEVED_AT,
+    RUN_ID,
+    first_report,
+    make_fact,
+    make_filing,
+    restatement,
+)
 
 FIRST_REPORT = first_report()
 RESTATEMENT = restatement()
@@ -88,7 +99,18 @@ class TestMigrations:
             2: "655ed8004b83affc2baaba96719d5e551d4f87f88314d73709473f951e9ceff2",
             3: "1858eaec15eb265eb7af1fc719a61b19694dd1f5ca4a612d3bedf1df492f99ea",
             4: "ce47cd88dc52afcc874832135eab61ed676cf820ec24378c0099f29ac816dacb",
+            5: "e081c20dd28bbad075f84ccdd9874f2638ed593f71e87c0636d5f84336e679d5",
+            6: "3f8640aa6b7e014627fcf402a8ba2ae935fa8eb8f152cc3c0092f12ec7e34347",
         }
+        # Every migration on disk must be pinned, not merely the ones somebody
+        # remembered to add. 005 shipped unpinned and this list stayed green,
+        # which is precisely the hole the test was written to close -- the check
+        # below only guards migrations that appear above it.
+        on_disk_versions = {version for version, _name, _path in _discover_migrations()}
+        assert on_disk_versions == frozen.keys(), (
+            f"unpinned migration(s): {sorted(on_disk_versions - frozen.keys())}. "
+            f"A migration that ships is immutable; add its checksum here."
+        )
         on_disk = {
             version: sha256_bytes(path.read_text(encoding="utf-8").encode("utf-8"))
             for version, _name, path in _discover_migrations()
@@ -178,6 +200,162 @@ class TestRevisionView:
         new_value, old_value = row
         change = (new_value - old_value) / old_value
         assert round(change, 4) == Decimal("0.2649")
+
+
+class TestTheRevisionViewOrdersByWhenAFilingBecamePublic:
+    """Which report came first is decided once, in ``v_facts_pit``.
+
+    Migration 001 wrote this view's window straight off ``facts`` with
+    ``ORDER BY filed_at, accn``, before the filed-vs-disseminated distinction
+    existed. That is a second, independent answer to the question ``report_seq``
+    already answers, and the two differ on exactly one input: a filing that
+    became public later than it was filed. 122 of the 3,168 filings captured
+    from the dissemination feed are that shape -- one draft registration
+    statement by 331 days.
+
+    No such chain exists in the warehouse today: a query over all 13.4m facts
+    returns zero rows where the two orderings disagree, because dissemination
+    dates only arrive with forward capture and none of those filings carry XBRL
+    facts yet. So this fixture is constructed rather than drawn from the record,
+    and it is constructed to be the case that has not happened yet -- the first
+    late-disseminated filing to revise a period, which would have been ordered
+    wrongly here while looking perfectly correct one view over.
+
+    The filer is deliberately a synthetic CIK. Inventing a dissemination date for
+    a real accession number would make this look like a claim about a filing that
+    was never late.
+    """
+
+    CIK = 1234567
+    EARLIER_FILED_LATER_PUBLIC = "0001213900-26-000101"
+    LATER_FILED_SOONER_PUBLIC = "0001213900-26-000202"
+
+    @pytest.fixture
+    def reordered(self, warehouse: Warehouse) -> Warehouse:
+        """Filed January, public in June -- and beaten to the public record.
+
+        The March filing is disseminated on time, so a reader's first sight of
+        this period is 6.78. The January filing surfaces months later carrying
+        5.36, which makes it the revision despite being written first.
+        """
+        warehouse.record_dissemination(
+            [
+                DisseminatedFiling(
+                    accn=Accession(self.EARLIER_FILED_LATER_PUBLIC),
+                    cik=Cik(self.CIK),
+                    form="10-K",
+                    filed_at=date(2026, 1, 12),
+                    disseminated_at=date(2026, 6, 30),
+                    source_uri="https://www.sec.gov/Archives/edgar/data/1234567/a.txt",
+                    retrieved_at=RETRIEVED_AT,
+                    content_sha256="",
+                    ingest_run_id=RUN_ID,
+                ),
+                DisseminatedFiling(
+                    accn=Accession(self.LATER_FILED_SOONER_PUBLIC),
+                    cik=Cik(self.CIK),
+                    form="10-K/A",
+                    filed_at=date(2026, 3, 10),
+                    disseminated_at=date(2026, 3, 10),
+                    source_uri="https://www.sec.gov/Archives/edgar/data/1234567/b.txt",
+                    retrieved_at=RETRIEVED_AT,
+                    content_sha256="",
+                    ingest_run_id=RUN_ID,
+                ),
+            ]
+        )
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value="5.36",
+                    filed_at=date(2026, 1, 12),
+                    accn=self.EARLIER_FILED_LATER_PUBLIC,
+                    cik=self.CIK,
+                ),
+                make_fact(
+                    value="6.78",
+                    filed_at=date(2026, 3, 10),
+                    accn=self.LATER_FILED_SOONER_PUBLIC,
+                    cik=self.CIK,
+                    form="10-K/A",
+                ),
+            ]
+        )
+        return warehouse
+
+    def _chain(self, warehouse: Warehouse) -> list[tuple[object, ...]]:
+        return warehouse.execute(
+            """
+            SELECT report_seq, value, prior_value, prior_knowledge_date, knowledge_date
+              FROM v_fact_revisions
+             WHERE cik = ?
+             ORDER BY report_seq
+            """,
+            [self.CIK],
+        ).fetchall()
+
+    def test_the_first_report_is_the_first_one_anybody_could_read(
+        self, reordered: Warehouse
+    ) -> None:
+        """Ordered by ``filed_at`` this row is 5.36 with no prior. It is neither."""
+        first = self._chain(reordered)[0]
+        assert first[0] == 1
+        assert first[1] == Decimal("6.7800000000")
+        assert first[2] is None, "the first publicly readable report revises nothing"
+        assert first[4] == date(2026, 3, 10)
+
+    def test_the_earlier_filing_is_the_revision(self, reordered: Warehouse) -> None:
+        """Filed first, public second -- so it revises, and 6.78 is what it revised."""
+        second = self._chain(reordered)[1]
+        assert second[0] == 2
+        assert second[1] == Decimal("5.3600000000")
+        assert second[2] == Decimal("6.7800000000")
+        assert second[3] == date(2026, 3, 10)
+        assert second[4] == date(2026, 6, 30), "knowledge date is dissemination, not filing"
+
+    def test_the_view_and_report_seq_cannot_disagree(self, reordered: Warehouse) -> None:
+        """The structural point, asserted rather than assumed.
+
+        ``v_fact_revisions`` is built on ``v_facts_pit``, so its row order is
+        that view's ``report_seq`` by construction. Two hand-written windows
+        would only be equal until someone corrected one of them.
+        """
+        disagreements = reordered.execute(
+            """
+            SELECT count(*)
+              FROM v_fact_revisions AS r
+              JOIN v_facts_pit AS p USING (cik, taxonomy, concept, unit,
+                                           period_start, period_end, accn)
+             WHERE r.report_seq IS DISTINCT FROM p.report_seq
+            """
+        ).fetchone()
+        assert disagreements is not None
+        assert disagreements[0] == 0
+
+    def test_the_pit_layer_reports_the_revision_the_same_way(self, reordered: Warehouse) -> None:
+        """``PitView.revisions()`` reads this view now, so it inherits the order.
+
+        Standing on 2026-07-01, after both filings are public.
+        """
+        revisions = as_of(reordered, date(2026, 7, 1)).revisions(Cik(self.CIK))
+        assert len(revisions) == 1
+        assert revisions[0].prior_value == Decimal("6.7800000000")
+        assert revisions[0].new_value == Decimal("5.3600000000")
+        assert revisions[0].new_accn == Accession(self.EARLIER_FILED_LATER_PUBLIC)
+
+    def test_a_revision_nobody_could_see_yet_is_not_reported(self, reordered: Warehouse) -> None:
+        """The control on the test above.
+
+        On 2026-04-01 the January filing exists on disk and has an earlier
+        ``filed_at`` than anything else here, but is not yet public. Point-in-time
+        filtering still happens in the query layer, so it must be absent -- and
+        the period must read 6.78, the only value a reader could have held.
+        """
+        view = as_of(reordered, date(2026, 4, 1))
+        assert view.revisions(Cik(self.CIK)) == []
+        assert view.fact(
+            Cik(self.CIK), "EarningsPerShareDiluted", period_end=FY2008_END
+        ).value == Decimal("6.7800000000")
 
 
 class TestProvenance:
