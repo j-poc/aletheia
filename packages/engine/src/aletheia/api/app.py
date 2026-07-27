@@ -289,6 +289,16 @@ def asof(
         # landed -- which after a year is nearly all of them -- and claimed a
         # restatement on figures that never moved.
         "already_restated_by_then": known.value != first.value,
+        # A period is not restated once and then finished. 17,296 of the
+        # warehouse's 357,101 revised periods carry three or more distinct
+        # values, so "the value had already been revised by this date" leaves
+        # open *which* revision the reader is looking at. Without this field the
+        # page said the left column showed the current figure whenever anything
+        # had moved: Morgan Stanley's Q3 2011 noninterest expense went
+        # 6.214bn -> 6.154bn -> 6.125bn -> 6.115bn, and at 2012-06-01 the card
+        # displayed 6.154bn beside 6.115bn under a sentence claiming they were
+        # the same number.
+        "known_is_current": known.value == restated.value,
     }
 
 

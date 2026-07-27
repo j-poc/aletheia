@@ -358,3 +358,54 @@ denominator was being encoded as a value that compares equal to "nothing
 happened". D10 was `period_start=None` meaning both "no filter" and "instant";
 D11 was `relative_drift=None` standing in for "the value did not change"; this is
 the same null standing in for "the change was small".
+
+## D13 — "Already restated" does not say *which* restatement you are looking at
+
+**Taken:** 2026-07-27. **Reversal cost:** low — one API field, one caption, one paragraph tail.
+
+`already_restated_by_then` (`known.value != first.value`, D11) answers whether
+the figure a reader held on the knowledge date had moved off its original. The
+as-of card then used it to claim something stronger: that the left column showed
+the figure standing today. Those coincide only when a period was revised once.
+
+Measured on the 800-filer warehouse: **17,296** of **357,101** revised periods —
+**4.8%** — carry three or more distinct values. On those, between two revisions,
+the left column shows a figure that is neither the original nor the current one,
+under a sentence saying it matched the right column. Observed live before the
+fix, Morgan Stanley noninterest expense for Q3 2011 asked at 2012-06-01:
+
+```
+first reported   6214000000   2011-11-07
+as known         6154000000   2012-02-27      <- left column
+as it stands     6115000000   2013-02-26      <- right column
+copy rendered: "the restatement was already public — so the left column shows it too"
+```
+
+Three different numbers on screen and a claim that two of them were the same.
+
+The card now branches three ways — original / intermediate / current — on a new
+`known_is_current` field.
+
+**Why the field compares values and not accession numbers.** The discriminating
+case is a re-presentation *after* the last revision: a later filing repeats the
+current figure under a new accession, so the accessions differ while the numbers
+agree. Compared by accession the card would tell a reader looking at $1.444bn,
+beside a column also showing $1.444bn, that they held an intermediate figure —
+and since 90.6% of refilings carry the value forward unchanged (D11), that is the
+common case, not the corner. This is D11's error a second time and it is pinned
+by a test that fails under the accession-based implementation: an earlier version
+of that test passed under both and was not evidence of anything.
+
+The fixture is Apple's other current assets at 2009-09-26 — $6.884bn, cut to
+$3.140bn by the same 10-K/A of 2010-01-25 that moved FY2008 diluted EPS from 5.36
+to 6.78, then cut again to $1.444bn on 2010-07-21, with the FY2010 10-K repeating
+$1.444bn unchanged. One real chain covering all three states plus the
+re-presentation.
+
+**Also closed here:** `Revision.relative_change` raises rather than returning a
+ratio when the base is zero, and D12 made those rows reachable through the
+*filtered* path for the first time. The API guards and the web table renders an
+em dash; the CLI catches the exception and prints `from 0`, but nothing tested
+it, so a later tidy-up could have deleted the `except` and taken
+`aletheia revisions` down on any zero-base ticker. `tests/unit/test_cli.py` now
+covers that path — the first test of the CLI's rendering layer, which had none.

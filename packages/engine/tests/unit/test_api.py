@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from datetime import date
+from typing import ClassVar
 
 import pytest
 from fastapi.testclient import TestClient
@@ -714,3 +715,153 @@ class TestAZeroFirstReportStillAnswersTheQuestion:
         assert after["relative_drift"] is None
         assert after["value_changed"] is True
         assert after["already_restated_by_then"] is True
+
+
+class TestAPeriodRevisedMoreThanOnce:
+    """A period is not restated once and then finished.
+
+    17,296 of the warehouse's 357,101 revised periods -- 4.8% -- carry three or
+    more distinct values. On those, "the value had already been revised by this
+    date" does not say *which* revision the reader is looking at, and the card
+    answered as though there were only ever two: the original, or the current
+    one. Between two revisions it showed a third number and called it the
+    current one.
+
+    The fixture is real, and it is the same restatement the README opens with.
+    Apple's other current assets at 2009-09-26 were first reported as $6.884bn
+    in the FY2009 10-K, cut to $3.140bn by the 10-K/A of 2010-01-25 -- the same
+    amended filing that moved FY2008 diluted EPS from 5.36 to 6.78 -- and cut
+    again to $1.444bn in the 10-Q filed 2010-07-21. Six filings, three distinct
+    values, and the last two repeat $1.444bn under different accessions.
+
+    That trailing repeat is why `known_is_current` compares values rather than
+    accession numbers. Asked on 2010-08-01 a reader holds $1.444bn and the
+    figure standing today is $1.444bn: the two columns agree, and the card must
+    not announce an intermediate figure. Accession-based the flag reads False
+    there, because a later document exists -- which is the D11 error committed a
+    second time, and 90.6% of refilings are exactly this shape.
+    """
+
+    AAPL_CIK = 320193
+    # An instant. No period_start: a balance-sheet item is measured at a moment.
+    PERIOD_END = date(2009, 9, 26)
+    CONCEPT = "OtherAssetsCurrent"
+    ORIGINAL = "6884000000"
+    INTERMEDIATE = "3140000000"
+    CURRENT = "1444000000"
+    # (value, accn, filed, form) in publication order, verbatim from the warehouse.
+    CHAIN: ClassVar[list[tuple[str, str, date, str]]] = [
+        (ORIGINAL, "0001193125-09-214859", date(2009, 10, 27), "10-K"),
+        (INTERMEDIATE, "0001193125-10-012085", date(2010, 1, 25), "10-Q"),
+        (INTERMEDIATE, "0001193125-10-012091", date(2010, 1, 25), "10-K/A"),
+        (INTERMEDIATE, "0001193125-10-088957", date(2010, 4, 21), "10-Q"),
+        (CURRENT, "0001193125-10-162840", date(2010, 7, 21), "10-Q"),
+        (CURRENT, "0001193125-10-238044", date(2010, 10, 27), "10-K"),
+    ]
+
+    @pytest.fixture
+    def assets(self, warehouse: Warehouse) -> Iterator[TestClient]:
+        """Its own warehouse, not the shared `client` one.
+
+        Two of these accessions are the module-level fixture's, and layering a
+        second set of filings on top of them would be writing the same primary
+        key twice to make a point about something else.
+        """
+        warehouse.write_entity(make_entity())
+        warehouse.write_identifiers([make_identifier()])
+        warehouse.write_filings(
+            [
+                make_filing(
+                    accn=accn,
+                    filed_at=filed,
+                    form=form,
+                    cik=self.AAPL_CIK,
+                    period_of_report=self.PERIOD_END,
+                )
+                for _, accn, filed, form in self.CHAIN
+            ]
+        )
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value=value,
+                    filed_at=filed,
+                    accn=accn,
+                    concept=self.CONCEPT,
+                    unit="USD",
+                    cik=self.AAPL_CIK,
+                    form=form,
+                    period_start=None,
+                    period_end=self.PERIOD_END,
+                )
+                for value, accn, filed, form in self.CHAIN
+            ]
+        )
+        api.app.dependency_overrides[api.get_warehouse] = lambda: warehouse
+        try:
+            yield TestClient(api.app)
+        finally:
+            api.app.dependency_overrides.clear()
+
+    def _ask(self, assets: TestClient, day: str) -> dict[str, object]:
+        response = assets.get(
+            "/api/asof/AAPL",
+            params={
+                "knowledge_date": day,
+                "concept": self.CONCEPT,
+                "period_end": self.PERIOD_END.isoformat(),
+                "period_start": "instant",
+            },
+        )
+        assert response.status_code == 200, response.text
+        return dict(response.json())
+
+    def _values(self, payload: dict[str, object]) -> tuple[str, str, str]:
+        def value(key: str) -> str:
+            fact: dict[str, object] = payload[key]  # type: ignore[assignment]
+            return str(fact["value"])
+
+        return value("as_first_reported"), value("as_known"), value("as_it_stands_today")
+
+    def test_before_any_revision_the_reader_holds_the_original(self, assets: TestClient) -> None:
+        payload = self._ask(assets, "2009-12-01")
+        assert self._values(payload) == (self.ORIGINAL, self.ORIGINAL, self.CURRENT)
+        assert payload["already_restated_by_then"] is False
+        assert payload["known_is_current"] is False
+
+    def test_between_two_revisions_the_reader_holds_neither_end_of_the_chain(
+        self, assets: TestClient
+    ) -> None:
+        """The state the card had no way to describe.
+
+        Three different numbers are on screen and the old copy said two of them
+        were the same one.
+        """
+        payload = self._ask(assets, "2010-04-01")
+        assert self._values(payload) == (self.ORIGINAL, self.INTERMEDIATE, self.CURRENT)
+        assert payload["already_restated_by_then"] is True
+        assert payload["known_is_current"] is False
+
+    def test_after_the_last_revision_the_reader_holds_the_current_figure(
+        self, assets: TestClient
+    ) -> None:
+        payload = self._ask(assets, "2010-08-01")
+        assert self._values(payload) == (self.ORIGINAL, self.CURRENT, self.CURRENT)
+        assert payload["already_restated_by_then"] is True
+        assert payload["known_is_current"] is True
+
+    def test_and_a_later_re_presentation_does_not_make_it_stale(self, assets: TestClient) -> None:
+        """The discriminator between comparing values and comparing accessions.
+
+        On 2010-08-01 the latest filing a reader had was the 10-Q of 2010-07-21,
+        and a 10-K published 2010-10-27 repeats its figure unchanged. The
+        accessions differ; the values do not. Compared by accession the card
+        would tell a reader looking at $1.444bn -- beside a column also showing
+        $1.444bn -- that they were holding an intermediate figure.
+        """
+        payload = self._ask(assets, "2010-08-01")
+        known: dict[str, object] = payload["as_known"]  # type: ignore[assignment]
+        current: dict[str, object] = payload["as_it_stands_today"]  # type: ignore[assignment]
+        assert known["accn"] != current["accn"], "a later filing exists"
+        assert known["value"] == current["value"], "and it changed nothing"
+        assert payload["known_is_current"] is True

@@ -105,10 +105,18 @@ export default async function Page({ searchParams }: Params) {
           <div className="grid gap-4 md:grid-cols-2">
             <ValueCard
               heading={`As known on ${data.knowledge_date}`}
+              // "The revised one" is a definite article the data does not
+              // always earn. A period can be revised more than once, and on
+              // 4.8% of revised periods it was -- so between two revisions this
+              // column shows a figure that is neither the original nor the one
+              // standing today, and calling it "the revised one" points at the
+              // wrong number.
               caption={
-                data.already_restated_by_then
-                  ? "The value had already been revised by this date, so this column shows the revised one. Move the date earlier to see what came before."
-                  : "The most recent figure filed by this date. What a practitioner actually had."
+                !data.already_restated_by_then
+                  ? "The most recent figure filed by this date. What a practitioner actually had."
+                  : data.known_is_current
+                    ? "The value had already been revised by this date, so this column shows the revised figure that still stands. Move the date earlier to see what came before."
+                    : "The value had been revised by this date and was revised again afterwards, so this column shows an intermediate figure — neither the original nor the one standing today."
               }
               fact={data.as_known}
               cik={data.cik}
@@ -155,12 +163,25 @@ export default async function Page({ searchParams }: Params) {
                   </>
                 )}
                 .{" "}
-                {data.already_restated_by_then
-                  ? "By the knowledge date above, the restatement was already public — so the left column shows it too. Move the date earlier to see what came before."
-                  : `A simulation dated ${data.knowledge_date} that used the restated figure would be reading ${monthsBetween(
-                      data.as_first_reported.knowledge_date,
-                      data.as_it_stands_today.knowledge_date,
-                    )} months into the future.`}
+                {!data.already_restated_by_then ? (
+                  `A simulation dated ${data.knowledge_date} that used the restated figure would be reading ${monthsBetween(
+                    data.as_first_reported.knowledge_date,
+                    data.as_it_stands_today.knowledge_date,
+                  )} months into the future.`
+                ) : data.known_is_current ? (
+                  "By the knowledge date above, the restatement was already public — so the left column shows it too. Move the date earlier to see what came before."
+                ) : (
+                  <>
+                    {/* Neither end of the chain. Saying "the left column shows it
+                        too" here put a sentence claiming two numbers matched
+                        directly above two numbers that visibly did not. */}
+                    By the knowledge date above the value had already moved once — but it
+                    moved again afterwards, so the left column shows{" "}
+                    <strong className="tabular">{data.as_known.value}</strong>, an
+                    intermediate figure that is neither the original nor the one standing
+                    today.
+                  </>
+                )}
               </p>
             ) : data.is_restated ? (
               <p className="text-sm leading-relaxed">

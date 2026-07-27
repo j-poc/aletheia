@@ -67,6 +67,11 @@ export type AsOf = {
   /** The value had already been revised by the knowledge date, so the left
    * column is showing a restated figure rather than the original. */
   already_restated_by_then: boolean;
+  /** The figure on the knowledge date is the one that still stands. False when a
+   * later revision followed it, which is not rare: 4.8% of revised periods carry
+   * three or more distinct values, and on those the left column can show an
+   * intermediate figure that is neither the original nor the current one. */
+  known_is_current: boolean;
 };
 
 export type Revision = {
