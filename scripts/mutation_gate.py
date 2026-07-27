@@ -29,8 +29,10 @@ Run: ``make mutants`` (or ``uv run python scripts/mutation_gate.py``).
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -134,10 +136,6 @@ MUTANTS: tuple[Mutant, ...] = (
 )
 
 
-class DirtyTree(RuntimeError):
-    """Raised when the harness would edit files that already carry changes."""
-
-
 def _tracked_and_dirty(paths: tuple[str, ...]) -> list[str]:
     """Which of ``paths`` git reports as modified."""
     result = subprocess.run(  # noqa: S603
@@ -176,24 +174,32 @@ def _run(tests: tuple[str, ...]) -> bool:
 
 
 def main() -> int:
-    targets = tuple({mutant.path for mutant in MUTANTS})
+    targets = tuple(sorted({mutant.path for mutant in MUTANTS}))
     for missing in (p for p in targets if not (ROOT / p).exists()):
         print(f"FAIL  target file does not exist: {missing}")
         return 1
 
-    # This harness edits tracked source files in place. If any of them already
-    # carry uncommitted changes, a crash between write and restore would destroy
-    # work that `git checkout` could otherwise recover -- so refuse rather than
-    # risk it. Restoration is from an in-memory copy and runs in `finally`, but
-    # "runs in finally" is not a guarantee against SIGKILL.
+    # This harness rewrites tracked source files in place, so every target is
+    # copied to disk first. In-memory restore in a `finally` handles the normal
+    # path, but "runs in finally" is no guarantee against SIGKILL, and this gate
+    # runs inside `make verify` -- which is exactly when the tree is expected to
+    # be dirty, because verifying is what you do *before* committing. An earlier
+    # version refused on a dirty tree for safety; that made the safety check
+    # block its own gate on the normal mid-work state, which is worse than the
+    # hazard it prevented. The backup is the real protection, and unlike
+    # `git checkout` it also covers a tree that was never committed.
+    backup_dir = Path(tempfile.mkdtemp(prefix="aletheia-mutants-"))
+    for path in targets:
+        copy = backup_dir / path.replace("/", "__")
+        copy.write_text((ROOT / path).read_text(encoding="utf-8"), encoding="utf-8")
+
     dirty = _tracked_and_dirty(targets)
     if dirty:
-        print("REFUSING TO RUN -- these files carry uncommitted changes:")
+        print("NOTE  these target files carry uncommitted changes:")
         for path in dirty:
-            print(f"    {path}")
-        print("\nCommit or stash them first. This harness rewrites them in place,")
-        print("and a crash mid-run would leave no way to recover the diff.")
-        return 2
+            print(f"          {path}")
+        print(f"      Originals copied to {backup_dir} for the duration of the run.")
+        print()
 
     survivors: list[Mutant] = []
     for mutant in MUTANTS:
@@ -223,7 +229,25 @@ def main() -> int:
             f"   restored -> {'PASSED' if healed else 'FAILED (harness broken)'}"
         )
 
+    # Restoration is asserted, not assumed. Every target must match the copy
+    # taken before the first mutation; if one does not, the backup directory is
+    # kept and named rather than cleaned up, because it is now the only surviving
+    # copy of that file.
     print()
+    unrestored = [
+        path
+        for path in targets
+        if (ROOT / path).read_text(encoding="utf-8")
+        != (backup_dir / path.replace("/", "__")).read_text(encoding="utf-8")
+    ]
+    if unrestored:
+        print("FAIL  these files did not come back byte-identical:")
+        for path in unrestored:
+            print(f"          {path}")
+        print(f"      Originals are in {backup_dir} -- restore them from there.")
+        return 1
+    shutil.rmtree(backup_dir, ignore_errors=True)
+
     if survivors:
         print(f"{len(survivors)} of {len(MUTANTS)} mutant(s) survived:")
         for mutant in survivors:

@@ -200,8 +200,9 @@ A green suite says the tests pass; it does not say they would have failed. Those
 are different claims and only the second is evidence. `make mutants` measures the
 second one directly, and its own failure paths are checked too: a mutant nothing
 catches is reported as survived, an anchor that no longer matches the source is
-reported rather than silently skipped, and the harness refuses to run at all if a
-file it rewrites already carries uncommitted changes.
+reported rather than silently skipped, and every file it rewrites is copied to a
+temporary directory first and asserted byte-identical afterward — if a restore
+does not match, the run fails and names the directory holding the original.
 
 That determinism gate immediately earned itself: the backtest kernel sorted on
 signal value alone, and Python's sort is stable, so tied values inherited whatever
