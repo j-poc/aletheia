@@ -39,6 +39,8 @@ from typing import Any
 
 import httpx
 
+from aletheia.core.config import load_settings
+
 FRAME_URL = "https://data.sec.gov/api/xbrl/frames/us-gaap/Assets/USD/CY2011Q4I.json"
 DEFAULT_FLOOR_USD = 500_000_000
 DEFAULT_SEED = 20111231
@@ -53,12 +55,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=Path("data/universe_2011.json"))
     parser.add_argument(
         "--user-agent",
-        default="ALETHEIA research j-poc@users.noreply.github.com",
-        help="SEC requires a contact address in the User-Agent.",
+        default=None,
+        help=(
+            "Contact address for the SEC User-Agent. Defaults to "
+            "ALETHEIA_SEC_USER_AGENT. The SEC asks automated clients to identify "
+            "themselves and throttles those that do not."
+        ),
     )
     args = parser.parse_args(argv)
+    user_agent = args.user_agent or load_settings().sec_user_agent
 
-    with httpx.Client(timeout=120, headers={"User-Agent": args.user_agent}) as client:
+    with httpx.Client(timeout=120, headers={"User-Agent": user_agent}) as client:
         response = client.get(FRAME_URL)
         response.raise_for_status()
         frame: dict[str, Any] = response.json()
