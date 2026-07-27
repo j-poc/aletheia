@@ -317,7 +317,13 @@ def _run_one_period(
             n_ranked=len(tradable),
         )
 
-    tradable.sort(key=lambda pair: pair[0].value)
+    # Ties break on the symbol, not on input order. Python's sort is stable, so
+    # sorting on the value alone would let two firms with identical accruals land
+    # on either side of a quantile boundary depending on the order the caller
+    # happened to build the panel in -- and a panel built by iterating a set is
+    # ordered differently in every process. Adding the symbol makes the sort a
+    # total order, so the result depends on the data and nothing else.
+    tradable.sort(key=lambda pair: (pair[0].value, pair[0].symbol))
     bucket = len(tradable) // n_quantiles
     low = tradable[:bucket]
     high = tradable[-bucket:]

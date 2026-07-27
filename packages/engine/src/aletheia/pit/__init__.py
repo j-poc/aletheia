@@ -6,9 +6,18 @@
 packages and fails if anything downstream reaches the warehouse directly.
 """
 
-from aletheia.pit.view import PitFact, PitFiling, PitPrice, PitView, Revision, as_of
+from aletheia.pit.view import (
+    PitEntity,
+    PitFact,
+    PitFiling,
+    PitPrice,
+    PitView,
+    Revision,
+    as_of,
+)
 
 __all__ = [
+    "PitEntity",
     "PitFact",
     "PitFiling",
     "PitPrice",

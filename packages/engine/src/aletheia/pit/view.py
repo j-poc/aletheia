@@ -110,6 +110,44 @@ class PitPrice:
 
 
 @dataclass(frozen=True, slots=True)
+class PitEntity:
+    """Registrant metadata as recorded at ingest."""
+
+    cik: Cik
+    name: str
+    sic: str | None
+    sic_description: str | None
+    fiscal_year_end: str | None
+    """'MMDD' as EDGAR reports it."""
+
+    @property
+    def sic_major_group(self) -> int | None:
+        """The first two digits, which is what sector screens are written against."""
+        if self.sic is None or not self.sic.isdigit():
+            return None
+        return int(self.sic[:2])
+
+    @property
+    def is_financial(self) -> bool:
+        """SIC 6000-6799. Accruals are not comparable for these filers.
+
+        A bank's balance sheet is its business, so the accrual construct -- earnings
+        not yet backed by operating cash -- does not mean for a bank what it means
+        for a manufacturer. The accruals literature excludes them for this reason,
+        not to improve the result.
+        """
+        group = self.sic_major_group
+        return group is not None and 60 <= group <= 67
+
+    @property
+    def is_utility(self) -> bool:
+        """SIC 4900-4949. Rate-regulated, so accruals reflect the regulator."""
+        if self.sic is None or not self.sic.isdigit():
+            return False
+        return 4900 <= int(self.sic) <= 4949
+
+
+@dataclass(frozen=True, slots=True)
 class Revision:
     """A published value being replaced by a different one."""
 
@@ -425,6 +463,42 @@ class PitView:
         for filing in filings:
             self._assert_knowable(filing.knowledge_date, f"filing {filing.accn}")
         return filings
+
+    # ------------------------------------------------------------- entities --
+
+    def entity(self, cik: Cik | int) -> PitEntity:
+        """Registrant metadata: name, and the SIC code a sector screen needs."""
+        row = self._warehouse.execute(
+            "SELECT cik, name, sic, sic_description, fiscal_year_end FROM entities WHERE cik = ?",
+            [int(cik)],
+        ).fetchone()
+        if row is None:
+            raise InsufficientData(f"no entity record for CIK {int(cik)}")
+        return PitEntity(
+            cik=Cik(int(row[0])),
+            name=str(row[1]),
+            sic=str(row[2]) if row[2] else None,
+            sic_description=str(row[3]) if row[3] else None,
+            fiscal_year_end=str(row[4]) if row[4] else None,
+        )
+
+    def tickers(self, cik: Cik | int) -> list[str]:
+        """Ticker symbols observed for this registrant, alphabetically.
+
+        **Not point-in-time.** The SEC publishes only a current ticker-to-CIK
+        snapshot, so this is the map as observed at ingest, not as it stood on
+        ``as_of``. A company that changed ticker resolves to its current one.
+
+        This is a real limitation and any study using it must say so. It is
+        tolerable in a comparison across data vintages, because the same map is
+        applied to every arm and therefore cancels in the difference -- but it
+        would not be tolerable in a claim about the level of a return.
+        """
+        rows = self._warehouse.execute(
+            "SELECT DISTINCT ticker FROM entity_identifiers WHERE cik = ? ORDER BY ticker",
+            [int(cik)],
+        ).fetchall()
+        return [str(row[0]) for row in rows]
 
     # ---------------------------------------------------------------- macro --
 
