@@ -346,3 +346,49 @@ class TestAPeriodEndDoesNotIdentifyAPeriod:
         view = as_of(year_and_quarter, date(2016, 1, 1))
         with pytest.raises(AmbiguousPeriod):
             view.unsafe_latest_restated(AAPL, "NetIncomeLoss", period_end=self.SHARED_END)
+
+    def test_omitting_the_period_end_asks_for_the_latest_and_is_not_ambiguous(
+        self, loaded: Warehouse
+    ) -> None:
+        """Not naming a period is not the same as naming an unclear one.
+
+        The guard was applied to the whole unfiltered result set, so any concept
+        with more than one period on file raised -- which is every real company.
+        Apple's net income has 49 periods in the live warehouse and asking for it
+        without an end date returned ``AmbiguousPeriod: matches 49 reporting
+        periods``, a false ambiguity: 49 years are 49 different questions, not 49
+        candidate answers to one.
+
+        This reached the public API. ``GET /api/asof/{ticker}`` declares
+        ``period_end`` optional and its own default therefore returned HTTP 500 --
+        on the single endpoint the system exists to demonstrate. Every test called
+        ``fact()`` with an explicit end date, so nothing caught it.
+        """
+        fact = as_of(loaded, AFTER_RESTATEMENT).fact(AAPL, "EarningsPerShareDiluted")
+        assert fact.period_end == FY2008_END
+
+    def test_the_latest_period_is_still_checked_for_ambiguity(
+        self, year_and_quarter: Warehouse
+    ) -> None:
+        """The narrowing must not disable the guard for the period it answers.
+
+        Control for the test above: if the newest end date is itself shared by a
+        fiscal year and its fourth quarter, picking one silently is the original
+        bug. Omitting ``period_end`` must still refuse here.
+        """
+        view = as_of(year_and_quarter, date(2016, 1, 1))
+        with pytest.raises(AmbiguousPeriod, match="matches 2 reporting periods"):
+            view.fact(AAPL, "NetIncomeLoss")
+
+    def test_the_error_labels_each_span_by_its_own_dates(self, year_and_quarter: Warehouse) -> None:
+        """The message branched on the shared end date, not each candidate's start.
+
+        Both candidates were reported as "instant" -- so the one error that exists
+        to tell a caller which two periods collided named neither of them.
+        """
+        view = as_of(year_and_quarter, date(2016, 1, 1))
+        with pytest.raises(AmbiguousPeriod) as caught:
+            view.fact(AAPL, "NetIncomeLoss")
+        assert "instant" not in str(caught.value)
+        assert "2014-09-28..2015-09-26 (363d)" in str(caught.value)
+        assert "2015-06-28..2015-09-26 (90d)" in str(caught.value)

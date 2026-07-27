@@ -225,9 +225,23 @@ class PitView:
     ) -> PitFact:
         """Latest report of one period that was public on or before ``as_of``.
 
-        Raises :class:`AmbiguousPeriod` when ``period_end`` matches more than one
-        reporting period and ``period_start`` was not given -- see the note on
+        With ``period_end`` given, this answers about that period, and raises
+        :class:`AmbiguousPeriod` when the end date matches more than one reporting
+        period and ``period_start`` was not given -- see the note on
         :meth:`first_reported`.
+
+        With ``period_end`` omitted, the question is "the latest value of this
+        concept", which names no period at all, so there is nothing to be
+        ambiguous about across periods: the most recent one is the answer.
+        The ambiguity check still applies *within* that period -- if the newest
+        end date is shared by a fiscal year and its fourth quarter, picking one
+        silently would be the same bug -- so it is applied to the rows sharing the
+        answered end date rather than to the whole history.
+
+        Checking the unfiltered set instead is what made this raise for every
+        company with more than one period on file, which is every real company:
+        49 years of Apple net income are 49 different questions, not 49
+        candidate answers to one.
         """
         facts = self.facts(
             cik,
@@ -237,13 +251,21 @@ class PitView:
             taxonomy=taxonomy,
             unit=unit,
         )
-        _assert_one_period(facts, concept=concept, cik=cik, period_end=period_end)
         if not facts:
             raise InsufficientData(
                 f"{concept} for CIK {int(cik)}"
                 f"{f' period ending {period_end}' if period_end else ''} "
                 f"had not been published as of {self.as_of}"
             )
+        # `facts` is ordered period_end DESC, so facts[0] is the period being
+        # answered whether or not the caller named one.
+        answered_end = facts[0].period_end
+        _assert_one_period(
+            [fact for fact in facts if fact.period_end == answered_end],
+            concept=concept,
+            cik=cik,
+            period_end=answered_end,
+        )
         return facts[0]
 
     def facts(
@@ -686,7 +708,7 @@ def _to_fact(row: Sequence[Any]) -> PitFact:
 
 
 def _assert_one_period(
-    facts: Sequence[PitFact], *, concept: str, cik: Cik | int, period_end: date | None
+    facts: Sequence[PitFact], *, concept: str, cik: Cik | int, period_end: date
 ) -> None:
     """Refuse to answer when the request named more than one reporting period.
 
@@ -694,14 +716,19 @@ def _assert_one_period(
     different days are a year and a quarter, not a value and its restatement.
     Restatements are already collapsed by ``report_seq`` and by the recency
     window, so anything left here is a genuine ambiguity in the question.
+
+    Every caller passes the single end date being answered about, so ``facts``
+    must already be narrowed to that date -- passing a set spanning several
+    periods reports an ambiguity that does not exist.
     """
     starts = {fact.period_start for fact in facts}
     if len(starts) <= 1:
         return
     spans = ", ".join(
-        f"{start.isoformat() if start else 'instant'}..{period_end} ({(period_end - start).days}d)"
-        if start and period_end
-        else "instant"
+        # The branch is on each candidate's own start date. Testing the shared
+        # `period_end` instead labelled every candidate "instant" regardless of
+        # its actual dates.
+        f"{start.isoformat()}..{period_end} ({(period_end - start).days}d)" if start else "instant"
         for start in sorted(starts, key=lambda value: (value is None, value))
     )
     raise AmbiguousPeriod(

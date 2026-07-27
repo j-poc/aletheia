@@ -27,7 +27,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from aletheia.core.config import load_settings
-from aletheia.core.errors import InsufficientData
+from aletheia.core.errors import AmbiguousPeriod, InsufficientData
 from aletheia.core.formatting import plain
 from aletheia.core.types import Cik
 from aletheia.pit import PitFiling, PitView, as_of
@@ -175,6 +175,13 @@ def asof(
     Both figures are returned together because the gap between them is the point.
     The restated value is fetched through ``unsafe_latest_restated``, which is
     named that way so its use is visible here as it is everywhere else.
+
+    Omitting ``period_end`` asks for the latest period. That can legitimately fail
+    with **400**: Apple's latest EPS as of 2020-06-01 is reported for both a
+    181-day half-year and a 90-day quarter ending 2020-03-28, and those are
+    different numbers. The response names both spans so the caller can re-ask with
+    ``period_start``. Returning one of them instead would be the silent guess this
+    system exists to prevent -- a 400 here is the guarantee working, not a fault.
     """
     cik, name = _resolve(warehouse, ticker)
     view = _view(warehouse, knowledge_date)
@@ -191,6 +198,12 @@ def asof(
         first = view.first_reported(cik, concept, period_end=known.period_end)
     except InsufficientData as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AmbiguousPeriod as exc:
+        # A real ambiguity is a question this endpoint cannot answer, not a fault:
+        # the caller named an end date shared by a fiscal year and its fourth
+        # quarter. 400 with the candidates lets them re-ask; letting it escape as
+        # a 500 says the server broke, which it did not.
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     restated = full.unsafe_latest_restated(cik, concept, period_end=known.period_end)
     # Drift is measured from the FIRST report, not from whatever was current on the
