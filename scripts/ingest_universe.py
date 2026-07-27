@@ -33,9 +33,13 @@ def main(argv: list[str] | None = None) -> int:
 
     with Application.build() as app:
         if not args.force:
+            # "Done" means facts landed, not merely that an entity row exists.
+            # ingest_company writes the entity before the facts, so a company that
+            # died mid-write leaves an entity behind and would otherwise be skipped
+            # forever -- silently missing from the universe with nothing to show it.
             known = {
                 int(row[0])
-                for row in app.warehouse.execute("SELECT DISTINCT cik FROM entities").fetchall()
+                for row in app.warehouse.execute("SELECT DISTINCT cik FROM facts").fetchall()
             }
             skipped = sum(1 for cik in ciks if int(cik) in known)
             ciks = [cik for cik in ciks if int(cik) not in known]

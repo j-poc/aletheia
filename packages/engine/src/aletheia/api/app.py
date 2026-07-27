@@ -1,0 +1,364 @@
+"""HTTP surface over the point-in-time warehouse.
+
+The API exists so the guarantee can be *seen* rather than read about. Its
+centrepiece is ``/api/asof``, which answers the same question at two dates and
+returns two different numbers -- the whole product in one request.
+
+**Read-only by construction.** The warehouse is opened read-only, so no route can
+mutate stored data even by accident. Ingest is a command-line operation with a
+human behind it, not something a web request can trigger.
+
+**The lookahead guarantee is not relaxed at the boundary.** Routes go through
+:mod:`aletheia.pit` exactly as research code does. A request for a knowledge date
+returns what was knowable then, and a route that wants today's restated figure has
+to ask for it by the name that says so.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from contextlib import asynccontextmanager
+from datetime import date
+from decimal import Decimal
+from typing import Any
+
+from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+
+from aletheia.core.config import load_settings
+from aletheia.core.errors import InsufficientData
+from aletheia.core.types import Cik
+from aletheia.pit import PitView, as_of
+from aletheia.store.db import Warehouse
+from aletheia.surveillance.forensics import assess, rank
+
+DEFAULT_CONCEPT = "EarningsPerShareDiluted"
+
+
+class _State:
+    """Holds the single read-only warehouse handle for the process.
+
+    DuckDB permits one writer; readers are cheap. The handle is opened once at
+    startup rather than per request so a page load does not pay to reopen a
+    multi-gigabyte file.
+    """
+
+    warehouse: Warehouse | None = None
+
+
+state = _State()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> Any:
+    settings = load_settings()
+    state.warehouse = Warehouse.open(settings.warehouse_path, read_only=True, migrate=False)
+    try:
+        yield
+    finally:
+        if state.warehouse is not None:
+            state.warehouse.close()
+            state.warehouse = None
+
+
+def get_warehouse() -> Iterator[Warehouse]:
+    if state.warehouse is None:
+        raise HTTPException(status_code=503, detail="warehouse is not open")
+    yield state.warehouse
+
+
+app = FastAPI(
+    title="ALETHEIA",
+    summary="Point-in-time evidence engine for systematic equity research.",
+    lifespan=lifespan,
+)
+app.add_middleware(
+    CORSMiddleware,
+    # The dev frontend only. Widening this is a deployment decision, not a default.
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
+
+# ------------------------------------------------------------------ helpers --
+
+
+def _resolve(warehouse: Warehouse, ticker: str) -> tuple[Cik, str]:
+    row = warehouse.execute(
+        """
+        SELECT i.cik, e.name
+          FROM entity_identifiers i JOIN entities e ON e.cik = i.cik
+         WHERE upper(i.ticker) = upper(?)
+         ORDER BY i.observed_at DESC LIMIT 1
+        """,
+        [ticker],
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"no registrant maps to ticker {ticker!r}")
+    return Cik(int(row[0])), str(row[1])
+
+
+def _number(value: Decimal) -> str:
+    """Money crosses the wire as a string.
+
+    JSON numbers are IEEE doubles in every browser, so a Decimal serialised as a
+    number stops being exact the moment it is parsed. The string keeps what was
+    filed.
+
+    Trailing zeros from the stored scale are stripped -- 5.3600000000 reads as an
+    absurd claim of precision on an EPS figure -- but never at the cost of the
+    value. ``normalize()`` alone would turn 100 into ``1E+2``, so a positive
+    exponent is quantised back to an integer.
+    """
+    normalized = value.normalize()
+    _, _, exponent = normalized.as_tuple()
+    if isinstance(exponent, int) and exponent > 0:
+        normalized = normalized.quantize(Decimal(1))
+    return format(normalized, "f")
+
+
+def _data_vintage(warehouse: Warehouse) -> date:
+    row = warehouse.execute("SELECT max(filed_at) FROM filings").fetchone()
+    if row is None or row[0] is None:
+        raise HTTPException(status_code=503, detail="warehouse holds no filings")
+    return date.fromisoformat(str(row[0]))
+
+
+def _view(warehouse: Warehouse, knowledge_date: date | None) -> PitView:
+    return as_of(warehouse, knowledge_date or _data_vintage(warehouse))
+
+
+# ------------------------------------------------------------------- routes --
+
+
+@app.get("/api/health")
+def health(warehouse: Warehouse = Depends(get_warehouse)) -> dict[str, Any]:
+    return {"status": "ok", "data_vintage": _data_vintage(warehouse).isoformat()}
+
+
+@app.get("/api/search")
+def search(
+    q: str = Query(min_length=1, max_length=32),
+    limit: int = Query(default=15, ge=1, le=50),
+    warehouse: Warehouse = Depends(get_warehouse),
+) -> dict[str, Any]:
+    """Ticker or company-name lookup, for the picker."""
+    rows = warehouse.execute(
+        """
+        SELECT DISTINCT i.ticker, e.name, e.cik, e.sic_description
+          FROM entity_identifiers i JOIN entities e ON e.cik = i.cik
+         WHERE upper(i.ticker) LIKE upper(?) OR upper(e.name) LIKE upper(?)
+         ORDER BY length(i.ticker), i.ticker
+         LIMIT ?
+        """,
+        [f"{q}%", f"%{q}%", limit],
+    ).fetchall()
+    return {
+        "results": [
+            {
+                "ticker": row[0],
+                "name": row[1],
+                "cik": int(row[2]),
+                "industry": row[3],
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.get("/api/asof/{ticker}")
+def asof(
+    ticker: str,
+    knowledge_date: date = Query(description="see the world as it was on this date"),
+    concept: str = Query(default=DEFAULT_CONCEPT),
+    period_end: date | None = Query(default=None),
+    warehouse: Warehouse = Depends(get_warehouse),
+) -> dict[str, Any]:
+    """What was knowable, and what a vendor panel would have told you instead.
+
+    Both figures are returned together because the gap between them is the point.
+    The restated value is fetched through ``unsafe_latest_restated``, which is
+    named that way so its use is visible here as it is everywhere else.
+    """
+    cik, name = _resolve(warehouse, ticker)
+    view = _view(warehouse, knowledge_date)
+    full = as_of(warehouse, _data_vintage(warehouse))
+
+    try:
+        known = (
+            view.first_reported(cik, concept, period_end=period_end)
+            if period_end
+            else view.fact(cik, concept)
+        )
+    except InsufficientData as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    restated = full.unsafe_latest_restated(cik, concept, period_end=known.period_end)
+    drift = None
+    if known.value != 0:
+        drift = float((restated.value - known.value) / abs(known.value))
+
+    return {
+        "ticker": ticker.upper(),
+        "company": name,
+        "cik": int(cik),
+        "concept": concept,
+        "knowledge_date": knowledge_date.isoformat(),
+        "as_known": _fact(known),
+        "as_it_stands_today": _fact(restated),
+        "relative_drift": drift,
+        "is_restated": restated.accn.value != known.accn.value,
+    }
+
+
+@app.get("/api/revisions/{ticker}")
+def revisions(
+    ticker: str,
+    concept: str | None = Query(default=None),
+    min_change: float = Query(default=0.05, ge=0.0),
+    limit: int = Query(default=50, ge=1, le=500),
+    warehouse: Warehouse = Depends(get_warehouse),
+) -> dict[str, Any]:
+    """Values that changed after publication."""
+    cik, name = _resolve(warehouse, ticker)
+    view = _view(warehouse, None)
+    found = view.revisions(cik, concept=concept, min_relative_change=min_change)
+    return {
+        "ticker": ticker.upper(),
+        "company": name,
+        "n_revisions": len(found),
+        "revisions": [
+            {
+                "concept": revision.concept,
+                "unit": revision.unit,
+                "period_end": revision.period_end.isoformat(),
+                "prior_value": _number(revision.prior_value),
+                "new_value": _number(revision.new_value),
+                "prior_knowledge_date": revision.prior_knowledge_date.isoformat(),
+                "new_knowledge_date": revision.new_knowledge_date.isoformat(),
+                "days_to_revision": revision.days_to_revision,
+                "relative_change": float(revision.relative_change)
+                if revision.prior_value != 0
+                else None,
+                "new_accn": revision.new_accn.value,
+                "new_form": revision.new_form,
+            }
+            for revision in found[:limit]
+        ],
+    }
+
+
+@app.get("/api/feed")
+def feed(
+    day: date | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    warehouse: Warehouse = Depends(get_warehouse),
+) -> dict[str, Any]:
+    """Filings disseminated on a date, ranked by forensic concern.
+
+    An empty result is a legitimate answer -- weekends and holidays exist -- and is
+    returned as an empty list with the date echoed, not as an error.
+    """
+    target = day or _data_vintage(warehouse)
+    # A view bounded at `target` combined with `since=target` isolates exactly the
+    # filings that became knowable that day: the view caps the upper end and
+    # `since` the lower.
+    view = as_of(warehouse, target)
+    filings = view.filings(since=target)
+
+    assessments = []
+    for filing in filings:
+        history = [
+            past
+            for past in view.filings(cik=filing.cik)
+            if past.knowledge_date < filing.knowledge_date
+        ]
+        assessments.append(assess(filing, filer_history=history))
+
+    ranked = rank(assessments)
+    return {
+        "date": target.isoformat(),
+        "n_filings": len(filings),
+        "n_flagged": len(ranked),
+        "items": [
+            {
+                "accn": item.accn,
+                "cik": item.cik,
+                "form": item.form,
+                "knowledge_date": item.knowledge_date.isoformat(),
+                "score": item.score,
+                "confidence": item.confidence.name,
+                "confidence_meaning": item.confidence.value,
+                "findings": [
+                    {"flag": finding.flag.name, "evidence": finding.evidence}
+                    for finding in item.findings
+                ],
+            }
+            for item in ranked[:limit]
+        ],
+    }
+
+
+@app.get("/api/quality")
+def quality(warehouse: Warehouse = Depends(get_warehouse)) -> dict[str, Any]:
+    """Coverage and lineage. What is actually in here, and where it came from."""
+    counts = {}
+    for table in (
+        "entities",
+        "entity_identifiers",
+        "filings",
+        "facts",
+        "prices",
+        "macro_observations",
+        "delistings",
+        "ingest_runs",
+        "raw_payloads",
+    ):
+        row = warehouse.execute(f"SELECT count(*) FROM {table}").fetchone()  # noqa: S608
+        counts[table] = int(row[0]) if row else 0
+
+    revised = warehouse.execute(
+        """
+        SELECT count(*) FROM (
+            SELECT cik, concept, unit, period_end
+              FROM facts GROUP BY ALL HAVING count(DISTINCT value) > 1
+        )
+        """
+    ).fetchone()
+    periods = warehouse.execute(
+        "SELECT count(*) FROM (SELECT cik, concept, unit, period_end FROM facts GROUP BY ALL)"
+    ).fetchone()
+
+    runs = warehouse.execute(
+        """
+        SELECT source, count(*), max(started_at)
+          FROM ingest_runs GROUP BY source ORDER BY source
+        """
+    ).fetchall()
+
+    return {
+        "data_vintage": _data_vintage(warehouse).isoformat(),
+        "row_counts": counts,
+        "revision_coverage": {
+            "distinct_periods": int(periods[0]) if periods else 0,
+            "periods_with_a_changed_value": int(revised[0]) if revised else 0,
+        },
+        "ingest_runs": [
+            {"source": row[0], "runs": int(row[1]), "last_started": str(row[2])} for row in runs
+        ],
+    }
+
+
+def _fact(fact: Any) -> dict[str, Any]:
+    return {
+        "value": _number(fact.value),
+        "unit": fact.unit,
+        "period_end": fact.period_end.isoformat(),
+        "filed_at": fact.filed_at.isoformat(),
+        "knowledge_date": fact.knowledge_date.isoformat(),
+        "accn": fact.accn.value,
+        "form": fact.form,
+        "report_seq": fact.report_seq,
+        "source_uri": fact.source_uri,
+    }

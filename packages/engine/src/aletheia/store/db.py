@@ -340,9 +340,19 @@ class Warehouse:
         return self._insert_arrow("facts", table, _FACT_COLUMNS)
 
     def write_filings(self, filings: Iterable[Filing]) -> int:
+        """Store filings and link each to the company it was filed under.
+
+        The link is not optional. ``v_company_filings_pit`` inner-joins
+        ``filing_filers``, so a filing written here without a link is invisible to
+        :meth:`PitView.filings` -- present in the table, absent from every query
+        that asks what a company published. Only the daily-index path used to
+        populate the relation, which meant an entire company history pulled from
+        the submissions endpoint returned nothing.
+        """
         rows = _dedupe(filings, key=lambda f: f.accn.value)
         if not rows:
             return 0
+        self._link_submissions(rows)
         return self._insert_rows(
             "filings",
             (
@@ -495,6 +505,62 @@ class Warehouse:
             ],
         )
         return self.count("filings") - before
+
+    def backfill_filing_filers(self) -> int:
+        """Link any filing that has no filer row, using its own ``filings.cik``.
+
+        Repairs warehouses written before :meth:`write_filings` linked filings on
+        the submissions path. Idempotent, so running it on a healthy warehouse
+        inserts nothing -- which is also how a caller can confirm the problem is
+        gone rather than assuming it.
+        """
+        before = self.count("filing_filers")
+        self._con.execute(
+            """
+            INSERT INTO filing_filers (accn, cik, is_primary, source_uri, retrieved_at,
+                                       ingest_run_id)
+            SELECT f.accn, f.cik, TRUE, f.source_uri, f.retrieved_at, f.ingest_run_id
+              FROM filings AS f
+             WHERE NOT EXISTS (
+                   SELECT 1 FROM filing_filers AS ff
+                    WHERE ff.accn = f.accn AND ff.cik = f.cik
+             )
+            ON CONFLICT DO NOTHING
+            """
+        )
+        return self.count("filing_filers") - before
+
+    def _link_submissions(self, filings: Sequence[Filing]) -> int:
+        """Link filings from a company's own submissions feed to that company.
+
+        The submissions endpoint is per-company, so the company is a filer on
+        everything it returns. Co-registrants on the same accession are added
+        separately by :meth:`_link_filers` when the dissemination feed shows them;
+        ``ON CONFLICT DO NOTHING`` keeps the two paths from fighting.
+        """
+        if not filings:
+            return 0
+        before = self.count("filing_filers")
+        self._con.executemany(
+            """
+            INSERT INTO filing_filers (accn, cik, is_primary, source_uri, retrieved_at,
+                                       ingest_run_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
+            """,
+            [
+                [
+                    filing.accn.value,
+                    int(filing.cik),
+                    filing.accn.value.startswith(filing.cik.padded),
+                    filing.source_uri,
+                    filing.retrieved_at,
+                    filing.ingest_run_id,
+                ]
+                for filing in filings
+            ],
+        )
+        return self.count("filing_filers") - before
 
     def _link_filers(self, entries: Sequence[DisseminatedFiling]) -> int:
         """Record every (filing, company) pair, not just the first company seen.

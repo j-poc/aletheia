@@ -23,6 +23,9 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.14",
     "types-requests",
+    # starlette.testclient switched to httpx2; with filterwarnings=error its
+    # deprecation shim fails at import, so the API tests need the real thing.
+    "httpx2",
 ]
 
 # ---------------------------------------------------------------- tooling ----
@@ -69,6 +72,9 @@ ignore = [
 "packages/engine/src/aletheia/cli/*" = ["T20"]   # the CLI exists to print
 "**/tests/*" = ["T20", "S101"]                   # assert is how tests assert
 "scripts/*" = ["T20"]
+# FastAPI reads dependencies and query metadata out of argument defaults; that is
+# the framework's declaration syntax, not an accidental mutable default.
+"packages/engine/src/aletheia/api/*" = ["B008"]
 "**/examples/*" = ["T20"]                       # examples exist to print
 
 [tool.mypy]

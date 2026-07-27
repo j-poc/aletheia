@@ -17,7 +17,7 @@ import pytest
 
 from aletheia.core.errors import IntegrityViolation, MigrationError
 from aletheia.store.db import Warehouse
-from tests._factories import FY2008_END, first_report, make_fact, restatement
+from tests._factories import FY2008_END, first_report, make_fact, make_filing, restatement
 
 FIRST_REPORT = first_report()
 RESTATEMENT = restatement()
@@ -278,3 +278,46 @@ class TestLargeValuesFromRealFilers:
                     )
                 ]
             )
+
+
+class TestFilingsAreVisibleToResearch:
+    """`v_company_filings_pit` inner-joins `filing_filers`.
+
+    A filing written without a filer row is present in the table and absent from
+    every query that asks what a company published -- which is what happened to
+    every filing pulled from the submissions endpoint until write_filings started
+    linking them.
+    """
+
+    def test_a_written_filing_is_reachable_through_the_pit_view(self, warehouse: Warehouse) -> None:
+        warehouse.write_filings(
+            [make_filing(accn="0000320193-09-214859", filed_at=date(2009, 10, 27))]
+        )
+        rows = warehouse.execute("SELECT accn FROM v_company_filings_pit").fetchall()
+        assert [row[0] for row in rows] == ["0000320193-09-214859"]
+
+    def test_the_filer_link_is_created_by_the_write(self, warehouse: Warehouse) -> None:
+        warehouse.write_filings(
+            [make_filing(accn="0000320193-09-214859", filed_at=date(2009, 10, 27))]
+        )
+        assert warehouse.count("filing_filers") == 1
+
+    def test_backfill_repairs_an_unlinked_filing(self, warehouse: Warehouse) -> None:
+        warehouse.write_filings(
+            [make_filing(accn="0000320193-09-214859", filed_at=date(2009, 10, 27))]
+        )
+        warehouse.execute("DELETE FROM filing_filers")
+        assert warehouse.execute("SELECT count(*) FROM v_company_filings_pit").fetchone()[0] == 0
+
+        assert warehouse.backfill_filing_filers() == 1
+        assert warehouse.execute("SELECT count(*) FROM v_company_filings_pit").fetchone()[0] == 1
+
+    def test_backfill_is_idempotent(self, warehouse: Warehouse) -> None:
+        """Running it on a healthy warehouse must insert nothing.
+
+        That is how a caller confirms the defect is gone rather than assuming it.
+        """
+        warehouse.write_filings(
+            [make_filing(accn="0000320193-09-214859", filed_at=date(2009, 10, 27))]
+        )
+        assert warehouse.backfill_filing_filers() == 0
