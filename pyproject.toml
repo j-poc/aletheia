@@ -58,12 +58,18 @@ ignore = [
     # a reader needs; appending "Error" to a word that already means "a failure"
     # costs clarity for no gain.
     "N818",
+    # RUF002/RUF003 flag en dashes and similar in prose. This codebase uses them
+    # deliberately in documentation; they are not identifiers and cannot confuse a
+    # parser, only a linter.
+    "RUF002",
+    "RUF003",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "packages/engine/src/aletheia/cli/*" = ["T20"]   # the CLI exists to print
 "**/tests/*" = ["T20", "S101"]                   # assert is how tests assert
 "scripts/*" = ["T20"]
+"**/examples/*" = ["T20"]                       # examples exist to print
 
 [tool.mypy]
 python_version = "3.13"
