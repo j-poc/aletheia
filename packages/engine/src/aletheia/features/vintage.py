@@ -90,7 +90,11 @@ class Vintage:
             cik,
             concept,
             period_end=period_end,
-            period_start=first.period_start,
+            # `first.pin`, not `first.period_start`: the latter is None for a
+            # balance-sheet instant, and None means "do not filter", so this
+            # widened to every period sharing the end date and raised
+            # AmbiguousPeriod on exactly the queries it was meant to narrow.
+            period_start=first.pin,
             unit=first.unit,
         )
         # Only the *value* comes from the restatement; the publication date stays

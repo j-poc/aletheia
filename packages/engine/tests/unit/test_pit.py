@@ -16,7 +16,7 @@ import pytest
 
 from aletheia.core.errors import AmbiguousPeriod, InsufficientData
 from aletheia.core.types import Cik
-from aletheia.pit import as_of
+from aletheia.pit import INSTANT, as_of
 from aletheia.store.db import Warehouse
 from tests._factories import (
     FIRST_REPORT_FILED,
@@ -48,6 +48,24 @@ class TestTheCoreGuarantee:
         assert as_of(loaded, AFTER_RESTATEMENT).value(
             AAPL, "EarningsPerShareDiluted", period_end=FY2008_END
         ) == Decimal("6.78")
+
+    def test_the_default_path_picks_the_revision_as_well_as_the_period(
+        self, loaded: Warehouse
+    ) -> None:
+        """The acceptance test again, with no period named.
+
+        Omitting ``period_end`` makes two choices, not one: which period, and
+        which of that period's revisions. The tests above only ever prove the
+        second when the first is supplied explicitly, and until the guard was
+        narrowed this path raised unconditionally, so it has never been
+        exercised end to end. A run that returns the first report and a run that
+        returns the latest knowable one are indistinguishable on any period that
+        was never revised -- which is most of them.
+        """
+        early = as_of(loaded, AFTER_FIRST_REPORT).fact(AAPL, "EarningsPerShareDiluted")
+        assert (early.value, early.report_seq) == (Decimal("5.36"), 1)
+        late = as_of(loaded, AFTER_RESTATEMENT).fact(AAPL, "EarningsPerShareDiluted")
+        assert (late.value, late.report_seq) == (Decimal("6.78"), 2)
 
     def test_the_boundary_date_is_inclusive(self, loaded: Warehouse) -> None:
         """A filing is knowable on the day it is published, not the day after."""
@@ -259,6 +277,203 @@ def _load_prices(warehouse: Warehouse) -> None:
     )
 
 
+class TestPinningToAnInstant:
+    """A balance-sheet instant can collide with a duration, and it must be nameable.
+
+    ``period_start=None`` means "do not filter" in every query, which is what most
+    callers want. But an instant *has* no start date, so a caller holding one could
+    not pin to it: handing back its own ``period_start`` widened the query to every
+    period sharing the end date instead of narrowing it to the one meant. In a
+    warehouse of 13.4M facts, 590 (cik, taxonomy, concept, unit, period_end) groups
+    hold both an instant and a duration -- e.g. AAR Corp's
+    AntidilutiveSecuritiesExcludedFromComputationOfEarningsPerShareAmount ending
+    2023-05-31, one instant and two durations.
+
+    Two call sites intended to pin and silently did not, so both raised
+    AmbiguousPeriod on exactly the queries the pin existed to disambiguate.
+    :data:`INSTANT` is the third state that makes the intent expressible.
+    """
+
+    SHARED_END = date(2023, 5, 31)
+    QUARTER_START = date(2023, 3, 1)
+    INSTANT_VALUE = "1400000"
+    QUARTER_VALUE = "900000"
+    FILED = date(2023, 7, 18)
+
+    @pytest.fixture
+    def instant_and_duration(self, warehouse: Warehouse) -> Warehouse:
+        for start, value in (
+            (None, self.INSTANT_VALUE),
+            (self.QUARTER_START, self.QUARTER_VALUE),
+        ):
+            warehouse.write_facts(
+                [
+                    make_fact(
+                        value=value,
+                        filed_at=self.FILED,
+                        accn="0000001750-23-000041",
+                        concept="AntidilutiveSecurities",
+                        unit="shares",
+                        period_start=start,
+                        period_end=self.SHARED_END,
+                    )
+                ]
+            )
+        return warehouse
+
+    def test_an_instant_colliding_with_a_duration_is_ambiguous(
+        self, instant_and_duration: Warehouse
+    ) -> None:
+        view = as_of(instant_and_duration, date(2024, 1, 1))
+        with pytest.raises(AmbiguousPeriod) as caught:
+            view.first_reported(AAPL, "AntidilutiveSecurities", period_end=self.SHARED_END)
+        assert None in caught.value.candidates
+        assert "instant" in str(caught.value)
+
+    def test_none_cannot_pin_to_the_instant(self, instant_and_duration: Warehouse) -> None:
+        """The defect itself, kept as a test so the two meanings stay separated.
+
+        Passing the instant's own ``period_start`` back -- which is ``None`` -- is
+        the natural thing to write and is what both broken call sites wrote. It
+        does not narrow anything. If this ever stops raising, ``None`` has been
+        given a second meaning and every caller that omits the argument has
+        quietly started filtering to instants only.
+        """
+        view = as_of(instant_and_duration, date(2024, 1, 1))
+        with pytest.raises(AmbiguousPeriod):
+            view.first_reported(
+                AAPL, "AntidilutiveSecurities", period_end=self.SHARED_END, period_start=None
+            )
+
+    def test_the_sentinel_pins_to_the_instant(self, instant_and_duration: Warehouse) -> None:
+        view = as_of(instant_and_duration, date(2024, 1, 1))
+        fact = view.first_reported(
+            AAPL, "AntidilutiveSecurities", period_end=self.SHARED_END, period_start=INSTANT
+        )
+        assert fact.value == Decimal(self.INSTANT_VALUE)
+        assert fact.period_start is None
+
+    def test_the_duration_is_still_reachable_by_its_date(
+        self, instant_and_duration: Warehouse
+    ) -> None:
+        """Control: the sentinel must not become the only reachable branch."""
+        view = as_of(instant_and_duration, date(2024, 1, 1))
+        fact = view.first_reported(
+            AAPL,
+            "AntidilutiveSecurities",
+            period_end=self.SHARED_END,
+            period_start=self.QUARTER_START,
+        )
+        assert fact.value == Decimal(self.QUARTER_VALUE)
+
+    def test_a_facts_pin_round_trips_through_a_query(self, instant_and_duration: Warehouse) -> None:
+        """``fact.pin`` is what makes the fix usable: re-ask about the same period."""
+        view = as_of(instant_and_duration, date(2024, 1, 1))
+        for pinned in (INSTANT, self.QUARTER_START):
+            fact = view.first_reported(
+                AAPL, "AntidilutiveSecurities", period_end=self.SHARED_END, period_start=pinned
+            )
+            again = view.first_reported(
+                AAPL,
+                "AntidilutiveSecurities",
+                period_end=fact.period_end,
+                period_start=fact.pin,
+            )
+            assert again.value == fact.value
+            assert again.period_start == fact.period_start
+
+    def test_the_sentinel_and_no_filter_are_different_objects(self) -> None:
+        """Guards the one way this fix could be undone by a well-meaning cleanup."""
+        assert INSTANT is not None
+        assert bool(INSTANT) is True
+
+
+class TestALaterFilingCannotUnanswerAnEarlierQuestion:
+    """The restated-value read is unguarded by design, so it must be pinned.
+
+    ``unsafe_latest_restated`` deliberately ignores the knowledge date -- comparing
+    it against the first report is how the bias is measured. But that means it sees
+    filings made after the date being asked about, and a period that was
+    unambiguous then can have acquired a second period since.
+
+    Real case: AAR Corp (CIK 1750) ProfitLoss ending 2018-11-30 was a single
+    182-day period on 2018-12-19. The 2019-03-20 10-Q added a 90-day period with
+    the same end date. Asking about 2018-12-19 therefore raised AmbiguousPeriod --
+    a question answerable at the time made unanswerable by data from its future, in
+    the one component whose entire purpose is that the future cannot reach back.
+    """
+
+    SHARED_END = date(2018, 11, 30)
+    HALF_YEAR_START = date(2018, 6, 1)
+    QUARTER_START = date(2018, 9, 1)
+    KNOWN_ON = date(2018, 12, 19)
+    LATER_FILING = date(2019, 3, 20)
+
+    @pytest.fixture
+    def second_period_arrives_later(self, warehouse: Warehouse) -> Warehouse:
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value="22100000",
+                    filed_at=self.KNOWN_ON,
+                    accn="0001104659-18-073842",
+                    concept="ProfitLoss",
+                    unit="USD",
+                    period_start=self.HALF_YEAR_START,
+                    period_end=self.SHARED_END,
+                )
+            ]
+        )
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value="7000000",
+                    filed_at=self.LATER_FILING,
+                    accn="0001104659-19-016320",
+                    concept="ProfitLoss",
+                    unit="USD",
+                    period_start=self.QUARTER_START,
+                    period_end=self.SHARED_END,
+                )
+            ]
+        )
+        return warehouse
+
+    def test_the_question_was_answerable_when_it_was_asked(
+        self, second_period_arrives_later: Warehouse
+    ) -> None:
+        fact = as_of(second_period_arrives_later, self.KNOWN_ON).fact(
+            AAPL, "ProfitLoss", period_end=self.SHARED_END
+        )
+        assert fact.value == Decimal("22100000")
+        assert fact.period_start == self.HALF_YEAR_START
+
+    def test_the_unpinned_full_vintage_read_is_what_broke_it(
+        self, second_period_arrives_later: Warehouse
+    ) -> None:
+        """The defect, held in place: end date alone re-opens a settled question."""
+        full = as_of(second_period_arrives_later, date(2026, 1, 1))
+        with pytest.raises(AmbiguousPeriod):
+            full.unsafe_latest_restated(AAPL, "ProfitLoss", period_end=self.SHARED_END)
+
+    def test_pinning_to_the_answered_period_survives_the_later_filing(
+        self, second_period_arrives_later: Warehouse
+    ) -> None:
+        known = as_of(second_period_arrives_later, self.KNOWN_ON).fact(
+            AAPL, "ProfitLoss", period_end=self.SHARED_END
+        )
+        full = as_of(second_period_arrives_later, date(2026, 1, 1))
+        restated = full.unsafe_latest_restated(
+            AAPL,
+            "ProfitLoss",
+            period_end=known.period_end,
+            period_start=known.pin,
+            unit=known.unit,
+        )
+        assert restated.value == Decimal("22100000")
+        assert restated.period_start == self.HALF_YEAR_START
+
+
 class TestAPeriodEndDoesNotIdentifyAPeriod:
     """A fiscal year and its fourth quarter end on the same day.
 
@@ -385,10 +600,19 @@ class TestAPeriodEndDoesNotIdentifyAPeriod:
 
         Both candidates were reported as "instant" -- so the one error that exists
         to tell a caller which two periods collided named neither of them.
+
+        The assertion reads the parenthesised span list rather than the whole
+        message: the message also *mentions* "instant" now, to tell the caller how
+        to name a period that has no start date, and a whole-string check would
+        conflate that hint with a mislabelled candidate.
         """
         view = as_of(year_and_quarter, date(2016, 1, 1))
         with pytest.raises(AmbiguousPeriod) as caught:
             view.fact(AAPL, "NetIncomeLoss")
-        assert "instant" not in str(caught.value)
-        assert "2014-09-28..2015-09-26 (363d)" in str(caught.value)
-        assert "2015-06-28..2015-09-26 (90d)" in str(caught.value)
+        message = str(caught.value)
+        # Delimited by the surrounding text, not by the first bracket: each span
+        # carries its own "(363d)" parentheses inside the list.
+        spans = message.split("reporting periods (", 1)[1].split("); pass", 1)[0]
+        assert "instant" not in spans
+        assert "2014-09-28..2015-09-26 (363d)" in message
+        assert "2015-06-28..2015-09-26 (90d)" in message

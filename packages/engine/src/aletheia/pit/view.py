@@ -27,6 +27,7 @@ and 6.78 as of 2010-06-01, because the restatement was published in between.
 
 from __future__ import annotations
 
+import enum
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -38,6 +39,33 @@ from aletheia.core.types import Accession, Cik
 from aletheia.store.db import Warehouse
 
 DEFAULT_TAXONOMY: Final = "us-gaap"
+
+
+class _Instant(enum.Enum):
+    """Namespace for the :data:`INSTANT` sentinel. Never instantiated elsewhere."""
+
+    INSTANT = "instant"
+
+    def __str__(self) -> str:
+        return "instant"
+
+
+INSTANT: Final = _Instant.INSTANT
+"""Pin a query to a balance-sheet *instant*, as distinct from "do not filter".
+
+``period_start=None`` means "no filter on the start date" in every query below —
+it has to, because most callers do not name a period start at all. But a
+balance-sheet fact *has* no start date: cash on hand is measured at a moment, and
+its ``period_start`` is ``NULL``. So a caller holding such a fact cannot pin a
+follow-up query to it by handing its own ``period_start`` back; ``None`` widens
+the query to every period sharing that end date instead of narrowing it to one.
+
+The two meanings need three states, so this is the third. Prefer
+:attr:`PitFact.pin`, which picks the right one from a fact you already hold.
+"""
+
+type PeriodStart = date | _Instant | None
+"""A start date, :data:`INSTANT`, or ``None`` for "do not filter"."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +91,16 @@ class PitFact:
     @property
     def is_first_report(self) -> bool:
         return self.report_seq == 1
+
+    @property
+    def pin(self) -> date | _Instant:
+        """What to pass as ``period_start`` to pin a query to *this* period.
+
+        Handing ``self.period_start`` back does not work for a balance-sheet
+        fact: it is ``None``, which every query reads as "do not filter". See
+        :data:`INSTANT`.
+        """
+        return INSTANT if self.period_start is None else self.period_start
 
     @property
     def age_days_at(self) -> int:
@@ -219,7 +257,7 @@ class PitView:
         concept: str,
         *,
         period_end: date | None = None,
-        period_start: date | None = None,
+        period_start: PeriodStart = None,
         taxonomy: str = DEFAULT_TAXONOMY,
         unit: str | None = None,
     ) -> PitFact:
@@ -274,7 +312,7 @@ class PitView:
         concept: str,
         *,
         period_end: date | None = None,
-        period_start: date | None = None,
+        period_start: PeriodStart = None,
         taxonomy: str = DEFAULT_TAXONOMY,
         unit: str | None = None,
         limit: int | None = None,
@@ -290,9 +328,7 @@ class PitView:
         if period_end is not None:
             conditions.append("period_end = ?")
             params.append(period_end)
-        if period_start is not None:
-            conditions.append("period_start = ?")
-            params.append(period_start)
+        _pin_period_start(period_start, conditions, params)
         if unit is not None:
             conditions.append("unit = ?")
             params.append(unit)
@@ -320,7 +356,7 @@ class PitView:
         concept: str,
         *,
         period_end: date,
-        period_start: date | None = None,
+        period_start: PeriodStart = None,
         taxonomy: str = DEFAULT_TAXONOMY,
         unit: str | None = None,
     ) -> PitFact:
@@ -348,9 +384,7 @@ class PitView:
             "report_seq = 1",
         ]
         params: list[Any] = [int(cik), concept, taxonomy, period_end, self.as_of]
-        if period_start is not None:
-            conditions.append("period_start = ?")
-            params.append(period_start)
+        _pin_period_start(period_start, conditions, params)
         if unit is not None:
             conditions.append("unit = ?")
             params.append(unit)
@@ -373,7 +407,7 @@ class PitView:
         concept: str,
         *,
         period_end: date,
-        period_start: date | None = None,
+        period_start: PeriodStart = None,
         taxonomy: str = DEFAULT_TAXONOMY,
         unit: str | None = None,
     ) -> PitFact:
@@ -387,9 +421,7 @@ class PitView:
         """
         conditions = ["cik = ?", "concept = ?", "taxonomy = ?", "period_end = ?"]
         params: list[Any] = [int(cik), concept, taxonomy, period_end]
-        if period_start is not None:
-            conditions.append("period_start = ?")
-            params.append(period_start)
+        _pin_period_start(period_start, conditions, params)
         if unit is not None:
             conditions.append("unit = ?")
             params.append(unit)
@@ -707,6 +739,22 @@ def _to_fact(row: Sequence[Any]) -> PitFact:
     )
 
 
+def _pin_period_start(period_start: PeriodStart, conditions: list[str], params: list[Any]) -> None:
+    """Append the ``period_start`` predicate, if the caller asked for one.
+
+    Three states, appended in place so every query in this module narrows the
+    same way. ``None`` adds nothing; :data:`INSTANT` adds ``IS NULL``, which is
+    the one a bound parameter cannot express -- ``period_start = NULL`` is never
+    true in SQL, so passing ``None`` as a parameter would silently match nothing
+    rather than matching the instant.
+    """
+    if period_start is INSTANT:
+        conditions.append("period_start IS NULL")
+    elif period_start is not None:
+        conditions.append("period_start = ?")
+        params.append(period_start)
+
+
 def _assert_one_period(
     facts: Sequence[PitFact], *, concept: str, cik: Cik | int, period_end: date
 ) -> None:
@@ -733,7 +781,8 @@ def _assert_one_period(
     )
     raise AmbiguousPeriod(
         f"{concept} for CIK {int(cik)} ending {period_end} matches "
-        f"{len(starts)} reporting periods ({spans}); pass period_start to say which. "
+        f"{len(starts)} reporting periods ({spans}); pass period_start to say which "
+        f"(the literal 'instant' for one with no start date). "
         f"A fiscal year and its fourth quarter share an end date.",
         candidates=tuple(sorted(starts, key=lambda value: (value is None, value))),
     )

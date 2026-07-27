@@ -7,6 +7,8 @@ packages and fails if anything downstream reaches the warehouse directly.
 """
 
 from aletheia.pit.view import (
+    INSTANT,
+    PeriodStart,
     PitEntity,
     PitFact,
     PitFiling,
@@ -17,6 +19,8 @@ from aletheia.pit.view import (
 )
 
 __all__ = [
+    "INSTANT",
+    "PeriodStart",
     "PitEntity",
     "PitFact",
     "PitFiling",
