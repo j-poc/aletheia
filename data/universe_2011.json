@@ -1,0 +1,4017 @@
+{
+  "counts": {
+    "eligible_at_floor": 2998,
+    "filers_in_frame": 8166,
+    "selected": 800
+  },
+  "frame": "CY2011Q4I",
+  "members": [
+    {
+      "assets_usd": 1821612000,
+      "cik": 1750,
+      "name": "AAR CORP."
+    },
+    {
+      "assets_usd": 60277000000,
+      "cik": 1800,
+      "name": "ABBOTT LABORATORIES"
+    },
+    {
+      "assets_usd": 1914633000,
+      "cik": 4127,
+      "name": "Skyworks Solutions, Inc."
+    },
+    {
+      "assets_usd": 40120000000,
+      "cik": 4281,
+      "name": "Howmet Aerospace Inc."
+    },
+    {
+      "assets_usd": 553054000000,
+      "cik": 5272,
+      "name": "AMERICAN INTERNATIONAL GROUP, INC."
+    },
+    {
+      "assets_usd": 531632000,
+      "cik": 6176,
+      "name": "AMPCO PITTSBURGH CORP"
+    },
+    {
+      "assets_usd": 21924217000,
+      "cik": 7789,
+      "name": "Associated Banc-Corp"
+    },
+    {
+      "assets_usd": 7284600000,
+      "cik": 9389,
+      "name": "BALL Corp"
+    },
+    {
+      "assets_usd": 3931400000,
+      "cik": 9892,
+      "name": "BARD C R INC /NJ/"
+    },
+    {
+      "assets_usd": 1440365000,
+      "cik": 9984,
+      "name": "BARNES GROUP INC"
+    },
+    {
+      "assets_usd": 19073000000,
+      "cik": 10456,
+      "name": "Baxter International Inc."
+    },
+    {
+      "assets_usd": 4320400000,
+      "cik": 11199,
+      "name": "BEMIS CO INC"
+    },
+    {
+      "assets_usd": 18403873000,
+      "cik": 11544,
+      "name": "W. R. BERKLEY CORP"
+    },
+    {
+      "assets_usd": 3096803000,
+      "cik": 12208,
+      "name": "BIO-RAD LABORATORIES, INC."
+    },
+    {
+      "assets_usd": 854430000,
+      "cik": 12400,
+      "name": "BLACK HILLS POWER INC"
+    },
+    {
+      "assets_usd": 79986000000,
+      "cik": 12927,
+      "name": "BOEING CO"
+    },
+    {
+      "assets_usd": 6791350000,
+      "cik": 13372,
+      "name": "NSTAR ELECTRIC COMPANY"
+    },
+    {
+      "assets_usd": 1637091000,
+      "cik": 14195,
+      "name": "BRIGGS & STRATTON CORP"
+    },
+    {
+      "assets_usd": 68987000000,
+      "cik": 15511,
+      "name": "BNSF RAILWAY CO"
+    },
+    {
+      "assets_usd": 3086000000,
+      "cik": 16040,
+      "name": "CABOT CORP"
+    },
+    {
+      "assets_usd": 6665000000,
+      "cik": 16732,
+      "name": "CAMPBELL SOUP CO"
+    },
+    {
+      "assets_usd": 776265000,
+      "cik": 18808,
+      "name": "CENTRAL VERMONT PUBLIC SERVICE CORP"
+    },
+    {
+      "assets_usd": 17448319000,
+      "cik": 20520,
+      "name": "FRONTIER COMMUNICATIONS PARENT, INC."
+    },
+    {
+      "assets_usd": 1134933000,
+      "cik": 20740,
+      "name": "CLARCOR INC."
+    },
+    {
+      "assets_usd": 4290000000,
+      "cik": 21076,
+      "name": "CLOROX CO /DE/"
+    },
+    {
+      "assets_usd": 79974000000,
+      "cik": 21344,
+      "name": "COCA COLA CO"
+    },
+    {
+      "assets_usd": 818129000,
+      "cik": 21510,
+      "name": "COHERENT,\u00a0INC."
+    },
+    {
+      "assets_usd": 3506653000,
+      "cik": 22444,
+      "name": "COMMERCIAL METALS Co"
+    },
+    {
+      "assets_usd": 11098000000,
+      "cik": 23082,
+      "name": "COMPUTER SCIENCES CORP"
+    },
+    {
+      "assets_usd": 1079512000,
+      "cik": 24090,
+      "name": "CITIZENS, INC."
+    },
+    {
+      "assets_usd": 2509918000,
+      "cik": 24491,
+      "name": "COOPER TIRE & RUBBER CO"
+    },
+    {
+      "assets_usd": 818477000,
+      "cik": 25475,
+      "name": "CRAWFORD & COMPANY"
+    },
+    {
+      "assets_usd": 15396663000,
+      "cik": 25598,
+      "name": "OneMain Finance Corporation"
+    },
+    {
+      "assets_usd": 46630000000,
+      "cik": 27419,
+      "name": "TARGET CORP"
+    },
+    {
+      "assets_usd": 43499000000,
+      "cik": 27904,
+      "name": "DELTA AIR LINES, INC."
+    },
+    {
+      "assets_usd": 17493000000,
+      "cik": 28385,
+      "name": "DTE ELECTRIC CO"
+    },
+    {
+      "assets_usd": 8281700000,
+      "cik": 29669,
+      "name": "RR Donnelley & Sons Co"
+    },
+    {
+      "assets_usd": 20505400000,
+      "cik": 29989,
+      "name": "OMNICOM GROUP INC."
+    },
+    {
+      "assets_usd": 4622614000,
+      "cik": 30625,
+      "name": "FLOWSERVE CORP"
+    },
+    {
+      "assets_usd": 2396851000,
+      "cik": 31978,
+      "name": "EL PASO ELECTRIC CO /TX/"
+    },
+    {
+      "assets_usd": 2021835000,
+      "cik": 32689,
+      "name": "EMPIRE DISTRICT ELECTRIC CO"
+    },
+    {
+      "assets_usd": 3287763000,
+      "cik": 33619,
+      "name": "ESTERLINE TECHNOLOGIES CORP"
+    },
+    {
+      "assets_usd": 9786483000,
+      "cik": 37808,
+      "name": "FNB CORP/PA/"
+    },
+    {
+      "assets_usd": 7342013000,
+      "cik": 38074,
+      "name": "FOREST LABORATORIES INC"
+    },
+    {
+      "assets_usd": 829530000,
+      "cik": 38725,
+      "name": "FRANKLIN ELECTRIC CO., INC."
+    },
+    {
+      "assets_usd": 2307406000,
+      "cik": 39311,
+      "name": "INDEPENDENT BANK CORPORATION"
+    },
+    {
+      "assets_usd": 34883000000,
+      "cik": 40533,
+      "name": "GENERAL DYNAMICS CORPORATION"
+    },
+    {
+      "assets_usd": 10713700000,
+      "cik": 42542,
+      "name": "GOODRICH CORP"
+    },
+    {
+      "assets_usd": 874309000,
+      "cik": 42888,
+      "name": "GRACO INC."
+    },
+    {
+      "assets_usd": 4130774000,
+      "cik": 46080,
+      "name": "Hasbro, Inc."
+    },
+    {
+      "assets_usd": 13846391000,
+      "cik": 46195,
+      "name": "BANK OF HAWAII CORP"
+    },
+    {
+      "assets_usd": 1132499000,
+      "cik": 46619,
+      "name": "HEICO CORPORATION"
+    },
+    {
+      "assets_usd": 11961502000,
+      "cik": 46640,
+      "name": "HEINZ H J CO"
+    },
+    {
+      "assets_usd": 5257887000,
+      "cik": 46765,
+      "name": "HELMERICH & PAYNE, INC."
+    },
+    {
+      "assets_usd": 17667332000,
+      "cik": 47129,
+      "name": "HERTZ CORP"
+    },
+    {
+      "assets_usd": 1286516000,
+      "cik": 49600,
+      "name": "EastGroup Properties Inc"
+    },
+    {
+      "assets_usd": 1617619193,
+      "cik": 50493,
+      "name": "INGLES MARKETS, INC"
+    },
+    {
+      "assets_usd": 116433000000,
+      "cik": 51143,
+      "name": "INTERNATIONAL BUSINESS MACHINES CORPORATION"
+    },
+    {
+      "assets_usd": 3034000000,
+      "cik": 52795,
+      "name": "ANIXTER INTERNATIONAL INC"
+    },
+    {
+      "assets_usd": 1541700000,
+      "cik": 55135,
+      "name": "KELLY SERVICES, INC."
+    },
+    {
+      "assets_usd": 2644738000,
+      "cik": 55242,
+      "name": "KENNAMETAL INC."
+    },
+    {
+      "assets_usd": 590058000,
+      "cik": 55772,
+      "name": "KIMBALL INTERNATIONAL, INC."
+    },
+    {
+      "assets_usd": 19373000000,
+      "cik": 55785,
+      "name": "KIMBERLY-CLARK CORPORATION"
+    },
+    {
+      "assets_usd": 2960411000,
+      "cik": 56047,
+      "name": "KIRBY CORPORATION"
+    },
+    {
+      "assets_usd": 23476000000,
+      "cik": 56873,
+      "name": "The Kroger Co."
+    },
+    {
+      "assets_usd": 661587000,
+      "cik": 57131,
+      "name": "LA-Z-BOY INCORPORATED"
+    },
+    {
+      "assets_usd": 1466790000,
+      "cik": 57528,
+      "name": "SNYDER'S-LANCE, INC."
+    },
+    {
+      "assets_usd": 2838000000,
+      "cik": 59255,
+      "name": "VALHI, INC."
+    },
+    {
+      "assets_usd": 927768000,
+      "cik": 59440,
+      "name": "VECTOR GROUP LTD."
+    },
+    {
+      "assets_usd": 1976776000,
+      "cik": 59527,
+      "name": "LINCOLN ELECTRIC HOLDINGS,\u00a0INC."
+    },
+    {
+      "assets_usd": 1086176000,
+      "cik": 63296,
+      "name": "MATTHEWS INTERNATIONAL CORP"
+    },
+    {
+      "assets_usd": 64852000000,
+      "cik": 64803,
+      "name": "CVS HEALTH CORPORATION"
+    },
+    {
+      "assets_usd": 1805942000,
+      "cik": 65011,
+      "name": "Hawkeye Acquisition, Inc."
+    },
+    {
+      "assets_usd": 565516000000,
+      "cik": 65100,
+      "name": "MERRILL LYNCH & CO., INC."
+    },
+    {
+      "assets_usd": 820100000,
+      "cik": 66382,
+      "name": "HERMAN MILLER, INC."
+    },
+    {
+      "assets_usd": 511506877,
+      "cik": 67625,
+      "name": "MONMOUTH REAL ESTATE INVESTMENT CORPORATION"
+    },
+    {
+      "assets_usd": 2889970000,
+      "cik": 67887,
+      "name": "MOOG Inc."
+    },
+    {
+      "assets_usd": 4846200000,
+      "cik": 70793,
+      "name": "NBTY INC"
+    },
+    {
+      "assets_usd": 761242000,
+      "cik": 72162,
+      "name": "NL INDUSTRIES, INC."
+    },
+    {
+      "assets_usd": 1300825000,
+      "cik": 72331,
+      "name": "NORDSON CORPORATION"
+    },
+    {
+      "assets_usd": 8491000000,
+      "cik": 72333,
+      "name": "NORDSTROM, INC."
+    },
+    {
+      "assets_usd": 507562000,
+      "cik": 72573,
+      "name": "MOVADO GROUP, INC."
+    },
+    {
+      "assets_usd": 1611471000,
+      "cik": 72909,
+      "name": "NORTHERN STATES POWER CO /WI/"
+    },
+    {
+      "assets_usd": 8628000000,
+      "cik": 72911,
+      "name": "NORTEL NETWORKS CORP"
+    },
+    {
+      "assets_usd": 1313867000000,
+      "cik": 72971,
+      "name": "WELLS FARGO & COMPANY/MN"
+    },
+    {
+      "assets_usd": 3210438000,
+      "cik": 73088,
+      "name": "NorthWestern Corporation"
+    },
+    {
+      "assets_usd": 2400544000,
+      "cik": 73756,
+      "name": "OCEANEERING INTERNATIONAL INC"
+    },
+    {
+      "assets_usd": 6620900000,
+      "cik": 74145,
+      "name": "OKLAHOMA GAS & ELECTRIC CO"
+    },
+    {
+      "assets_usd": 2454800000,
+      "cik": 75677,
+      "name": "PACKAGING CORP OF AMERICA"
+    },
+    {
+      "assets_usd": 72882000000,
+      "cik": 77476,
+      "name": "PepsiCo, Inc."
+    },
+    {
+      "assets_usd": 544360000,
+      "cik": 77597,
+      "name": "SPARTECH CORP"
+    },
+    {
+      "assets_usd": 8147104000,
+      "cik": 78814,
+      "name": "PITNEY BOWES INC."
+    },
+    {
+      "assets_usd": 11268232000,
+      "cik": 81061,
+      "name": "PUBLIX SUPER MARKETS, INC."
+    },
+    {
+      "assets_usd": 677628000,
+      "cik": 84748,
+      "name": "ROGERS CORP"
+    },
+    {
+      "assets_usd": 6597845000,
+      "cik": 85408,
+      "name": "ROWAN COMPANIES PLC"
+    },
+    {
+      "assets_usd": 55201000000,
+      "cik": 87347,
+      "name": "SCHLUMBERGER LIMITED/NV"
+    },
+    {
+      "assets_usd": 9327812000,
+      "cik": 89089,
+      "name": "Service Corporation International"
+    },
+    {
+      "assets_usd": 5229252000,
+      "cik": 89800,
+      "name": "SHERWIN WILLIAMS CO"
+    },
+    {
+      "assets_usd": 2349000000,
+      "cik": 91142,
+      "name": "A. O. Smith Corporation"
+    },
+    {
+      "assets_usd": 7148200000,
+      "cik": 91388,
+      "name": "SMITHFIELD FOODS INC"
+    },
+    {
+      "assets_usd": 9235874000,
+      "cik": 91419,
+      "name": "The J. M. Smucker Company"
+    },
+    {
+      "assets_usd": 40315000000,
+      "cik": 92103,
+      "name": "SOUTHERN CALIFORNIA EDISON COMPANY"
+    },
+    {
+      "assets_usd": 174579000000,
+      "cik": 92230,
+      "name": "Truist Financial Corporation"
+    },
+    {
+      "assets_usd": 18068000000,
+      "cik": 92380,
+      "name": "SOUTHWEST AIRLINES CO."
+    },
+    {
+      "assets_usd": 550722000,
+      "cik": 93389,
+      "name": "STANDARD MOTOR PRODUCTS, INC."
+    },
+    {
+      "assets_usd": 901118000,
+      "cik": 94049,
+      "name": "STEPAN CO"
+    },
+    {
+      "assets_usd": 1156141000,
+      "cik": 94344,
+      "name": "STEWART INFORMATION SERVICES CORPORATION"
+    },
+    {
+      "assets_usd": 593231000,
+      "cik": 95552,
+      "name": "SUPERIOR INDUSTRIES INTERNATIONAL, INC."
+    },
+    {
+      "assets_usd": 9263189000,
+      "cik": 96223,
+      "name": "Jefferies Financial Group Inc."
+    },
+    {
+      "assets_usd": 6922000000,
+      "cik": 97142,
+      "name": "TENNESSEE GAS PIPELINE COMPANY, L.L.C."
+    },
+    {
+      "assets_usd": 2188639000,
+      "cik": 97210,
+      "name": "TERADYNE, INC."
+    },
+    {
+      "assets_usd": 857856000,
+      "cik": 98677,
+      "name": "TOOTSIE ROLL INDUSTRIES, INC."
+    },
+    {
+      "assets_usd": 6121000000,
+      "cik": 99780,
+      "name": "TRINITY INDUSTRIES INC"
+    },
+    {
+      "assets_usd": 3618924000,
+      "cik": 101199,
+      "name": "United Fire Group Inc"
+    },
+    {
+      "assets_usd": 49383000000,
+      "cik": 101830,
+      "name": "SPRINT CORP"
+    },
+    {
+      "assets_usd": 27429000000,
+      "cik": 104207,
+      "name": "WALGREEN CO"
+    },
+    {
+      "assets_usd": 1268148000,
+      "cik": 105016,
+      "name": "WATSCO, INC."
+    },
+    {
+      "assets_usd": 678830000,
+      "cik": 105076,
+      "name": "WAUSAU PAPER CORP."
+    },
+    {
+      "assets_usd": 1029004000,
+      "cik": 105418,
+      "name": "WEIS MARKETS,\u00a0INC"
+    },
+    {
+      "assets_usd": 7807000000,
+      "cik": 106040,
+      "name": "WESTERN DIGITAL CORP"
+    },
+    {
+      "assets_usd": 12634000000,
+      "cik": 106535,
+      "name": "WEYERHAEUSER COMPANY"
+    },
+    {
+      "assets_usd": 15181000000,
+      "cik": 106640,
+      "name": "WHIRLPOOL CORP /DE/"
+    },
+    {
+      "assets_usd": 3427500000,
+      "cik": 107833,
+      "name": "WISCONSIN PUBLIC SERVICE CORPORATION"
+    },
+    {
+      "assets_usd": 1609624000,
+      "cik": 108516,
+      "name": "WORTHINGTON INDUSTRIES INC"
+    },
+    {
+      "assets_usd": 3948000000,
+      "cik": 110104,
+      "name": "NORTHERN ILLINOIS GAS CO /IL/ /NEW/"
+    },
+    {
+      "assets_usd": 113644000000,
+      "cik": 200406,
+      "name": "Johnson & Johnson"
+    },
+    {
+      "assets_usd": 6172200000,
+      "cik": 202058,
+      "name": "L3HARRIS TECHNOLOGIES, INC."
+    },
+    {
+      "assets_usd": 1044481000,
+      "cik": 215419,
+      "name": "CHECKPOINT SYSTEMS INC"
+    },
+    {
+      "assets_usd": 1086041000,
+      "cik": 216539,
+      "name": "MEDIA GENERAL INC"
+    },
+    {
+      "assets_usd": 13615000000,
+      "cik": 217346,
+      "name": "Textron Inc."
+    },
+    {
+      "assets_usd": 5685469000,
+      "cik": 230557,
+      "name": "SELECTIVE INSURANCE GROUP, INC"
+    },
+    {
+      "assets_usd": 1086929000,
+      "cik": 275119,
+      "name": "BAYLAKE CORP"
+    },
+    {
+      "assets_usd": 5237416000,
+      "cik": 277595,
+      "name": "ENERGEN CORP"
+    },
+    {
+      "assets_usd": 29949500000,
+      "cik": 313616,
+      "name": "Danaher Corporation"
+    },
+    {
+      "assets_usd": 3117600000,
+      "cik": 313927,
+      "name": "CHURCH & DWIGHT CO INC /DE/"
+    },
+    {
+      "assets_usd": 3402122000,
+      "cik": 314489,
+      "name": "FIRST BUSEY CORPORATION"
+    },
+    {
+      "assets_usd": 48576900000,
+      "cik": 315189,
+      "name": "DEERE & CO"
+    },
+    {
+      "assets_usd": 29552000000,
+      "cik": 315293,
+      "name": "Aon plc"
+    },
+    {
+      "assets_usd": 108553000000,
+      "cik": 316709,
+      "name": "SCHWAB CHARLES CORP"
+    },
+    {
+      "assets_usd": 1362425000,
+      "cik": 317540,
+      "name": "COCA-COLA CONSOLIDATED, INC."
+    },
+    {
+      "assets_usd": 2248000000,
+      "cik": 317771,
+      "name": "TELLABS INC"
+    },
+    {
+      "assets_usd": 1794161000,
+      "cik": 318300,
+      "name": "PEOPLES BANCORP INC."
+    },
+    {
+      "assets_usd": 138681000000,
+      "cik": 320193,
+      "name": "Apple Inc."
+    },
+    {
+      "assets_usd": 16588272000,
+      "cik": 320335,
+      "name": "GLOBE LIFE INC."
+    },
+    {
+      "assets_usd": 1568651000,
+      "cik": 320387,
+      "name": "FIRST M&F CORP/MS"
+    },
+    {
+      "assets_usd": 964132000,
+      "cik": 350403,
+      "name": "PHI INC"
+    },
+    {
+      "assets_usd": 1834533000,
+      "cik": 350797,
+      "name": "EATON VANCE CORP"
+    },
+    {
+      "assets_usd": 1294559000,
+      "cik": 350894,
+      "name": "SEI INVESTMENTS COMPANY"
+    },
+    {
+      "assets_usd": 11072900000,
+      "cik": 351346,
+      "name": "BIOMET INC"
+    },
+    {
+      "assets_usd": 2216437000,
+      "cik": 351817,
+      "name": "SilverBow Resources, Inc."
+    },
+    {
+      "assets_usd": 631503000,
+      "cik": 351834,
+      "name": "SUNOPTA INC."
+    },
+    {
+      "assets_usd": 4483500000,
+      "cik": 354190,
+      "name": "ARTHUR J. GALLAGHER & CO."
+    },
+    {
+      "assets_usd": 1224031162,
+      "cik": 356130,
+      "name": "EMC INSURANCE GROUP INC"
+    },
+    {
+      "assets_usd": 1950619000,
+      "cik": 356213,
+      "name": "PINNACLE ENTERTAINMENT INC."
+    },
+    {
+      "assets_usd": 16370508000,
+      "cik": 700564,
+      "name": "Fulton Financial Corporation"
+    },
+    {
+      "assets_usd": 8486281000,
+      "cik": 700733,
+      "name": "NATIONAL PENN BANCSHARES INC"
+    },
+    {
+      "assets_usd": 50697000000,
+      "cik": 701221,
+      "name": "CIGNA CORP"
+    },
+    {
+      "assets_usd": 1550675000,
+      "cik": 701811,
+      "name": "MENTOR GRAPHICS CORP"
+    },
+    {
+      "assets_usd": 6108000000,
+      "cik": 701985,
+      "name": "BATH & BODY WORKS, INC."
+    },
+    {
+      "assets_usd": 28538000000,
+      "cik": 702165,
+      "name": "NORFOLK SOUTHERN CORPORATION"
+    },
+    {
+      "assets_usd": 940691000,
+      "cik": 702513,
+      "name": "Bank of Commerce Holdings"
+    },
+    {
+      "assets_usd": 1488210000,
+      "cik": 703351,
+      "name": "BRINKER INTERNATIONAL, INC."
+    },
+    {
+      "assets_usd": 1547162000,
+      "cik": 706129,
+      "name": "HORIZON BANCORP, INC."
+    },
+    {
+      "assets_usd": 1731899000,
+      "cik": 706688,
+      "name": "AARON'S INC"
+    },
+    {
+      "assets_usd": 3978147000,
+      "cik": 707549,
+      "name": "LAM RESEARCH CORPORATION"
+    },
+    {
+      "assets_usd": 1014316000,
+      "cik": 707855,
+      "name": "PRINCETON NATIONAL BANCORP INC"
+    },
+    {
+      "assets_usd": 5696000000,
+      "cik": 712515,
+      "name": "ELECTRONIC ARTS INC."
+    },
+    {
+      "assets_usd": 4173076000,
+      "cik": 712534,
+      "name": "FIRST MERCHANTS CORP"
+    },
+    {
+      "assets_usd": 607099000,
+      "cik": 713671,
+      "name": "DNB FINANCIAL CORP /PA/"
+    },
+    {
+      "assets_usd": 1873767000,
+      "cik": 714395,
+      "name": "German American Bancorp, Inc."
+    },
+    {
+      "assets_usd": 1734564000,
+      "cik": 714530,
+      "name": "NEWBRIDGE BANCORP"
+    },
+    {
+      "assets_usd": 2954061000,
+      "cik": 714562,
+      "name": "FIRST FINANCIAL CORPORATION"
+    },
+    {
+      "assets_usd": 4202008000,
+      "cik": 715072,
+      "name": "RENASANT CORP"
+    },
+    {
+      "assets_usd": 1004823000,
+      "cik": 715579,
+      "name": "ACNB Corporation"
+    },
+    {
+      "assets_usd": 2485800000,
+      "cik": 716006,
+      "name": "Yellow Corporation"
+    },
+    {
+      "assets_usd": 2714700000,
+      "cik": 716133,
+      "name": "CINCINNATI BELL INC"
+    },
+    {
+      "assets_usd": 2429887000,
+      "cik": 717059,
+      "name": "WEST COAST BANCORP /NEW/OR/"
+    },
+    {
+      "assets_usd": 13277000000,
+      "cik": 718877,
+      "name": "ACTIVISION BLIZZARD,\u00a0INC."
+    },
+    {
+      "assets_usd": 1396090000,
+      "cik": 719413,
+      "name": "HECLA MINING COMPANY"
+    },
+    {
+      "assets_usd": 2754180000,
+      "cik": 720002,
+      "name": "MAINSOURCE FINANCIAL GROUP"
+    },
+    {
+      "assets_usd": 17891566000,
+      "cik": 720005,
+      "name": "RAYMOND JAMES FINANCIAL, INC."
+    },
+    {
+      "assets_usd": 1858392000,
+      "cik": 721683,
+      "name": "TOTAL SYSTEM SERVICES INC"
+    },
+    {
+      "assets_usd": 3610797000,
+      "cik": 722077,
+      "name": "AMC ENTERTAINMENT INC"
+    },
+    {
+      "assets_usd": 4215312000,
+      "cik": 723254,
+      "name": "Cintas Corp"
+    },
+    {
+      "assets_usd": 12938000000,
+      "cik": 723612,
+      "name": "Avis Budget Group, Inc."
+    },
+    {
+      "assets_usd": 631982000,
+      "cik": 724571,
+      "name": "FREDS INC"
+    },
+    {
+      "assets_usd": 511322000,
+      "cik": 725537,
+      "name": "SECURITY CAPITAL CORP/MS"
+    },
+    {
+      "assets_usd": 103486000000,
+      "cik": 727892,
+      "name": "RIVERSOURCE LIFE INSURANCE COMPANY"
+    },
+    {
+      "assets_usd": 5250100000,
+      "cik": 731288,
+      "name": "PACCAR FINANCIAL CORP"
+    },
+    {
+      "assets_usd": 2018297000,
+      "cik": 732417,
+      "name": "HILLS BANCORPORATION"
+    },
+    {
+      "assets_usd": 270442000000,
+      "cik": 732717,
+      "name": "AT&T INC."
+    },
+    {
+      "assets_usd": 1602207000,
+      "cik": 736772,
+      "name": "CNB FINANCIAL CORP/PA"
+    },
+    {
+      "assets_usd": 1982498000,
+      "cik": 736822,
+      "name": "IMMUCOR INC"
+    },
+    {
+      "assets_usd": 937007000,
+      "cik": 737758,
+      "name": "THE TORO COMPANY"
+    },
+    {
+      "assets_usd": 17271910000,
+      "cik": 740260,
+      "name": "Ventas,\u00a0Inc."
+    },
+    {
+      "assets_usd": 849504000,
+      "cik": 740971,
+      "name": "OLD POINT FINANCIAL CORP"
+    },
+    {
+      "assets_usd": 1304706000,
+      "cik": 741516,
+      "name": "AMERICAN NATIONAL BANKSHARES INC."
+    },
+    {
+      "assets_usd": 2612200000,
+      "cik": 746838,
+      "name": "UNISYS CORP"
+    },
+    {
+      "assets_usd": 919194000,
+      "cik": 748015,
+      "name": "SEALY CORP"
+    },
+    {
+      "assets_usd": 748420000,
+      "cik": 749037,
+      "name": "ORBOTECH LTD"
+    },
+    {
+      "assets_usd": 14679000000,
+      "cik": 749098,
+      "name": "MAGNA INTERNATIONAL INC"
+    },
+    {
+      "assets_usd": 1379872000,
+      "cik": 749251,
+      "name": "Gartner, Inc."
+    },
+    {
+      "assets_usd": 868804000,
+      "cik": 750558,
+      "name": "QNB Corp."
+    },
+    {
+      "assets_usd": 776218000,
+      "cik": 750574,
+      "name": "AUBURN NATIONAL BANCORPORATION, INC"
+    },
+    {
+      "assets_usd": 2302720000,
+      "cik": 750686,
+      "name": "Camden National Corp"
+    },
+    {
+      "assets_usd": 3572200000,
+      "cik": 751652,
+      "name": "QUESTAR CORP"
+    },
+    {
+      "assets_usd": 57188000000,
+      "cik": 753308,
+      "name": "NEXTERA ENERGY, INC."
+    },
+    {
+      "assets_usd": 13534000000,
+      "cik": 754737,
+      "name": "SCANA CORP"
+    },
+    {
+      "assets_usd": 1760764000,
+      "cik": 759458,
+      "name": "CANANDAIGUA NATIONAL CORP"
+    },
+    {
+      "assets_usd": 22748000000,
+      "cik": 764478,
+      "name": "BEST BUY CO.,\u00a0INC."
+    },
+    {
+      "assets_usd": 13111018000,
+      "cik": 764622,
+      "name": "PINNACLE WEST CAPITAL CORPORATION"
+    },
+    {
+      "assets_usd": 1038810000,
+      "cik": 766829,
+      "name": "SJW Group"
+    },
+    {
+      "assets_usd": 4282268000,
+      "cik": 768251,
+      "name": "ALTERA CORP"
+    },
+    {
+      "assets_usd": 1641310000,
+      "cik": 768835,
+      "name": "BIG LOTS, INC."
+    },
+    {
+      "assets_usd": 1146512000,
+      "cik": 769520,
+      "name": "THE MIDDLEBY CORPORATION"
+    },
+    {
+      "assets_usd": 6478089000,
+      "cik": 775368,
+      "name": "ALLEGHANY CORP /DE"
+    },
+    {
+      "assets_usd": 2734952000,
+      "cik": 778438,
+      "name": "BERRY PETROLEUM COMPANY, LLC"
+    },
+    {
+      "assets_usd": 1485299000,
+      "cik": 778972,
+      "name": "FIRSTBANK CORP"
+    },
+    {
+      "assets_usd": 2271200000,
+      "cik": 785161,
+      "name": "Encompass Health Corporation"
+    },
+    {
+      "assets_usd": 2113787000,
+      "cik": 786110,
+      "name": "GYMBOREE CORP"
+    },
+    {
+      "assets_usd": 3146964000,
+      "cik": 787075,
+      "name": "FIRST FINANCIAL HOLDINGS INC /DE/"
+    },
+    {
+      "assets_usd": 6136200000,
+      "cik": 787250,
+      "name": "DPL Inc."
+    },
+    {
+      "assets_usd": 29821000000,
+      "cik": 788784,
+      "name": "PUBLIC SERVICE ENTERPRISE GROUP INC"
+    },
+    {
+      "assets_usd": 8078829000,
+      "cik": 788816,
+      "name": "OGLETHORPE POWER CORP"
+    },
+    {
+      "assets_usd": 3697246000,
+      "cik": 789460,
+      "name": "WORLD FUEL SERVICES CORPORATION"
+    },
+    {
+      "assets_usd": 27766276000,
+      "cik": 789570,
+      "name": "MGM RESORTS INTERNATIONAL"
+    },
+    {
+      "assets_usd": 13430622000,
+      "cik": 791519,
+      "name": "STAPLES INC"
+    },
+    {
+      "assets_usd": 1725854000,
+      "cik": 791907,
+      "name": "LINEAR TECHNOLOGY CORP /CA/"
+    },
+    {
+      "assets_usd": 810090000,
+      "cik": 791915,
+      "name": "CYPRESS SEMICONDUCTOR CORP /DE/"
+    },
+    {
+      "assets_usd": 3670007000,
+      "cik": 793547,
+      "name": "NAVIGATORS GROUP INC"
+    },
+    {
+      "assets_usd": 4974902000,
+      "cik": 794170,
+      "name": "TOLL BROTHERS, INC."
+    },
+    {
+      "assets_usd": 22095000000,
+      "cik": 794367,
+      "name": "MACY'S, INC."
+    },
+    {
+      "assets_usd": 1579663000,
+      "cik": 797721,
+      "name": "VIASAT INC"
+    },
+    {
+      "assets_usd": 1747850000,
+      "cik": 801351,
+      "name": "WARNACO GROUP INC /DE/"
+    },
+    {
+      "assets_usd": 5158640000,
+      "cik": 804212,
+      "name": "AIRGAS INC"
+    },
+    {
+      "assets_usd": 37606000000,
+      "cik": 804328,
+      "name": "QUALCOMM INC/DE"
+    },
+    {
+      "assets_usd": 665002000,
+      "cik": 807707,
+      "name": "VOXX INTERNATIONAL CORPORATION"
+    },
+    {
+      "assets_usd": 24847000000,
+      "cik": 808362,
+      "name": "Baker Hughes Holdings LLC"
+    },
+    {
+      "assets_usd": 1446320000,
+      "cik": 808461,
+      "name": "GRIZZLY MERGER SUB 1, LLC"
+    },
+    {
+      "assets_usd": 16452000000,
+      "cik": 811156,
+      "name": "CMS ENERGY CORPORATION"
+    },
+    {
+      "assets_usd": 3290474000,
+      "cik": 811589,
+      "name": "First Bancorp"
+    },
+    {
+      "assets_usd": 594555000,
+      "cik": 811831,
+      "name": "NORTHEAST BANCORP /ME/"
+    },
+    {
+      "assets_usd": 8975000000,
+      "cik": 812233,
+      "name": "OWENS-ILLINOIS GROUP INC"
+    },
+    {
+      "assets_usd": 2128465000,
+      "cik": 812900,
+      "name": "SAKS INC"
+    },
+    {
+      "assets_usd": 2123407000,
+      "cik": 813781,
+      "name": "EXIDE TECHNOLOGIES"
+    },
+    {
+      "assets_usd": 6160900000,
+      "cik": 814453,
+      "name": "NEWELL BRANDS INC."
+    },
+    {
+      "assets_usd": 1028471000,
+      "cik": 816159,
+      "name": "AIR METHODS CORP"
+    },
+    {
+      "assets_usd": 10005910000,
+      "cik": 816284,
+      "name": "CELGENE CORP /DE/"
+    },
+    {
+      "assets_usd": 50142000000,
+      "cik": 818686,
+      "name": "TEVA PHARMACEUTICAL INDUSTRIES LTD"
+    },
+    {
+      "assets_usd": 1230928000,
+      "cik": 819793,
+      "name": "ALBANY INTERNATIONAL CORP."
+    },
+    {
+      "assets_usd": 746059000,
+      "cik": 819913,
+      "name": "HALLMARK FINANCIAL SERVICES,\u00a0INC."
+    },
+    {
+      "assets_usd": 3942554000,
+      "cik": 820096,
+      "name": "PERRIGO CO"
+    },
+    {
+      "assets_usd": 6049372000,
+      "cik": 821127,
+      "name": "BOSTON PRIVATE FINANCIAL HOLDINGS INC"
+    },
+    {
+      "assets_usd": 2234795000,
+      "cik": 822662,
+      "name": "FIDELITY SOUTHERN CORP"
+    },
+    {
+      "assets_usd": 2085803000,
+      "cik": 822818,
+      "name": "CLEAN HARBORS,\u00a0INC"
+    },
+    {
+      "assets_usd": 12136689000,
+      "cik": 823277,
+      "name": "CHS Inc."
+    },
+    {
+      "assets_usd": 22569000000,
+      "cik": 823768,
+      "name": "Waste Management, Inc"
+    },
+    {
+      "assets_usd": 3711370000,
+      "cik": 824410,
+      "name": "SANDY SPRING BANCORP, INC."
+    },
+    {
+      "assets_usd": 2582193000,
+      "cik": 826675,
+      "name": "DYNEX CAPITAL, INC."
+    },
+    {
+      "assets_usd": 48039000000,
+      "cik": 827052,
+      "name": "EDISON INTERNATIONAL"
+    },
+    {
+      "assets_usd": 7835600000,
+      "cik": 829224,
+      "name": "Starbucks Corporation"
+    },
+    {
+      "assets_usd": 688065000,
+      "cik": 830122,
+      "name": "VIDLER WATER RESOURCES, INC."
+    },
+    {
+      "assets_usd": 1221378000,
+      "cik": 833079,
+      "name": "MERITAGE HOMES CORPORATION"
+    },
+    {
+      "assets_usd": 91514000000,
+      "cik": 834071,
+      "name": "TOYOTA MOTOR CREDIT CORPORATION"
+    },
+    {
+      "assets_usd": 1047353000,
+      "cik": 834285,
+      "name": "REPUBLIC FIRST BANCORP, INC."
+    },
+    {
+      "assets_usd": 4464000000,
+      "cik": 835357,
+      "name": "MONY LIFE INSURANCE CO OF AMERICA"
+    },
+    {
+      "assets_usd": 654551000,
+      "cik": 836147,
+      "name": "Middlefield Banc Corp."
+    },
+    {
+      "assets_usd": 6856508000,
+      "cik": 837173,
+      "name": "WALTER ENERGY, INC."
+    },
+    {
+      "assets_usd": 7010900000,
+      "cik": 842162,
+      "name": "LEAR CORP"
+    },
+    {
+      "assets_usd": 1048823000,
+      "cik": 842183,
+      "name": "RPT Realty"
+    },
+    {
+      "assets_usd": 1337458000,
+      "cik": 846617,
+      "name": "DIME COMMUNITY BANCSHARES,\u00a0INC."
+    },
+    {
+      "assets_usd": 1041819000,
+      "cik": 846931,
+      "name": "LAKE SUNAPEE BANK GROUP"
+    },
+    {
+      "assets_usd": 889176000,
+      "cik": 849547,
+      "name": "BLACK BOX CORP"
+    },
+    {
+      "assets_usd": 7435169000,
+      "cik": 850141,
+      "name": "HORACE MANN EDUCATORS CORPORATION"
+    },
+    {
+      "assets_usd": 3050000000,
+      "cik": 850209,
+      "name": "FOOT LOCKER, INC."
+    },
+    {
+      "assets_usd": 780610000,
+      "cik": 850429,
+      "name": "Tredegar Corporation"
+    },
+    {
+      "assets_usd": 516146000,
+      "cik": 850460,
+      "name": "ENCORE WIRE CORP"
+    },
+    {
+      "assets_usd": 509503773,
+      "cik": 850606,
+      "name": "COMMUNITY FINANCIAL CORP /VA/"
+    },
+    {
+      "assets_usd": 611881000,
+      "cik": 851205,
+      "name": "Cognex Corporation"
+    },
+    {
+      "assets_usd": 734166000,
+      "cik": 851310,
+      "name": "HARMONIC INC."
+    },
+    {
+      "assets_usd": 808449000,
+      "cik": 853816,
+      "name": "Landstar System, Inc."
+    },
+    {
+      "assets_usd": 1613385000,
+      "cik": 857005,
+      "name": "PTC Inc."
+    },
+    {
+      "assets_usd": 7934700000,
+      "cik": 860748,
+      "name": "Kemper Corporation"
+    },
+    {
+      "assets_usd": 15934673000,
+      "cik": 862510,
+      "name": "TRANSATLANTIC HOLDINGS INC"
+    },
+    {
+      "assets_usd": 610063000,
+      "cik": 865570,
+      "name": "THQ INC"
+    },
+    {
+      "assets_usd": 1278256000,
+      "cik": 865754,
+      "name": "SAUER DANFOSS INC"
+    },
+    {
+      "assets_usd": 1303450000,
+      "cik": 865911,
+      "name": "CASCADE BANCORP"
+    },
+    {
+      "assets_usd": 4251067000,
+      "cik": 866121,
+      "name": "ORBITAL ATK, INC."
+    },
+    {
+      "assets_usd": 2138619000,
+      "cik": 866368,
+      "name": "PS BUSINESS PARKS, INC./MD"
+    },
+    {
+      "assets_usd": 1610900000,
+      "cik": 866729,
+      "name": "SCHOLASTIC CORPORATION"
+    },
+    {
+      "assets_usd": 3582347000,
+      "cik": 866829,
+      "name": "HELIX ENERGY SOLUTIONS GROUP, INC."
+    },
+    {
+      "assets_usd": 6899700000,
+      "cik": 871763,
+      "name": "MANPOWERGROUP INC."
+    },
+    {
+      "assets_usd": 4728024000,
+      "cik": 873860,
+      "name": "OCWEN FINANCIAL CORPORATION"
+    },
+    {
+      "assets_usd": 887681000,
+      "cik": 874214,
+      "name": "ANN INC."
+    },
+    {
+      "assets_usd": 302609000000,
+      "cik": 874766,
+      "name": "THE HARTFORD FINANCIAL SERVICES GROUP, INC."
+    },
+    {
+      "assets_usd": 7216230000,
+      "cik": 876437,
+      "name": "MGIC Investment Corp"
+    },
+    {
+      "assets_usd": 4099541000,
+      "cik": 877890,
+      "name": "CITRIX SYSTEMS INC"
+    },
+    {
+      "assets_usd": 1618203000,
+      "cik": 878079,
+      "name": "BON TON STORES INC"
+    },
+    {
+      "assets_usd": 4126312280,
+      "cik": 878375,
+      "name": "AMERICAN BAR ASSOCIATION MEMBERS / NORTHERN TRUST COLLECTIVE TR"
+    },
+    {
+      "assets_usd": 2172805000,
+      "cik": 878522,
+      "name": "STEWART ENTERPRISES INC"
+    },
+    {
+      "assets_usd": 9628762000,
+      "cik": 879101,
+      "name": "KIMCO REALTY CORP"
+    },
+    {
+      "assets_usd": 873731000,
+      "cik": 879585,
+      "name": "ATN INTERNATIONAL,\u00a0INC."
+    },
+    {
+      "assets_usd": 11370100000,
+      "cik": 880285,
+      "name": "ENBRIDGE ENERGY PARTNERS LP"
+    },
+    {
+      "assets_usd": 551233000,
+      "cik": 880417,
+      "name": "CSB BANCORP INC /OH"
+    },
+    {
+      "assets_usd": 17303134000,
+      "cik": 882095,
+      "name": "GILEAD SCIENCES, INC."
+    },
+    {
+      "assets_usd": 40276300000,
+      "cik": 883980,
+      "name": "FIRST DATA CORP"
+    },
+    {
+      "assets_usd": 1405952000,
+      "cik": 884217,
+      "name": "TAILORED BRANDS INC"
+    },
+    {
+      "assets_usd": 531539000,
+      "cik": 885245,
+      "name": "BUCKLE, INC"
+    },
+    {
+      "assets_usd": 13108119000,
+      "cik": 885590,
+      "name": "Bausch Health Companies Inc."
+    },
+    {
+      "assets_usd": 15607000000,
+      "cik": 885721,
+      "name": "EXPRESS SCRIPTS INC"
+    },
+    {
+      "assets_usd": 5855116000,
+      "cik": 886158,
+      "name": "BED BATH & BEYOND INC"
+    },
+    {
+      "assets_usd": 936932000,
+      "cik": 886171,
+      "name": "UNIVERSAL HOSPITAL SERVICES INC"
+    },
+    {
+      "assets_usd": 4048145000,
+      "cik": 886835,
+      "name": "SUPERIOR ENERGY SERVICES INC"
+    },
+    {
+      "assets_usd": 1022570000,
+      "cik": 887596,
+      "name": "THE CHEESECAKE FACTORY INCORPORATED"
+    },
+    {
+      "assets_usd": 1124087000,
+      "cik": 887919,
+      "name": "PREMIER FINANCIAL BANCORP, INC."
+    },
+    {
+      "assets_usd": 4093671000,
+      "cik": 888165,
+      "name": "INTERACTIVE DATA CORP/MA/"
+    },
+    {
+      "assets_usd": 24103000000,
+      "cik": 888228,
+      "name": "KINDER MORGAN ENERGY PARTNERS L P"
+    },
+    {
+      "assets_usd": 890050000,
+      "cik": 889609,
+      "name": "CONSUMER PORTFOLIO SERVICES, INC."
+    },
+    {
+      "assets_usd": 1165000000,
+      "cik": 891014,
+      "name": "MINERALS TECHNOLOGIES INC"
+    },
+    {
+      "assets_usd": 3409865000,
+      "cik": 891103,
+      "name": "MATCH GROUP, INC."
+    },
+    {
+      "assets_usd": 9791472000,
+      "cik": 891456,
+      "name": "PLAINS EXPLORATION & PRODUCTION CO"
+    },
+    {
+      "assets_usd": 1760206000,
+      "cik": 892537,
+      "name": "ManTech International Corporation"
+    },
+    {
+      "assets_usd": 3798980000,
+      "cik": 893538,
+      "name": "SM Energy Co"
+    },
+    {
+      "assets_usd": 993719000,
+      "cik": 894081,
+      "name": "Air Transport Services Group, Inc."
+    },
+    {
+      "assets_usd": 749898000000,
+      "cik": 895421,
+      "name": "Morgan Stanley"
+    },
+    {
+      "assets_usd": 858285000,
+      "cik": 896262,
+      "name": "AMEDISYS INC"
+    },
+    {
+      "assets_usd": 927744000,
+      "cik": 897067,
+      "name": "CYMER INC"
+    },
+    {
+      "assets_usd": 3239121000,
+      "cik": 897723,
+      "name": "SANMINA CORPORATION"
+    },
+    {
+      "assets_usd": 526902000,
+      "cik": 898171,
+      "name": "UWHARRIE CAPITAL CORP"
+    },
+    {
+      "assets_usd": 832481000,
+      "cik": 899597,
+      "name": "BUCKEYE TECHNOLOGIES INC"
+    },
+    {
+      "assets_usd": 1653319000,
+      "cik": 899629,
+      "name": "ACADIA REALTY TRUST"
+    },
+    {
+      "assets_usd": 20446487000,
+      "cik": 899689,
+      "name": "VORNADO REALTY TRUST"
+    },
+    {
+      "assets_usd": 1139658000,
+      "cik": 900075,
+      "name": "COPART INC"
+    },
+    {
+      "assets_usd": 724195000,
+      "cik": 900349,
+      "name": "PERRY ELLIS INTERNATIONAL, INC"
+    },
+    {
+      "assets_usd": 755666000,
+      "cik": 904978,
+      "name": "SUN HEALTHCARE GROUP INC"
+    },
+    {
+      "assets_usd": 4622075000,
+      "cik": 906345,
+      "name": "CAMDEN PROPERTY TRUST"
+    },
+    {
+      "assets_usd": 5958600000,
+      "cik": 908255,
+      "name": "BORGWARNER INC."
+    },
+    {
+      "assets_usd": 28004000000,
+      "cik": 909832,
+      "name": "COSTCO WHOLESALE CORP /NEW"
+    },
+    {
+      "assets_usd": 42024302000,
+      "cik": 910073,
+      "name": "NEW YORK COMMUNITY BANCORP, INC."
+    },
+    {
+      "assets_usd": 3026820000,
+      "cik": 910108,
+      "name": "LXP INDUSTRIAL TRUST"
+    },
+    {
+      "assets_usd": 17022055000,
+      "cik": 910322,
+      "name": "ASTORIA FINANCIAL CORP"
+    },
+    {
+      "assets_usd": 1648435000,
+      "cik": 910406,
+      "name": "THE HAIN CELESTIAL GROUP, INC."
+    },
+    {
+      "assets_usd": 6719428000,
+      "cik": 910612,
+      "name": "CBL & ASSOCIATES PROPERTIES, INC."
+    },
+    {
+      "assets_usd": 1707500000,
+      "cik": 911109,
+      "name": "MOBILE MINI INC"
+    },
+    {
+      "assets_usd": 11137677000,
+      "cik": 911971,
+      "name": "TEEKAY CORP"
+    },
+    {
+      "assets_usd": 1915500000,
+      "cik": 912093,
+      "name": "VIAVI SOLUTIONS INC."
+    },
+    {
+      "assets_usd": 1883515000,
+      "cik": 912183,
+      "name": "CUBIST PHARMACEUTICALS INC"
+    },
+    {
+      "assets_usd": 872055000,
+      "cik": 912562,
+      "name": "GIBRALTAR INDUSTRIES, INC."
+    },
+    {
+      "assets_usd": 1928301000,
+      "cik": 912603,
+      "name": "SCHNITZER STEEL INDUSTRIES, INC."
+    },
+    {
+      "assets_usd": 639786000,
+      "cik": 913241,
+      "name": "STEVEN MADDEN, LTD."
+    },
+    {
+      "assets_usd": 2377276000,
+      "cik": 914374,
+      "name": "SOUTHWEST BANCORP INC"
+    },
+    {
+      "assets_usd": 1873857000,
+      "cik": 915840,
+      "name": "BEAZER HOMES USA, INC."
+    },
+    {
+      "assets_usd": 2365568000,
+      "cik": 916459,
+      "name": "GARDNER DENVER INC"
+    },
+    {
+      "assets_usd": 9983200000,
+      "cik": 916863,
+      "name": "INTEGRYS HOLDING, INC."
+    },
+    {
+      "assets_usd": 772584067,
+      "cik": 916907,
+      "name": "SOUTHERN MISSOURI BANCORP, INC."
+    },
+    {
+      "assets_usd": 693654000,
+      "cik": 917273,
+      "name": "RAMBUS INC"
+    },
+    {
+      "assets_usd": 128728000000,
+      "cik": 917851,
+      "name": "Vale S.A."
+    },
+    {
+      "assets_usd": 4449900000,
+      "cik": 918160,
+      "name": "AK STEEL HOLDING CORP"
+    },
+    {
+      "assets_usd": 776365000,
+      "cik": 918386,
+      "name": "QLOGIC CORP"
+    },
+    {
+      "assets_usd": 1506911000,
+      "cik": 918946,
+      "name": "BRIGHTPOINT INC"
+    },
+    {
+      "assets_usd": 1270954000,
+      "cik": 918965,
+      "name": "ScanSource, Inc."
+    },
+    {
+      "assets_usd": 1950802000,
+      "cik": 919012,
+      "name": "American Eagle Outfitters, Inc."
+    },
+    {
+      "assets_usd": 6111800000,
+      "cik": 920148,
+      "name": "LABORATORY CORP OF AMERICA HOLDINGS"
+    },
+    {
+      "assets_usd": 836087000,
+      "cik": 920371,
+      "name": "SIMPSON MANUFACTURING CO INC /CA/"
+    },
+    {
+      "assets_usd": 810846000,
+      "cik": 920427,
+      "name": "UNITY BANCORP, INC."
+    },
+    {
+      "assets_usd": 9154671000,
+      "cik": 920760,
+      "name": "LENNAR CORP /NEW/"
+    },
+    {
+      "assets_usd": 3180992000,
+      "cik": 921082,
+      "name": "HIGHWOODS PROPERTIES, INC."
+    },
+    {
+      "assets_usd": 790155000,
+      "cik": 921183,
+      "name": "HMN FINANCIAL INC"
+    },
+    {
+      "assets_usd": 728818000,
+      "cik": 922475,
+      "name": "ITT EDUCATIONAL SERVICES INC"
+    },
+    {
+      "assets_usd": 848448000,
+      "cik": 922487,
+      "name": "ROYAL BANCSHARES OF PENNSYLVANIA INC"
+    },
+    {
+      "assets_usd": 4153206000,
+      "cik": 923118,
+      "name": "HOME PROPERTIES INC"
+    },
+    {
+      "assets_usd": 4287949000,
+      "cik": 923139,
+      "name": "FLUSHING FINANCIAL CORPORATION"
+    },
+    {
+      "assets_usd": 2403228000,
+      "cik": 923603,
+      "name": "FELCOR LODGING TRUST INC"
+    },
+    {
+      "assets_usd": 3049923000,
+      "cik": 923796,
+      "name": "GEO GROUP INC"
+    },
+    {
+      "assets_usd": 4295759000,
+      "cik": 924901,
+      "name": "VERIS RESIDENTIAL, INC."
+    },
+    {
+      "assets_usd": 533378000,
+      "cik": 927003,
+      "name": "ADVANCED ENERGY INDUSTRIES INC"
+    },
+    {
+      "assets_usd": 1060578000,
+      "cik": 927417,
+      "name": "AVINTIV SPECIALTY MATERIALS INC."
+    },
+    {
+      "assets_usd": 1969540000,
+      "cik": 927807,
+      "name": "INTERVEST BANCSHARES CORP"
+    },
+    {
+      "assets_usd": 1762234000,
+      "cik": 929351,
+      "name": "LIONS GATE ENTERTAINMENT CORP /CN/"
+    },
+    {
+      "assets_usd": 2168366000,
+      "cik": 931148,
+      "name": "GRAFTECH INTERNATIONAL LTD."
+    },
+    {
+      "assets_usd": 1327324000,
+      "cik": 931948,
+      "name": "STILLWATER MINING CO /DE/"
+    },
+    {
+      "assets_usd": 1944179000,
+      "cik": 932628,
+      "name": "AMERIGAS PARTNERS LP"
+    },
+    {
+      "assets_usd": 12094000000,
+      "cik": 932787,
+      "name": "STMICROELECTRONICS N.V."
+    },
+    {
+      "assets_usd": 813545000,
+      "cik": 934538,
+      "name": "TECHE HOLDING CO"
+    },
+    {
+      "assets_usd": 1744724000,
+      "cik": 934547,
+      "name": "BANK OF KENTUCKY FINANCIAL CORP"
+    },
+    {
+      "assets_usd": 1904643000,
+      "cik": 934648,
+      "name": "SPEEDWAY MOTORSPORTS INC"
+    },
+    {
+      "assets_usd": 578810000,
+      "cik": 943320,
+      "name": "TRUMP ENTERTAINMENT RESORTS, INC."
+    },
+    {
+      "assets_usd": 812357000,
+      "cik": 944148,
+      "name": "CBIZ, Inc."
+    },
+    {
+      "assets_usd": 1343674000,
+      "cik": 944314,
+      "name": "LIFE STORAGE, INC."
+    },
+    {
+      "assets_usd": 12598600000,
+      "cik": 944695,
+      "name": "HANOVER INSURANCE GROUP, INC."
+    },
+    {
+      "assets_usd": 4881600000,
+      "cik": 945436,
+      "name": "SUNEDISON, INC."
+    },
+    {
+      "assets_usd": 1179017000,
+      "cik": 946090,
+      "name": "FIRST MARINER BANCORP"
+    },
+    {
+      "assets_usd": 15749900000,
+      "cik": 946155,
+      "name": "TIAA REAL ESTATE ACCOUNT"
+    },
+    {
+      "assets_usd": 6964157000,
+      "cik": 949039,
+      "name": "DIAMOND OFFSHORE DRILLING, INC."
+    },
+    {
+      "assets_usd": 1811094000,
+      "cik": 949157,
+      "name": "Century Aluminum Company"
+    },
+    {
+      "assets_usd": 1125385000,
+      "cik": 1000177,
+      "name": "NORDIC AMERICAN TANKERS Ltd"
+    },
+    {
+      "assets_usd": 845200000,
+      "cik": 1000623,
+      "name": "SCHWEITZER-MAUDUIT INTERNATIONAL, INC."
+    },
+    {
+      "assets_usd": 2723234000,
+      "cik": 1000697,
+      "name": "Waters Corporation"
+    },
+    {
+      "assets_usd": 712259000,
+      "cik": 1000753,
+      "name": "INSPERITY, INC."
+    },
+    {
+      "assets_usd": 6342200000,
+      "cik": 1001250,
+      "name": "The Estee Lauder Companies Inc."
+    },
+    {
+      "assets_usd": 3637000000,
+      "cik": 1001288,
+      "name": "LEXMARK INTERNATIONAL INC /KY/"
+    },
+    {
+      "assets_usd": 583556000,
+      "cik": 1002225,
+      "name": "ADVENT SOFTWARE INC /DE/"
+    },
+    {
+      "assets_usd": 7003982000,
+      "cik": 1003410,
+      "name": "DUKE REALTY LIMITED PARTNERSHIP/"
+    },
+    {
+      "assets_usd": 1581836000,
+      "cik": 1003935,
+      "name": "NICE LTD."
+    },
+    {
+      "assets_usd": 13913000000,
+      "cik": 1004155,
+      "name": "Southern Company Gas"
+    },
+    {
+      "assets_usd": 2180933000,
+      "cik": 1005276,
+      "name": "MOHEGAN TRIBAL GAMING AUTHORITY"
+    },
+    {
+      "assets_usd": 4021180000,
+      "cik": 1005409,
+      "name": "DIME COMMUNITY BANCSHARES INC"
+    },
+    {
+      "assets_usd": 3400248000,
+      "cik": 1005817,
+      "name": "Tompkins Financial Corporation"
+    },
+    {
+      "assets_usd": 579046000,
+      "cik": 1006424,
+      "name": "BEAR STATE FINANCIAL, INC."
+    },
+    {
+      "assets_usd": 3478740000,
+      "cik": 1009626,
+      "name": "BROCADE COMMUNICATIONS SYSTEMS INC"
+    },
+    {
+      "assets_usd": 1843301000,
+      "cik": 1010552,
+      "name": "POLYCOM INC"
+    },
+    {
+      "assets_usd": 769130000,
+      "cik": 1010612,
+      "name": "SYKES ENTERPRISES INC"
+    },
+    {
+      "assets_usd": 14782786000,
+      "cik": 1011006,
+      "name": "YAHOO INC"
+    },
+    {
+      "assets_usd": 3352621000,
+      "cik": 1011174,
+      "name": "BRE PROPERTIES INC /MD/"
+    },
+    {
+      "assets_usd": 688091000,
+      "cik": 1011570,
+      "name": "Knoll, Inc."
+    },
+    {
+      "assets_usd": 1411724000,
+      "cik": 1012140,
+      "name": "ONYX PHARMACEUTICALS INC"
+    },
+    {
+      "assets_usd": 2448470000,
+      "cik": 1013462,
+      "name": "ANSYS INC"
+    },
+    {
+      "assets_usd": 746978000,
+      "cik": 1013880,
+      "name": "TTEC HOLDINGS, INC."
+    },
+    {
+      "assets_usd": 1133205000,
+      "cik": 1018164,
+      "name": "Willis Lease Finance Corp"
+    },
+    {
+      "assets_usd": 1489163000,
+      "cik": 1018399,
+      "name": "Enterprise Bancorp,\u00a0Inc."
+    },
+    {
+      "assets_usd": 5979226000,
+      "cik": 1022671,
+      "name": "STEEL DYNAMICS, INC."
+    },
+    {
+      "assets_usd": 3337000000,
+      "cik": 1024725,
+      "name": "TENNECO INC"
+    },
+    {
+      "assets_usd": 1750338000,
+      "cik": 1024729,
+      "name": "AMSCAN HOLDINGS INC"
+    },
+    {
+      "assets_usd": 4685810000,
+      "cik": 1025536,
+      "name": "TAYLOR CAPITAL GROUP INC"
+    },
+    {
+      "assets_usd": 3377779000,
+      "cik": 1025835,
+      "name": "ENTERPRISE FINANCIAL SERVICES CORP"
+    },
+    {
+      "assets_usd": 678664000,
+      "cik": 1027207,
+      "name": "EPIQ SYSTEMS INC"
+    },
+    {
+      "assets_usd": 2423504000,
+      "cik": 1028734,
+      "name": "COBIZ FINANCIAL INC"
+    },
+    {
+      "assets_usd": 521219000,
+      "cik": 1029145,
+      "name": "GOLDEN OCEAN GROUP LIMITED"
+    },
+    {
+      "assets_usd": 600940000,
+      "cik": 1030471,
+      "name": "UTSTARCOM HOLDINGS CORP."
+    },
+    {
+      "assets_usd": 33249000000,
+      "cik": 1032208,
+      "name": "SEMPRA ENERGY"
+    },
+    {
+      "assets_usd": 13637473000,
+      "cik": 1033012,
+      "name": "Flagstar Bancorp, Inc."
+    },
+    {
+      "assets_usd": 2571113000,
+      "cik": 1033128,
+      "name": "FIRST INDUSTRIAL LP"
+    },
+    {
+      "assets_usd": 25147000000,
+      "cik": 1034563,
+      "name": "ICAHN ENTERPRISES HOLDINGS L.P."
+    },
+    {
+      "assets_usd": 1854587000,
+      "cik": 1035201,
+      "name": "CALIFORNIA WATER SERVICE GROUP"
+    },
+    {
+      "assets_usd": 1615723000,
+      "cik": 1035216,
+      "name": "SOUTH JERSEY GAS COMPANY"
+    },
+    {
+      "assets_usd": 3063100000,
+      "cik": 1035267,
+      "name": "Intuitive Surgical, Inc."
+    },
+    {
+      "assets_usd": 2917928000,
+      "cik": 1036070,
+      "name": "STELLARONE CORP"
+    },
+    {
+      "assets_usd": 5326500000,
+      "cik": 1037038,
+      "name": "Ralph Lauren Corporation"
+    },
+    {
+      "assets_usd": 14782966000,
+      "cik": 1037540,
+      "name": "BOSTON PROPERTIES, INC."
+    },
+    {
+      "assets_usd": 2114910000,
+      "cik": 1037646,
+      "name": "Mettler Toledo International Inc"
+    },
+    {
+      "assets_usd": 3932636000,
+      "cik": 1037976,
+      "name": "Jones Lang LaSalle Incorporated"
+    },
+    {
+      "assets_usd": 13707539000,
+      "cik": 1039684,
+      "name": "ONEOK, Inc."
+    },
+    {
+      "assets_usd": 1527680000,
+      "cik": 1040593,
+      "name": "CARRIZO OIL & GAS INC"
+    },
+    {
+      "assets_usd": 4113542000,
+      "cik": 1040719,
+      "name": "DITECH HOLDING CORP"
+    },
+    {
+      "assets_usd": 20446487000,
+      "cik": 1040765,
+      "name": "VORNADO REALTY LP"
+    },
+    {
+      "assets_usd": 862330000,
+      "cik": 1041368,
+      "name": "RIVERVIEW BANCORP INC"
+    },
+    {
+      "assets_usd": 685241000,
+      "cik": 1041514,
+      "name": "Net 1 UEPS Technologies, Inc."
+    },
+    {
+      "assets_usd": 1486482000,
+      "cik": 1041657,
+      "name": "URBAN ONE,\u00a0INC."
+    },
+    {
+      "assets_usd": 3222571000,
+      "cik": 1042810,
+      "name": "EQUITY ONE, INC."
+    },
+    {
+      "assets_usd": 14392026000,
+      "cik": 1043121,
+      "name": "BOSTON PROPERTIES LTD PARTNERSHIP"
+    },
+    {
+      "assets_usd": 4673298000,
+      "cik": 1043325,
+      "name": "CENTERLINE HOLDING CO"
+    },
+    {
+      "assets_usd": 695495000,
+      "cik": 1043337,
+      "name": "STONERIDGE, INC."
+    },
+    {
+      "assets_usd": 671137000,
+      "cik": 1045986,
+      "name": "FORMULA SYSTEMS (1985) LTD"
+    },
+    {
+      "assets_usd": 5317000000,
+      "cik": 1046257,
+      "name": "Ingredion Inc"
+    },
+    {
+      "assets_usd": 1063034000,
+      "cik": 1047170,
+      "name": "EASTERN VIRGINIA BANKSHARES INC"
+    },
+    {
+      "assets_usd": 870424000,
+      "cik": 1047335,
+      "name": "NATIONAL HEALTHCARE CORPORATION"
+    },
+    {
+      "assets_usd": 2504000000,
+      "cik": 1047340,
+      "name": "FRESH DEL MONTE PRODUCE INC."
+    },
+    {
+      "assets_usd": 8813769000,
+      "cik": 1047884,
+      "name": "ANWORTH MORTGAGE ASSET CORP"
+    },
+    {
+      "assets_usd": 561310000,
+      "cik": 1050606,
+      "name": "SALEM MEDIA GROUP, INC. /DE/"
+    },
+    {
+      "assets_usd": 10545096000,
+      "cik": 1051470,
+      "name": "Crown Castle International Corp"
+    },
+    {
+      "assets_usd": 8201005000,
+      "cik": 1051512,
+      "name": "TELEPHONE AND DATA SYSTEMS, INC."
+    },
+    {
+      "assets_usd": 773196000,
+      "cik": 1051829,
+      "name": "MERRILL LYNCH PREFERRED CAPITAL TRUST III"
+    },
+    {
+      "assets_usd": 1080460000,
+      "cik": 1051871,
+      "name": "CITIZENS SOUTH BANKING CORP"
+    },
+    {
+      "assets_usd": 876300000,
+      "cik": 1052636,
+      "name": "MERRILL LYNCH PREFERRED CAPITAL TRUST V"
+    },
+    {
+      "assets_usd": 635089000,
+      "cik": 1052752,
+      "name": "GETTY REALTY CORP."
+    },
+    {
+      "assets_usd": 7143325000,
+      "cik": 1053112,
+      "name": "CABLEVISION SYSTEMS CORP /NY"
+    },
+    {
+      "assets_usd": 1306194000,
+      "cik": 1053352,
+      "name": "HERITAGE COMMERCE CORP"
+    },
+    {
+      "assets_usd": 8813532000,
+      "cik": 1054833,
+      "name": "COVENTRY HEALTH CARE INC"
+    },
+    {
+      "assets_usd": 568800000,
+      "cik": 1054905,
+      "name": "INNOSPEC INC."
+    },
+    {
+      "assets_usd": 2895800000,
+      "cik": 1055294,
+      "name": "KANSAS CITY SOUTHERN DE MEXICO, S.A. DE C.V."
+    },
+    {
+      "assets_usd": 15520000000,
+      "cik": 1056239,
+      "name": "L 3 COMMUNICATIONS HOLDINGS INC"
+    },
+    {
+      "assets_usd": 3328005000,
+      "cik": 1057058,
+      "name": "WASTE CONNECTIONS, INC."
+    },
+    {
+      "assets_usd": 2086689000,
+      "cik": 1057436,
+      "name": "STRATEGIC HOTELS & RESORTS, INC"
+    },
+    {
+      "assets_usd": 1205525000,
+      "cik": 1059131,
+      "name": "NASB FINANCIAL INC"
+    },
+    {
+      "assets_usd": 10812927000,
+      "cik": 1059324,
+      "name": "PETROHAWK ENERGY CORP"
+    },
+    {
+      "assets_usd": 2047200000,
+      "cik": 1060232,
+      "name": "COLLECTIVE BRANDS, INC."
+    },
+    {
+      "assets_usd": 756749000,
+      "cik": 1060349,
+      "name": "GAMCO INVESTORS, INC. ET AL"
+    },
+    {
+      "assets_usd": 3995462000,
+      "cik": 1060990,
+      "name": "QUICKSILVER RESOURCES INC"
+    },
+    {
+      "assets_usd": 1720234000,
+      "cik": 1061393,
+      "name": "CH ENERGY GROUP INC"
+    },
+    {
+      "assets_usd": 1366316000,
+      "cik": 1061630,
+      "name": "Blackstone Mortgage Trust, Inc."
+    },
+    {
+      "assets_usd": 830287000,
+      "cik": 1062781,
+      "name": "ULTRAPETROL BAHAMAS LTD"
+    },
+    {
+      "assets_usd": 16733000000,
+      "cik": 1064728,
+      "name": "PEABODY ENERGY CORP"
+    },
+    {
+      "assets_usd": 3069196000,
+      "cik": 1065280,
+      "name": "Netflix, Inc."
+    },
+    {
+      "assets_usd": 1147429000,
+      "cik": 1066026,
+      "name": "CONCUR TECHNOLOGIES INC"
+    },
+    {
+      "assets_usd": 515565000,
+      "cik": 1066605,
+      "name": "HEIDRICK\u00a0& STRUGGLES INTERNATIONAL, INC."
+    },
+    {
+      "assets_usd": 4295759000,
+      "cik": 1067063,
+      "name": "MACK CALI REALTY L P"
+    },
+    {
+      "assets_usd": 919269000,
+      "cik": 1067837,
+      "name": "AUDACY, INC."
+    },
+    {
+      "assets_usd": 392647000000,
+      "cik": 1067983,
+      "name": "BERKSHIRE HATHAWAY INC"
+    },
+    {
+      "assets_usd": 1705700000,
+      "cik": 1069202,
+      "name": "LENNOX INTERNATIONAL INC"
+    },
+    {
+      "assets_usd": 559583000,
+      "cik": 1070524,
+      "name": "GREENE COUNTY BANCORP, INC."
+    },
+    {
+      "assets_usd": 3019631000,
+      "cik": 1070985,
+      "name": "CORECIVIC, INC."
+    },
+    {
+      "assets_usd": 700681256,
+      "cik": 1072847,
+      "name": "TOWER FINANCIAL CORP"
+    },
+    {
+      "assets_usd": 4383048000,
+      "cik": 1075415,
+      "name": "DIVERSIFIED HEALTHCARE TRUST"
+    },
+    {
+      "assets_usd": 1915828000,
+      "cik": 1076195,
+      "name": "LIFE TIME FITNESS, INC."
+    },
+    {
+      "assets_usd": 8137618000,
+      "cik": 1077428,
+      "name": "TEXAS CAPITAL BANCSHARES INC/TX"
+    },
+    {
+      "assets_usd": 11562858000,
+      "cik": 1077771,
+      "name": "Umpqua Holdings Corporation"
+    },
+    {
+      "assets_usd": 530892000,
+      "cik": 1078075,
+      "name": "NETSCOUT SYSTEMS, INC."
+    },
+    {
+      "assets_usd": 4744609000,
+      "cik": 1082510,
+      "name": "UIL HOLDINGS CORP"
+    },
+    {
+      "assets_usd": 1518079000,
+      "cik": 1082554,
+      "name": "United Therapeutics Corporation"
+    },
+    {
+      "assets_usd": 614224000,
+      "cik": 1083643,
+      "name": "Fauquier Bankshares, Inc."
+    },
+    {
+      "assets_usd": 34971422000,
+      "cik": 1084580,
+      "name": "Jefferies Group LLC"
+    },
+    {
+      "assets_usd": 12407306000,
+      "cik": 1085392,
+      "name": "PUGET ENERGY INC /WA"
+    },
+    {
+      "assets_usd": 2380274000,
+      "cik": 1087423,
+      "name": "RED HAT INC"
+    },
+    {
+      "assets_usd": 4050202000,
+      "cik": 1089819,
+      "name": "CLECO CORPORATE HOLDINGS LLC"
+    },
+    {
+      "assets_usd": 6378300000,
+      "cik": 1091748,
+      "name": "ARGO GROUP INTERNATIONAL HOLDINGS, LTD."
+    },
+    {
+      "assets_usd": 641254000,
+      "cik": 1093728,
+      "name": "PACIFIC FINANCIAL CORP"
+    },
+    {
+      "assets_usd": 1826100000,
+      "cik": 1094285,
+      "name": "TELEDYNE TECHNOLOGIES INC"
+    },
+    {
+      "assets_usd": 1427193000,
+      "cik": 1094810,
+      "name": "MUTUALFIRST FINANCIAL INC"
+    },
+    {
+      "assets_usd": 11532103000,
+      "cik": 1096343,
+      "name": "Markel Corporation"
+    },
+    {
+      "assets_usd": 3883500000,
+      "cik": 1097864,
+      "name": "ON SEMICONDUCTOR CORP"
+    },
+    {
+      "assets_usd": 634438000,
+      "cik": 1098277,
+      "name": "WEBSENSE INC"
+    },
+    {
+      "assets_usd": 620011000,
+      "cik": 1100179,
+      "name": "ONCOR ELECTRIC DELIVERY TRANSITION BOND CO LLC"
+    },
+    {
+      "assets_usd": 1558320000,
+      "cik": 1100682,
+      "name": "CHARLES RIVER LABORATORIES INTERNATIONAL, INC."
+    },
+    {
+      "assets_usd": 839249000,
+      "cik": 1101169,
+      "name": "VIASYSTEMS GROUP INC"
+    },
+    {
+      "assets_usd": 5785324000,
+      "cik": 1101239,
+      "name": "EQUINIX, INC."
+    },
+    {
+      "assets_usd": 724663000,
+      "cik": 1101302,
+      "name": "Entegris, Inc."
+    },
+    {
+      "assets_usd": 1266047000,
+      "cik": 1102287,
+      "name": "PREMIERWEST BANCORP"
+    },
+    {
+      "assets_usd": 725593919,
+      "cik": 1104485,
+      "name": "NORTHERN OIL AND GAS, INC."
+    },
+    {
+      "assets_usd": 8311000000,
+      "cik": 1105055,
+      "name": "DYNEGY HOLDINGS, LLC"
+    },
+    {
+      "assets_usd": 1026482000,
+      "cik": 1107694,
+      "name": "RACKSPACE HOSTING, INC."
+    },
+    {
+      "assets_usd": 3992257000,
+      "cik": 1108134,
+      "name": "BERKSHIRE HILLS BANCORP,\u00a0INC."
+    },
+    {
+      "assets_usd": 4164154000,
+      "cik": 1108524,
+      "name": "salesforce.com, inc."
+    },
+    {
+      "assets_usd": 1710500000,
+      "cik": 1109354,
+      "name": "BRUKER CORP"
+    },
+    {
+      "assets_usd": 924991000,
+      "cik": 1112412,
+      "name": "ENDEAVOUR INTERNATIONAL CORP"
+    },
+    {
+      "assets_usd": 3100885000,
+      "cik": 1116132,
+      "name": "Tapestry, Inc."
+    },
+    {
+      "assets_usd": 1749069000,
+      "cik": 1116942,
+      "name": "TTM TECHNOLOGIES, INC."
+    },
+    {
+      "assets_usd": 1238027000,
+      "cik": 1118237,
+      "name": "MBT FINANCIAL CORP"
+    },
+    {
+      "assets_usd": 971370000,
+      "cik": 1122904,
+      "name": "NETGEAR, Inc."
+    },
+    {
+      "assets_usd": 8268364000,
+      "cik": 1124198,
+      "name": "FLUOR CORPORATION"
+    },
+    {
+      "assets_usd": 147361700000,
+      "cik": 1126328,
+      "name": "PRINCIPAL FINANCIAL GROUP, INC."
+    },
+    {
+      "assets_usd": 849023000,
+      "cik": 1127371,
+      "name": "Central Valley Community Bancorp"
+    },
+    {
+      "assets_usd": 1035563833,
+      "cik": 1132651,
+      "name": "AMES NATIONAL CORPORATION"
+    },
+    {
+      "assets_usd": 25411000000,
+      "cik": 1133421,
+      "name": "NORTHROP GRUMMAN CORP /DE/"
+    },
+    {
+      "assets_usd": 574722000,
+      "cik": 1134203,
+      "name": "TALEO CORP"
+    },
+    {
+      "assets_usd": 2572000000,
+      "cik": 1135361,
+      "name": "ILLINOIS POWER GENERATING CO"
+    },
+    {
+      "assets_usd": 775090000,
+      "cik": 1135711,
+      "name": "NETLOGIC MICROSYSTEMS INC"
+    },
+    {
+      "assets_usd": 13873200000,
+      "cik": 1136893,
+      "name": "Fidelity National Information Services, Inc."
+    },
+    {
+      "assets_usd": 754580000,
+      "cik": 1137861,
+      "name": "WRIGHT MEDICAL GROUP INC"
+    },
+    {
+      "assets_usd": 7219143000,
+      "cik": 1138118,
+      "name": "CBRE GROUP, INC."
+    },
+    {
+      "assets_usd": 2452884000,
+      "cik": 1138301,
+      "name": "CORPORATE PROPERTY ASSOCIATES 15 INC"
+    },
+    {
+      "assets_usd": 791726915,
+      "cik": 1141807,
+      "name": "1ST     CONSTITUTION BANCORP"
+    },
+    {
+      "assets_usd": 1123562000,
+      "cik": 1142596,
+      "name": "NUVASIVE, INC"
+    },
+    {
+      "assets_usd": 535631000,
+      "cik": 1142750,
+      "name": "AMN HEALTHCARE SERVICES, INC."
+    },
+    {
+      "assets_usd": 2166860000,
+      "cik": 1143155,
+      "name": "XENITH BANKSHARES, INC."
+    },
+    {
+      "assets_usd": 596921000,
+      "cik": 1144354,
+      "name": "HEARTLAND PAYMENT SYSTEMS INC"
+    },
+    {
+      "assets_usd": 52163200000,
+      "cik": 1156039,
+      "name": "ANTHEM, INC."
+    },
+    {
+      "assets_usd": 40758700000,
+      "cik": 1156375,
+      "name": "CME GROUP INC."
+    },
+    {
+      "assets_usd": 7071000000,
+      "cik": 1158463,
+      "name": "JETBLUE AIRWAYS CORP"
+    },
+    {
+      "assets_usd": 559346000,
+      "cik": 1159281,
+      "name": "FIVE STAR SENIOR LIVING INC."
+    },
+    {
+      "assets_usd": 8810000000,
+      "cik": 1159297,
+      "name": "MEADWESTVACO CORP"
+    },
+    {
+      "assets_usd": 2287345000,
+      "cik": 1161364,
+      "name": "MEDIACOM BROADBAND LLC"
+    },
+    {
+      "assets_usd": 1458882000,
+      "cik": 1161728,
+      "name": "MGE Energy, Inc."
+    },
+    {
+      "assets_usd": 5652800000,
+      "cik": 1162000,
+      "name": "ONEBEACON U.S. HOLDINGS, INC."
+    },
+    {
+      "assets_usd": 715641000,
+      "cik": 1163199,
+      "name": "FNB BANCORP/CA/"
+    },
+    {
+      "assets_usd": 1085258000,
+      "cik": 1163370,
+      "name": "Northrim BanCorp, Inc."
+    },
+    {
+      "assets_usd": 12912140000,
+      "cik": 1163739,
+      "name": "NABORS INDUSTRIES LTD."
+    },
+    {
+      "assets_usd": 600557000,
+      "cik": 1163932,
+      "name": "ACTIVE NETWORK INC"
+    },
+    {
+      "assets_usd": 26041000000,
+      "cik": 1164727,
+      "name": "NEWMONT CORPORATION"
+    },
+    {
+      "assets_usd": 735233000,
+      "cik": 1168213,
+      "name": "AEROPOSTALE INC"
+    },
+    {
+      "assets_usd": 645900000,
+      "cik": 1170534,
+      "name": "MITEL NETWORKS CORP"
+    },
+    {
+      "assets_usd": 4551611000,
+      "cik": 1171500,
+      "name": "PLATINUM UNDERWRITERS HOLDINGS LTD"
+    },
+    {
+      "assets_usd": 1880577000,
+      "cik": 1171662,
+      "name": "TRIPLE-S MANAGEMENT CORPORATION"
+    },
+    {
+      "assets_usd": 592976000,
+      "cik": 1171759,
+      "name": "RED ROBIN GOURMET BURGERS,\u00a0INC."
+    },
+    {
+      "assets_usd": 1487529000,
+      "cik": 1172222,
+      "name": "HAWAIIAN HOLDINGS INC"
+    },
+    {
+      "assets_usd": 562335000,
+      "cik": 1173752,
+      "name": "ARUBA NETWORKS, INC."
+    },
+    {
+      "assets_usd": 632890000,
+      "cik": 1175029,
+      "name": "NORTH STATE BANCORP"
+    },
+    {
+      "assets_usd": 2349169000,
+      "cik": 1175454,
+      "name": "FLEETCOR Technologies, Inc"
+    },
+    {
+      "assets_usd": 1102200000,
+      "cik": 1176236,
+      "name": "KRONOS INTERNATIONAL INC"
+    },
+    {
+      "assets_usd": 809758000,
+      "cik": 1176316,
+      "name": "ACCESS NATIONAL CORP"
+    },
+    {
+      "assets_usd": 3553768000,
+      "cik": 1176373,
+      "name": "TIER REIT INC"
+    },
+    {
+      "assets_usd": 2833295000,
+      "cik": 1177394,
+      "name": "TD SYNNEX CORPORATION"
+    },
+    {
+      "assets_usd": 651474000,
+      "cik": 1178336,
+      "name": "HOKU CORP"
+    },
+    {
+      "assets_usd": 1652146000,
+      "cik": 1179929,
+      "name": "MOLINA HEALTHCARE, INC."
+    },
+    {
+      "assets_usd": 506483000,
+      "cik": 1181001,
+      "name": "ALLIANCE BANKSHARES CORP"
+    },
+    {
+      "assets_usd": 865252257,
+      "cik": 1198415,
+      "name": "ALTEGRIS WINTON FUTURES FUND, L.P."
+    },
+    {
+      "assets_usd": 1941900000,
+      "cik": 1216596,
+      "name": "NORTEK INC"
+    },
+    {
+      "assets_usd": 589027000,
+      "cik": 1223786,
+      "name": "NUSTAR GP HOLDINGS, LLC"
+    },
+    {
+      "assets_usd": 1382760594,
+      "cik": 1227265,
+      "name": "CERES ORION L.P."
+    },
+    {
+      "assets_usd": 1794978000,
+      "cik": 1254419,
+      "name": "MEDASSETS INC"
+    },
+    {
+      "assets_usd": 1823900000,
+      "cik": 1257640,
+      "name": "KRONOS WORLDWIDE, INC."
+    },
+    {
+      "assets_usd": 3266821000,
+      "cik": 1262823,
+      "name": "WESTLAKE CHEMICAL CORP"
+    },
+    {
+      "assets_usd": 1382610000,
+      "cik": 1265888,
+      "name": "NEUSTAR INC"
+    },
+    {
+      "assets_usd": 873697000,
+      "cik": 1271024,
+      "name": "LINKEDIN CORP"
+    },
+    {
+      "assets_usd": 1708000000,
+      "cik": 1271625,
+      "name": "DFC GLOBAL CORP."
+    },
+    {
+      "assets_usd": 5777614000,
+      "cik": 1274494,
+      "name": "First Solar, Inc."
+    },
+    {
+      "assets_usd": 545523000,
+      "cik": 1283709,
+      "name": "THOMAS PROPERTIES GROUP INC"
+    },
+    {
+      "assets_usd": 681056809,
+      "cik": 1287950,
+      "name": "SPREADTRUM COMMUNICATIONS INC"
+    },
+    {
+      "assets_usd": 848070000,
+      "cik": 1289237,
+      "name": "U.S. PREMIUM BEEF, LLC"
+    },
+    {
+      "assets_usd": 2896128000,
+      "cik": 1289877,
+      "name": "SFL Corporation Ltd."
+    },
+    {
+      "assets_usd": 638865000,
+      "cik": 1292055,
+      "name": "SYMMETRY MEDICAL INC."
+    },
+    {
+      "assets_usd": 1481879000,
+      "cik": 1292556,
+      "name": "POLYPORE INTERNATIONAL, INC."
+    },
+    {
+      "assets_usd": 2862780000,
+      "cik": 1295664,
+      "name": "KEARNY FINANCIAL CORP."
+    },
+    {
+      "assets_usd": 565100000,
+      "cik": 1296435,
+      "name": "Neenah Inc"
+    },
+    {
+      "assets_usd": 1222029000,
+      "cik": 1297735,
+      "name": "AMERICAN CASINO & ENTERTAINMENT PROPERTIES LLC"
+    },
+    {
+      "assets_usd": 727230000,
+      "cik": 1299109,
+      "name": "PENINSULA GAMING, LLC"
+    },
+    {
+      "assets_usd": 22244123000,
+      "cik": 1300514,
+      "name": "LAS VEGAS SANDS CORP."
+    },
+    {
+      "assets_usd": 16594045000,
+      "cik": 1301063,
+      "name": "ALPHA NATURAL RESOURCES, INC."
+    },
+    {
+      "assets_usd": 1523378000,
+      "cik": 1301106,
+      "name": "NATIONAL INTERSTATE CORP"
+    },
+    {
+      "assets_usd": 500728000,
+      "cik": 1302324,
+      "name": "PRUDENTIAL BANCORP INC OF PENNSYLVANIA"
+    },
+    {
+      "assets_usd": 1563575000,
+      "cik": 1303942,
+      "name": "BANKFINANCIAL CORPORATION"
+    },
+    {
+      "assets_usd": 12513000000,
+      "cik": 1305014,
+      "name": "ASHLAND INC."
+    },
+    {
+      "assets_usd": 2044494000,
+      "cik": 1308085,
+      "name": "VISANT CORP"
+    },
+    {
+      "assets_usd": 3231561000,
+      "cik": 1308606,
+      "name": "SPIRIT REALTY CAPITAL, INC."
+    },
+    {
+      "assets_usd": 506373000,
+      "cik": 1311486,
+      "name": "GLOBAL GEOPHYSICAL SERVICES INC"
+    },
+    {
+      "assets_usd": 929744000,
+      "cik": 1313024,
+      "name": "VENOCO, INC."
+    },
+    {
+      "assets_usd": 730700000,
+      "cik": 1315257,
+      "name": "KOPPERS HOLDINGS INC."
+    },
+    {
+      "assets_usd": 790738000,
+      "cik": 1315399,
+      "name": "PARKE BANCORP, INC."
+    },
+    {
+      "assets_usd": 4587600000,
+      "cik": 1315695,
+      "name": "ROCKWOOD HOLDINGS, INC."
+    },
+    {
+      "assets_usd": 3073037000,
+      "cik": 1316360,
+      "name": "IHS INC."
+    },
+    {
+      "assets_usd": 3077604000,
+      "cik": 1318220,
+      "name": "Waste Connections, Inc."
+    },
+    {
+      "assets_usd": 713448000,
+      "cik": 1318605,
+      "name": "Tesla, Inc."
+    },
+    {
+      "assets_usd": 5562411000,
+      "cik": 1318742,
+      "name": "NCL CORPORATION LTD."
+    },
+    {
+      "assets_usd": 1404728000,
+      "cik": 1320947,
+      "name": "DIAMOND FOODS INC"
+    },
+    {
+      "assets_usd": 1867256728,
+      "cik": 1322439,
+      "name": "EAGLE BULK SHIPPING INC."
+    },
+    {
+      "assets_usd": 1092496000,
+      "cik": 1323648,
+      "name": "Community Bankers Trust Corp"
+    },
+    {
+      "assets_usd": 2302563000,
+      "cik": 1323891,
+      "name": "AMERICAN TIRE DISTRIBUTORS HOLDINGS, INC."
+    },
+    {
+      "assets_usd": 2020559000,
+      "cik": 1324245,
+      "name": "SOLERA HOLDINGS, INC"
+    },
+    {
+      "assets_usd": 8974500000,
+      "cik": 1324404,
+      "name": "CF Industries Holdings, Inc."
+    },
+    {
+      "assets_usd": 1195379000,
+      "cik": 1324482,
+      "name": "COMMERCIAL BARGE LINE CO"
+    },
+    {
+      "assets_usd": 1124354000,
+      "cik": 1325281,
+      "name": "KAPSTONE PAPER & PACKAGING CORP"
+    },
+    {
+      "assets_usd": 611373000,
+      "cik": 1325670,
+      "name": "PRIMIS FINANCIAL CORP."
+    },
+    {
+      "assets_usd": 33190182000,
+      "cik": 1325878,
+      "name": "Federal Home Loan Bank of Topeka"
+    },
+    {
+      "assets_usd": 3037453000,
+      "cik": 1326141,
+      "name": "LAZARD GROUP LLC"
+    },
+    {
+      "assets_usd": 4608200000,
+      "cik": 1326380,
+      "name": "GameStop Corp."
+    },
+    {
+      "assets_usd": 7928854000,
+      "cik": 1326428,
+      "name": "ROAN RESOURCES, INC."
+    },
+    {
+      "assets_usd": 1641025000,
+      "cik": 1326583,
+      "name": "WEBMD HEALTH CORP."
+    },
+    {
+      "assets_usd": 6331000000,
+      "cik": 1326801,
+      "name": "Meta Platforms, Inc."
+    },
+    {
+      "assets_usd": 1174394398,
+      "cik": 1327068,
+      "name": "UNITED STATES OIL FUND, LP"
+    },
+    {
+      "assets_usd": 2670419000,
+      "cik": 1327978,
+      "name": "ARES REAL ESTATE INCOME TRUST INC."
+    },
+    {
+      "assets_usd": 49968337000,
+      "cik": 1331463,
+      "name": "FEDERAL HOME LOAN BANK OF BOSTON"
+    },
+    {
+      "assets_usd": 40375490000,
+      "cik": 1331754,
+      "name": "FEDERAL HOME LOAN BANK OF INDIANAPOLIS"
+    },
+    {
+      "assets_usd": 33769967000,
+      "cik": 1331757,
+      "name": "Federal Home Loan Bank of Dallas"
+    },
+    {
+      "assets_usd": 2284724000,
+      "cik": 1332551,
+      "name": "ACRES COMMERCIAL REALTY CORP."
+    },
+    {
+      "assets_usd": 692104000,
+      "cik": 1332896,
+      "name": "COGDELL SPENCER INC."
+    },
+    {
+      "assets_usd": 6667000000,
+      "cik": 1336920,
+      "name": "Leidos Holdings, Inc."
+    },
+    {
+      "assets_usd": 526331000,
+      "cik": 1337068,
+      "name": "MAGYAR BANCORP, INC."
+    },
+    {
+      "assets_usd": 12550000000,
+      "cik": 1337272,
+      "name": "SUNGARD"
+    },
+    {
+      "assets_usd": 5568000000,
+      "cik": 1338613,
+      "name": "REGENCY ENERGY PARTNERS LP"
+    },
+    {
+      "assets_usd": 1063534000,
+      "cik": 1338690,
+      "name": "NATIONAL MENTOR HOLDINGS, INC."
+    },
+    {
+      "assets_usd": 1065345000,
+      "cik": 1340282,
+      "name": "ROSETTA RESOURCES INC."
+    },
+    {
+      "assets_usd": 644978000,
+      "cik": 1342338,
+      "name": "HIMAX TECHNOLOGIES, INC."
+    },
+    {
+      "assets_usd": 674554000,
+      "cik": 1343034,
+      "name": "TWO RIVER BANCORP"
+    },
+    {
+      "assets_usd": 703770000,
+      "cik": 1344596,
+      "name": "AMERICAN RAILCAR INDUSTRIES, INC."
+    },
+    {
+      "assets_usd": 17339000000,
+      "cik": 1355096,
+      "name": "QURATE RETAIL, INC."
+    },
+    {
+      "assets_usd": 616306000,
+      "cik": 1355786,
+      "name": "CHICOPEE BANCORP, INC."
+    },
+    {
+      "assets_usd": 3224018000,
+      "cik": 1357204,
+      "name": "DUNKIN' BRANDS GROUP, INC."
+    },
+    {
+      "assets_usd": 1031199000,
+      "cik": 1357326,
+      "name": "RIVERBED TECHNOLOGY, INC."
+    },
+    {
+      "assets_usd": 6849576000,
+      "cik": 1358071,
+      "name": "CONCHO RESOURCES INC"
+    },
+    {
+      "assets_usd": 1455424000,
+      "cik": 1358356,
+      "name": "LIMESTONE BANCORP, INC."
+    },
+    {
+      "assets_usd": 1043488000,
+      "cik": 1358831,
+      "name": "LEGACY RESERVES LP"
+    },
+    {
+      "assets_usd": 1651000000,
+      "cik": 1361394,
+      "name": "AFFINION GROUP, INC."
+    },
+    {
+      "assets_usd": 728413000,
+      "cik": 1361538,
+      "name": "Primoris Services Corporation"
+    },
+    {
+      "assets_usd": 512031000,
+      "cik": 1361872,
+      "name": "WESTWAY GROUP, INC."
+    },
+    {
+      "assets_usd": 2003224000,
+      "cik": 1361937,
+      "name": "HARVEST OIL & GAS CORP."
+    },
+    {
+      "assets_usd": 694615000,
+      "cik": 1362004,
+      "name": "ICF International, Inc."
+    },
+    {
+      "assets_usd": 706743000,
+      "cik": 1362468,
+      "name": "Allegiant Travel Company"
+    },
+    {
+      "assets_usd": 590103000,
+      "cik": 1365038,
+      "name": "LEAF GROUP LTD."
+    },
+    {
+      "assets_usd": 9069900000,
+      "cik": 1365135,
+      "name": "Western Union CO"
+    },
+    {
+      "assets_usd": 1993188000,
+      "cik": 1366367,
+      "name": "YADKIN FINANCIAL CORP"
+    },
+    {
+      "assets_usd": 604631000,
+      "cik": 1366684,
+      "name": "HOMEAWAY INC"
+    },
+    {
+      "assets_usd": 510802000,
+      "cik": 1368900,
+      "name": "GATEHOUSE MEDIA, INC."
+    },
+    {
+      "assets_usd": 5821600000,
+      "cik": 1369817,
+      "name": "ONEBEACON INSURANCE GROUP, LTD."
+    },
+    {
+      "assets_usd": 1458971000,
+      "cik": 1373060,
+      "name": "MINDRAY MEDICAL INTERNATIONAL LTD"
+    },
+    {
+      "assets_usd": 568233000,
+      "cik": 1375320,
+      "name": "HAMPDEN BANCORP, INC."
+    },
+    {
+      "assets_usd": 1879808737,
+      "cik": 1375877,
+      "name": "CANADIAN SOLAR\u00a0INC."
+    },
+    {
+      "assets_usd": 1517316000,
+      "cik": 1376972,
+      "name": "HOMEINNS HOTEL GROUP"
+    },
+    {
+      "assets_usd": 820200000,
+      "cik": 1377630,
+      "name": "NATIONAL CINEMEDIA, INC."
+    },
+    {
+      "assets_usd": 9115000000,
+      "cik": 1378789,
+      "name": "AERCAP HOLDINGS N.V."
+    },
+    {
+      "assets_usd": 1652513000,
+      "cik": 1379714,
+      "name": "SABINE PASS LNG, L.P."
+    },
+    {
+      "assets_usd": 30404365000,
+      "cik": 1381197,
+      "name": "INTERACTIVE BROKERS GROUP,\u00a0INC."
+    },
+    {
+      "assets_usd": 11058126000,
+      "cik": 1381668,
+      "name": "TFS FINANCIAL CORPORATION"
+    },
+    {
+      "assets_usd": 2877448179,
+      "cik": 1382158,
+      "name": "TRINA SOLAR LTD"
+    },
+    {
+      "assets_usd": 2047361655,
+      "cik": 1383082,
+      "name": "INVESCO DB AGRICULTURE FUND"
+    },
+    {
+      "assets_usd": 6853861000,
+      "cik": 1385424,
+      "name": "LDK SOLAR CO., LTD."
+    },
+    {
+      "assets_usd": 631492000,
+      "cik": 1385544,
+      "name": "HORSEHEAD HOLDING CORP"
+    },
+    {
+      "assets_usd": 8647228000,
+      "cik": 1386926,
+      "name": "KKR FINANCIAL HOLDINGS LLC"
+    },
+    {
+      "assets_usd": 6298000000,
+      "cik": 1393066,
+      "name": "RESOLUTE FOREST PRODUCTS INC."
+    },
+    {
+      "assets_usd": 12445000000,
+      "cik": 1394074,
+      "name": "SPECTRA ENERGY PARTNERS, LP"
+    },
+    {
+      "assets_usd": 1193712000,
+      "cik": 1394954,
+      "name": "GT ADVANCED TECHNOLOGIES INC."
+    },
+    {
+      "assets_usd": 750275000,
+      "cik": 1396279,
+      "name": "HHGREGG, INC."
+    },
+    {
+      "assets_usd": 615603000,
+      "cik": 1396838,
+      "name": "DOLAN CO."
+    },
+    {
+      "assets_usd": 599899000,
+      "cik": 1397821,
+      "name": "DUFF & PHELPS CORP"
+    },
+    {
+      "assets_usd": 1390613626,
+      "cik": 1398453,
+      "name": "XINYUAN REAL ESTATE CO., LTD."
+    },
+    {
+      "assets_usd": 784100000,
+      "cik": 1400431,
+      "name": "PATHEON INC"
+    },
+    {
+      "assets_usd": 16542039000,
+      "cik": 1400891,
+      "name": "IHEARTMEDIA, INC."
+    },
+    {
+      "assets_usd": 1059390000,
+      "cik": 1401564,
+      "name": "FIRST FINANCIAL NORTHWEST, INC."
+    },
+    {
+      "assets_usd": 2376918000,
+      "cik": 1401700,
+      "name": "NORTHFIELD BANCORP, INC."
+    },
+    {
+      "assets_usd": 5967700000,
+      "cik": 1402057,
+      "name": "CDW Corp"
+    },
+    {
+      "assets_usd": 35768000000,
+      "cik": 1403161,
+      "name": "VISA INC."
+    },
+    {
+      "assets_usd": 539681000,
+      "cik": 1403853,
+      "name": "Nuverra Environmental Solutions, Inc."
+    },
+    {
+      "assets_usd": 996968000,
+      "cik": 1405495,
+      "name": "INTERDIGITAL, INC."
+    },
+    {
+      "assets_usd": 1143698243,
+      "cik": 1405658,
+      "name": "E-HOUSE (CHINA) HOLDINGS LTD"
+    },
+    {
+      "assets_usd": 3140973000,
+      "cik": 1406578,
+      "name": "RSC HOLDINGS III, LLC"
+    },
+    {
+      "assets_usd": 794857000,
+      "cik": 1406587,
+      "name": "Forestar Group Inc."
+    },
+    {
+      "assets_usd": 792776000,
+      "cik": 1408100,
+      "name": "Kennedy-Wilson Holdings, Inc."
+    },
+    {
+      "assets_usd": 1353866000,
+      "cik": 1408534,
+      "name": "FIRST GUARANTY BANCSHARES, INC."
+    },
+    {
+      "assets_usd": 7747135000,
+      "cik": 1409493,
+      "name": "CHIMERA INVESTMENT CORPORATION"
+    },
+    {
+      "assets_usd": 550434267,
+      "cik": 1410567,
+      "name": "SMARTSTOP SELF STORAGE, INC."
+    },
+    {
+      "assets_usd": 2130575000,
+      "cik": 1410997,
+      "name": "AMERICAN REALTY CAPITAL TRUST, INC."
+    },
+    {
+      "assets_usd": 2986216000,
+      "cik": 1411059,
+      "name": "KBS REAL ESTATE INVESTMENT TRUST II, INC."
+    },
+    {
+      "assets_usd": 932612000,
+      "cik": 1412109,
+      "name": "SIMPLICITY BANCORP, INC."
+    },
+    {
+      "assets_usd": 6612000000,
+      "cik": 1413447,
+      "name": "NXP Semiconductors N.V."
+    },
+    {
+      "assets_usd": 521298000,
+      "cik": 1413855,
+      "name": "FANHUA INC."
+    },
+    {
+      "assets_usd": 564233779,
+      "cik": 1415016,
+      "name": "GIANT INTERACTIVE GROUP INC."
+    },
+    {
+      "assets_usd": 909924000,
+      "cik": 1415921,
+      "name": "NAVIOS MARITIME PARTNERS L.P."
+    },
+    {
+      "assets_usd": 2724400000,
+      "cik": 1416083,
+      "name": "CATALENT PHARMA SOLUTIONS, INC."
+    },
+    {
+      "assets_usd": 554466000,
+      "cik": 1417370,
+      "name": "FINCERA INC."
+    },
+    {
+      "assets_usd": 9283000000,
+      "cik": 1418135,
+      "name": "Keurig Dr Pepper Inc."
+    },
+    {
+      "assets_usd": 613481000,
+      "cik": 1419852,
+      "name": "MATTRESS FIRM HOLDING CORP."
+    },
+    {
+      "assets_usd": 4451621000,
+      "cik": 1420566,
+      "name": "PINNACLE FOODS FINANCE LLC"
+    },
+    {
+      "assets_usd": 57972000000,
+      "cik": 1423689,
+      "name": "AGNC INVESTMENT CORP."
+    },
+    {
+      "assets_usd": 2460785000,
+      "cik": 1430723,
+      "name": "ServisFirst Bancshares, Inc."
+    },
+    {
+      "assets_usd": 555432848,
+      "cik": 1432405,
+      "name": "MERCHANTS & MARINE BANCORP, INC."
+    },
+    {
+      "assets_usd": 976322000,
+      "cik": 1434620,
+      "name": "ILG, INC."
+    },
+    {
+      "assets_usd": 1394973000,
+      "cik": 1434729,
+      "name": "HSN, INC."
+    },
+    {
+      "assets_usd": 550423053,
+      "cik": 1434842,
+      "name": "FORBES ENERGY SERVICES LTD."
+    },
+    {
+      "assets_usd": 542239000,
+      "cik": 1435508,
+      "name": "FIRST SAVINGS FINANCIAL GROUP,\u00a0INC."
+    },
+    {
+      "assets_usd": 11913000000,
+      "cik": 1437107,
+      "name": "Discovery, Inc."
+    },
+    {
+      "assets_usd": 1771164000,
+      "cik": 1437578,
+      "name": "BRIGHT HORIZONS FAMILY SOLUTIONS INC."
+    },
+    {
+      "assets_usd": 2516646000,
+      "cik": 1439404,
+      "name": "Zynga Inc"
+    },
+    {
+      "assets_usd": 543718000,
+      "cik": 1440024,
+      "name": "ROADRUNNER TRANSPORTATION SYSTEMS, INC."
+    },
+    {
+      "assets_usd": 531795000,
+      "cik": 1441567,
+      "name": "MMODAL INC."
+    },
+    {
+      "assets_usd": 1541106000,
+      "cik": 1442145,
+      "name": "Verisk Analytics, Inc."
+    },
+    {
+      "assets_usd": 8842652000,
+      "cik": 1442505,
+      "name": "CLEARWIRE CORP /DE"
+    },
+    {
+      "assets_usd": 3207349000,
+      "cik": 1443646,
+      "name": "Booz Allen Hamilton Holding Corporation"
+    },
+    {
+      "assets_usd": 3832067000,
+      "cik": 1444598,
+      "name": "CHANGE HEALTHCARE HOLDINGS, INC."
+    },
+    {
+      "assets_usd": 37340000000,
+      "cik": 1445049,
+      "name": "ENERGY FUTURE COMPETITIVE HOLDINGS CO LLC"
+    },
+    {
+      "assets_usd": 9517000000,
+      "cik": 1445146,
+      "name": "ENERGY FUTURE INTERMEDIATE HOLDING CO LLC"
+    },
+    {
+      "assets_usd": 6015355000,
+      "cik": 1447382,
+      "name": "OCEAN RIG UDW INC."
+    },
+    {
+      "assets_usd": 524563000,
+      "cik": 1450922,
+      "name": "ABERDEEN STANDARD SILVER ETF TRUST"
+    },
+    {
+      "assets_usd": 969700000,
+      "cik": 1452217,
+      "name": "TPC GROUP INC."
+    },
+    {
+      "assets_usd": 2766800000,
+      "cik": 1452575,
+      "name": "MEAD JOHNSON NUTRITION CO"
+    },
+    {
+      "assets_usd": 1381317000,
+      "cik": 1453818,
+      "name": "HGR Liquidating Trust"
+    },
+    {
+      "assets_usd": 1368575000,
+      "cik": 1456772,
+      "name": "OFFICE PROPERTIES INCOME TRUST"
+    },
+    {
+      "assets_usd": 8332000000,
+      "cik": 1457543,
+      "name": "CAREFUSION CORP"
+    },
+    {
+      "assets_usd": 753073000,
+      "cik": 1458696,
+      "name": "CHANGYOU.COM LTD"
+    },
+    {
+      "assets_usd": 647907000,
+      "cik": 1464343,
+      "name": "Atlanticus Holdings Corporation"
+    },
+    {
+      "assets_usd": 6738000000,
+      "cik": 1465264,
+      "name": "HD SUPPLY, INC."
+    },
+    {
+      "assets_usd": 8100384000,
+      "cik": 1465740,
+      "name": "TWO HARBORS INVESTMENT CORP."
+    },
+    {
+      "assets_usd": 947560000,
+      "cik": 1469510,
+      "name": "RESOLUTE ENERGY CORP"
+    },
+    {
+      "assets_usd": 1336714000,
+      "cik": 1470795,
+      "name": "OMNIAMERICAN BANCORP, INC."
+    },
+    {
+      "assets_usd": 814915000,
+      "cik": 1477156,
+      "name": "CHINA HYDROELECTRIC CORP"
+    },
+    {
+      "assets_usd": 2322917000,
+      "cik": 1478242,
+      "name": "IQVIA HOLDINGS INC."
+    },
+    {
+      "assets_usd": 6586380000,
+      "cik": 1479750,
+      "name": "CAPITAL BANK FINANCIAL CORP."
+    },
+    {
+      "assets_usd": 3683238000,
+      "cik": 1483096,
+      "name": "WILLIAMS PARTNERS L.P."
+    },
+    {
+      "assets_usd": 2603143000,
+      "cik": 1483195,
+      "name": "ORITANI FINANCIAL CORP"
+    },
+    {
+      "assets_usd": 1015863000,
+      "cik": 1485176,
+      "name": "FOX CHASE BANCORP INC"
+    },
+    {
+      "assets_usd": 1397378000,
+      "cik": 1485469,
+      "name": "TOWER INTERNATIONAL, INC."
+    },
+    {
+      "assets_usd": 3180578000,
+      "cik": 1487052,
+      "name": "LEGACYTEXAS FINANCIAL GROUP, INC."
+    },
+    {
+      "assets_usd": 703845000,
+      "cik": 1487685,
+      "name": "GREEKTOWN SUPERHOLDINGS, INC."
+    },
+    {
+      "assets_usd": 3777864000,
+      "cik": 1487730,
+      "name": "SPECTRUM BRANDS HOLDINGS, INC."
+    },
+    {
+      "assets_usd": 661772000,
+      "cik": 1487986,
+      "name": "HAWAIIAN TELCOM HOLDCO, INC."
+    },
+    {
+      "assets_usd": 1335891000,
+      "cik": 1487990,
+      "name": "AEROFLEX HOLDING CORP."
+    },
+    {
+      "assets_usd": 1525302000,
+      "cik": 1487999,
+      "name": "SEACUBE CONTAINER LEASING LTD."
+    },
+    {
+      "assets_usd": 1255125000,
+      "cik": 1489137,
+      "name": "MOLYCORP, INC."
+    },
+    {
+      "assets_usd": 1774476000,
+      "cik": 1490281,
+      "name": "Groupon, Inc."
+    },
+    {
+      "assets_usd": 1065995000,
+      "cik": 1491501,
+      "name": "TMS INTERNATIONAL CORP."
+    },
+    {
+      "assets_usd": 1971349000,
+      "cik": 1492261,
+      "name": "ELSTER GROUP SE"
+    },
+    {
+      "assets_usd": 2640180000,
+      "cik": 1492691,
+      "name": "Knight-Swift Transportation Holdings Inc."
+    },
+    {
+      "assets_usd": 2376918000,
+      "cik": 1493225,
+      "name": "Northfield Bancorp, Inc."
+    },
+    {
+      "assets_usd": 572220000,
+      "cik": 1493552,
+      "name": "NAUGATUCK VALLEY FINANCIAL CORP"
+    },
+    {
+      "assets_usd": 522596000,
+      "cik": 1497770,
+      "name": "Walker & Dunlop, Inc."
+    },
+    {
+      "assets_usd": 951421257,
+      "cik": 1499686,
+      "name": "AVIV REIT, INC."
+    },
+    {
+      "assets_usd": 1487133000,
+      "cik": 1499912,
+      "name": "GLOBAL BROKERAGE, INC."
+    },
+    {
+      "assets_usd": 955047000,
+      "cik": 1500213,
+      "name": "SI FINANCIAL GROUP, INC."
+    },
+    {
+      "assets_usd": 1709281000,
+      "cik": 1500217,
+      "name": "American Assets Trust, Inc."
+    },
+    {
+      "assets_usd": 1430566000,
+      "cik": 1501919,
+      "name": "SSI INVESTMENTS II LTD"
+    },
+    {
+      "assets_usd": 1154344000,
+      "cik": 1502012,
+      "name": "QR ENERGY, LP"
+    },
+    {
+      "assets_usd": 2578799000,
+      "cik": 1502554,
+      "name": "BROOKFIELD RESIDENTIAL PROPERTIES INC."
+    },
+    {
+      "assets_usd": 13041678000,
+      "cik": 1502749,
+      "name": "EVERBANK FINANCIAL CORP"
+    },
+    {
+      "assets_usd": 1564100000,
+      "cik": 1503813,
+      "name": "RDA HOLDING CO."
+    },
+    {
+      "assets_usd": 755205000,
+      "cik": 1504461,
+      "name": "NGL ENERGY PARTNERS LP"
+    },
+    {
+      "assets_usd": 1278008000,
+      "cik": 1509223,
+      "name": "Renren Inc."
+    },
+    {
+      "assets_usd": 537849000,
+      "cik": 1509273,
+      "name": "C&J ENERGY SERVICES, INC."
+    },
+    {
+      "assets_usd": 1454018000,
+      "cik": 1513050,
+      "name": "UCI HOLDINGS LTD"
+    },
+    {
+      "assets_usd": 1005800000,
+      "cik": 1513514,
+      "name": "TRANSUNION CORP."
+    },
+    {
+      "assets_usd": 2357816000,
+      "cik": 1514128,
+      "name": "UNIVERSAL AMERICAN CORP."
+    },
+    {
+      "assets_usd": 2037600000,
+      "cik": 1516386,
+      "name": "ALERIS INTERNATIONAL, INC."
+    },
+    {
+      "assets_usd": 4184289000,
+      "cik": 1517342,
+      "name": "PACIFIC DRILLING S.A."
+    },
+    {
+      "assets_usd": 2455259000,
+      "cik": 1517393,
+      "name": "EPICOR SOFTWARE CORP"
+    },
+    {
+      "assets_usd": 1033739000,
+      "cik": 1517783,
+      "name": "EVERTEC GROUP, LLC"
+    },
+    {
+      "assets_usd": 790868000,
+      "cik": 1520300,
+      "name": "ASB BANCORP INC"
+    },
+    {
+      "assets_usd": 1255660000,
+      "cik": 1521847,
+      "name": "AMPLIFY ENERGY CORP"
+    },
+    {
+      "assets_usd": 741498000,
+      "cik": 1523733,
+      "name": "PETROLOGISTICS LP"
+    },
+    {
+      "assets_usd": 2845000000,
+      "cik": 1524358,
+      "name": "Marriott Vacations Worldwide Corp"
+    },
+    {
+      "assets_usd": 4400000000,
+      "cik": 1524472,
+      "name": "Xylem Inc."
+    },
+    {
+      "assets_usd": 680452000,
+      "cik": 1531537,
+      "name": "BREF HR, LLC"
+    },
+    {
+      "assets_usd": 3489710000,
+      "cik": 1533932,
+      "name": "WORLDPAY, INC."
+    },
+    {
+      "assets_usd": 43211000000,
+      "cik": 1534701,
+      "name": "Phillips 66"
+    },
+    {
+      "assets_usd": 900740000,
+      "cik": 1537951,
+      "name": "EDGEN GROUP INC."
+    },
+    {
+      "assets_usd": 800500000,
+      "cik": 1540563,
+      "name": "DYNACAST INTERNATIONAL INC."
+    },
+    {
+      "assets_usd": 546442000,
+      "cik": 1540947,
+      "name": "EQM MIDSTREAM PARTNERS, LP"
+    },
+    {
+      "assets_usd": 1503247000,
+      "cik": 1544229,
+      "name": "ENGILITY HOLDINGS, INC."
+    },
+    {
+      "assets_usd": 1324431000,
+      "cik": 1550377,
+      "name": "BAKERCORP INTERNATIONAL, INC."
+    },
+    {
+      "assets_usd": 11901151000,
+      "cik": 1552493,
+      "name": "CNH INDUSTRIAL CAPITAL\u00a0LLC"
+    },
+    {
+      "assets_usd": 2108685000,
+      "cik": 1555365,
+      "name": "WHITEWAVE FOODS Co"
+    },
+    {
+      "assets_usd": 1310419000,
+      "cik": 1555767,
+      "name": "CANOPIUS HOLDINGS BERMUDA LTD"
+    },
+    {
+      "assets_usd": 1712851000,
+      "cik": 1569994,
+      "name": "Waterstone Financial, Inc."
+    },
+    {
+      "assets_usd": 1284265000,
+      "cik": 1571371,
+      "name": "SUMMIT MATERIALS, LLC"
+    },
+    {
+      "assets_usd": 15414000000,
+      "cik": 1581990,
+      "name": "PLAINS GP HOLDINGS LP"
+    }
+  ],
+  "rule": {
+    "assets_floor_usd": 500000000,
+    "sample_size": 800,
+    "seed": 20111231
+  },
+  "source_uri": "https://data.sec.gov/api/xbrl/frames/us-gaap/Assets/USD/CY2011Q4I.json",
+  "tag": "Assets"
+}
