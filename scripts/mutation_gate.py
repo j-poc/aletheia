@@ -19,6 +19,14 @@ leak found outside it. That is where every observed defect in this system has
 been. It is not a general mutation-testing sweep, and passing it says nothing
 about code outside the listed files.
 
+One thing this harness structurally cannot test, named so it is not mistaken for
+covered: the sandbox copy is not a git repository, so ``code_version()`` returns
+``"unknown"`` inside it and the provenance stamp cannot be mutated here. The
+real suite covers it instead --
+``test_the_stamp_is_the_real_commit_when_the_source_is_in_a_repository`` compares
+the stamp against a sha obtained from git directly, and skips with its reason
+stated when there is no repository, which is exactly the sandboxed case.
+
 Why hand-written mutants rather than `mutmut` or `cosmic-ray`: those generate
 mutants uniformly (flip a comparison, drop a statement) and most are trivially
 caught, so the score is dominated by easy kills and the interesting cases are
@@ -194,16 +202,20 @@ MUTANTS: tuple[Mutant, ...] = (
 )
 
 
-def _build_sandbox() -> Path:
-    """A throwaway copy of the source and test trees, mutated in place of the real ones."""
-    sandbox = Path(tempfile.mkdtemp(prefix="aletheia-mutants-"))
+def _fill_sandbox(sandbox: Path) -> None:
+    """Copy the source and test trees into ``sandbox``, to be mutated in place of the real ones.
+
+    The directory is created by the caller, not here, so that its path is known
+    -- and printed -- before the first byte is written into it. A copy can fail
+    partway (a full disk, a permission error, a concurrent writer), and a
+    tempdir whose path was never named is one nobody can find to clean up.
+    """
     for relative in SANDBOX_TREES:
         shutil.copytree(
             ROOT / relative,
             sandbox / relative,
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
-    return sandbox
 
 
 def _sandbox_env(sandbox: Path) -> dict[str, str]:
@@ -336,21 +348,25 @@ def main() -> int:
     # reintroduced an in-place write.
     before = _digests(targets)
 
-    sandbox = _build_sandbox()
+    # Created and named before anything is written into it, then removed on every
+    # exit path including a failed copy or a raised exception -- an orphaned
+    # tempdir whose path was never printed is one nobody can find.
+    sandbox = Path(tempfile.mkdtemp(prefix="aletheia-mutants-"))
     print(f"sandbox -> {sandbox}   (the working tree is not written to)")
-
-    env = _sandbox_env(sandbox)
-    stray = _unredirected_imports(sandbox, env)
-    if stray:
-        print("FAIL  imports do not resolve to the sandbox, so mutants would test nothing:")
-        for line in stray:
-            print(f"          {line}")
-        shutil.rmtree(sandbox, ignore_errors=True)
-        return 1
-    print()
 
     survivors: list[Mutant] = []
     try:
+        _fill_sandbox(sandbox)
+
+        env = _sandbox_env(sandbox)
+        stray = _unredirected_imports(sandbox, env)
+        if stray:
+            print("FAIL  imports do not resolve to the sandbox, so mutants would test nothing:")
+            for line in stray:
+                print(f"          {line}")
+            return 1
+        print()
+
         for mutant in MUTANTS:
             target = sandbox / mutant.path
             original = target.read_text(encoding="utf-8")

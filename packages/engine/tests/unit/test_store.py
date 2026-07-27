@@ -9,12 +9,15 @@ own knowledge date.
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
+from aletheia.core import version as version_module
 from aletheia.core.errors import IntegrityViolation, MigrationError
 from aletheia.core.hashing import sha256_bytes
 from aletheia.core.types import Accession, Cik
@@ -358,6 +361,27 @@ class TestTheRevisionViewOrdersByWhenAFilingBecamePublic:
         ).value == Decimal("6.7800000000")
 
 
+def _git_sha_of_source_tree() -> str | None:
+    """The short sha git reports for the tree the engine was imported from, or None.
+
+    Deliberately shells out rather than calling ``code_version``: a test that
+    checked the stamp against the function that produced it would pass whatever
+    that function did.
+    """
+    executable = shutil.which("git")
+    if executable is None:
+        return None
+    root = Path(version_module.__file__).resolve().parents[4]
+    completed = subprocess.run(  # noqa: S603 - resolved absolute path, fixed argv, no shell
+        [executable, "-C", str(root), "rev-parse", "--short=12", "HEAD"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    return completed.stdout.strip() if completed.returncode == 0 else None
+
+
 class TestProvenance:
     def test_run_lifecycle_is_recorded(self, warehouse: Warehouse) -> None:
         warehouse.finish_run("run-test-0001", status="ok", rows_written=2, bytes_fetched=1234)
@@ -370,6 +394,34 @@ class TestProvenance:
         assert row[2] == 1234
         assert row[3]  # a code version was stamped
         assert row[4] is not None
+
+    def test_the_stamp_is_the_real_commit_when_the_source_is_in_a_repository(
+        self, warehouse: Warehouse
+    ) -> None:
+        """`assert row[3]` above passes on the literal string "unknown".
+
+        That is the correct value outside a repository, so the check above cannot
+        be tightened -- but on its own it would let the stamp degrade to
+        "unknown" everywhere without a single test noticing, and a run whose
+        code version is unknown is a run nobody can reproduce.
+
+        The expected sha is obtained from git directly rather than from
+        ``code_version``, so this compares the stamp against an independent
+        source instead of against itself. Skipped, with the reason stated, when
+        the source tree genuinely is not in a repository -- which is the case
+        inside the mutation gate's sandbox copy, and is why the provenance stamp
+        is one of the few things that harness cannot mutation-test.
+        """
+        expected = _git_sha_of_source_tree()
+        if expected is None:
+            pytest.skip("source tree is not in a git repository, so there is no sha to expect")
+
+        warehouse.finish_run("run-test-0001", status="ok", rows_written=2, bytes_fetched=1234)
+        stamped = warehouse.execute("SELECT code_version FROM ingest_runs").fetchone()
+        assert stamped is not None
+        assert stamped[0] in (expected, f"{expected}-dirty"), (
+            f"stamped {stamped[0]!r}, expected {expected!r} or {expected!r}-dirty"
+        )
 
     def test_failed_runs_are_kept(self, warehouse: Warehouse) -> None:
         warehouse.finish_run("run-test-0001", status="failed", error="HTTP 403 from FMP")

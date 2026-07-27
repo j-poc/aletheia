@@ -722,3 +722,37 @@ over the real tree, and the dirty-tree note are all gone, because nothing writes
 to the real tree for them to protect. The before/after digest comparison is kept
 even though it is now trivially true: it is cheap, and it is the only thing that
 would notice if a future edit reintroduced an in-place write.
+
+**The redesign shipped with the same defect it replaced, on a different path.**
+`d7738f8` had established the principle that the scratch directory is named
+before the first byte is written to it, so a run that dies leaves something
+findable. The first sandbox version then put `mkdtemp` *and* the four `copytree`
+calls before both the `try/finally` and the `sandbox ->` line. A copy that failed
+partway — full disk, permission error, a concurrent writer — orphaned a
+half-populated tempdir whose path had never been printed. The directory is now
+created and printed first, and everything after it runs inside the `try`.
+Verified against the failure itself rather than by reading the code, with the
+copy made to raise on the third of four trees:
+
+| Ordering | Result of the same simulated mid-copy failure |
+|---|---|
+| Fixed (create, print, then `try`) | exit 1, path printed, exception surfaced, **0** tempdirs left |
+| As shipped in `77d0c03` | exit 1, no path printed, **1** orphan left holding `packages/engine` |
+
+Finding the second row also turned up a real orphan from the *previous*
+mechanism still sitting in `/tmp` — six flattened backup files, confirmed
+byte-identical to their tracked originals, and removed. The litter this class of
+bug produces is not hypothetical here.
+
+**What this harness structurally cannot test.** The sandbox is a plain directory
+copy, so it is not a git repository, so `code_version()` correctly returns
+`"unknown"` inside it. Provenance stamping therefore cannot be mutation-tested
+here, and the test that covered it — `assert row[3]`, "a code version was
+stamped" — passed on the string `"unknown"` just as happily as on a real sha,
+which meant the stamp could have degraded everywhere with nothing noticing.
+`test_the_stamp_is_the_real_commit_when_the_source_is_in_a_repository` now
+compares the stamp against a sha obtained by shelling out to git directly
+(not against `code_version`, which would be checking a function against itself)
+and skips, with the reason stated, when there is no repository. Two-sided:
+with the stamp forced to `"unknown"` at runtime the old assertion still passes
+and the new one fails.
