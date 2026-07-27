@@ -28,7 +28,7 @@ from decimal import Decimal
 
 import pytest
 
-from aletheia.core.errors import InsufficientData
+from aletheia.core.errors import AmbiguousPeriod, InsufficientData
 from aletheia.core.types import Cik, Fact
 from aletheia.features.accruals import (
     NET_INCOME,
@@ -45,7 +45,7 @@ from aletheia.features.vintage import (
     RESTATED_VALUES,
     Vintage,
 )
-from aletheia.pit import as_of
+from aletheia.pit import INSTANT, PeriodStart, PitFact, as_of
 from aletheia.store.db import Warehouse
 from tests._factories import make_fact
 
@@ -334,3 +334,160 @@ class TestPeriodDiscovery:
             [_stock(ASSETS_2009_FIRST, period_end=FY2009_END, filed_at=TENK_FILED, accn=TENK_ACCN)]
         )
         assert annual_periods(as_of(warehouse, AFTER_FIRST), FIRM) == []
+
+
+ARCONIC = Cik(4281)
+REPORTING_UNITS = "NumberOfReportingUnits"
+REPORTING_UNIT = "reporting_unit"
+UNITS_2017_END = date(2017, 12, 31)
+UNITS_2017_START = date(2017, 1, 1)
+
+
+def _reporting_units(
+    value: str, *, period_start: date | None, filed_at: date, accn: str, form: str
+) -> Fact:
+    return make_fact(
+        value=value,
+        filed_at=filed_at,
+        accn=accn,
+        concept=REPORTING_UNITS,
+        unit=REPORTING_UNIT,
+        form=form,
+        cik=int(ARCONIC),
+        period_start=period_start,
+        period_end=UNITS_2017_END,
+    )
+
+
+class TestPinningABalanceSheetInstant:
+    """A period with no start date must still be nameable.
+
+    Second real fixture, also fetched and checked: Arconic (CIK 4281) tagged
+    `NumberOfReportingUnits` for 2017 as a **duration** in the 2018 10-K and again
+    as an **instant** in the 2019 10-K. Both shapes then live under the same
+    `(cik, taxonomy, concept, unit, period_end)`, so an end date alone names two
+    periods and the ambiguity guard refuses to guess between them.
+
+    The instant is the one a caller cannot ask for by start date, because it has
+    none. `None` is already spoken for -- it means "do not narrow" -- so naming the
+    instant needs a third value, `INSTANT`. Without it a balance-sheet read is
+    unaskable rather than merely awkward, which is why this is a correctness test
+    and not an ergonomics one.
+
+    Verbatim from the warehouse, all three rows:
+
+        4281 ... 2017-01-01..2017-12-31  8  0000004281-18-000042  10-K  2018-02-26
+        4281 ... 2017-01-01..2017-12-31  4  0000004281-18-000060  10-Q  2018-05-01
+        4281 ...       (instant) 2017-12-31  4  0000004281-19-000031  10-K  2019-02-21
+    """
+
+    @pytest.fixture
+    def both_shapes(self, warehouse: Warehouse) -> Warehouse:
+        warehouse.write_facts(
+            [
+                _reporting_units(
+                    "8",
+                    period_start=UNITS_2017_START,
+                    filed_at=date(2018, 2, 26),
+                    accn="0000004281-18-000042",
+                    form="10-K",
+                ),
+                _reporting_units(
+                    "4",
+                    period_start=UNITS_2017_START,
+                    filed_at=date(2018, 5, 1),
+                    accn="0000004281-18-000060",
+                    form="10-Q",
+                ),
+                _reporting_units(
+                    "4",
+                    period_start=None,
+                    filed_at=date(2019, 2, 21),
+                    accn="0000004281-19-000031",
+                    form="10-K",
+                ),
+            ]
+        )
+        return warehouse
+
+    def _resolve(
+        self, warehouse: Warehouse, vintage: Vintage, period_start: PeriodStart
+    ) -> PitFact:
+        return vintage.resolve(
+            as_of(warehouse, date(2020, 1, 1)),
+            ARCONIC,
+            REPORTING_UNITS,
+            period_end=UNITS_2017_END,
+            period_start=period_start,
+            unit=REPORTING_UNIT,
+        )
+
+    def test_the_restated_arm_can_read_the_instant(self, both_shapes: Warehouse) -> None:
+        """The regression. Two lookups, and the second must inherit the first's period.
+
+        `RESTATED_VALUES` resolves twice: once for the publication date, once for
+        the value as it stands today. Handing `first.period_start` to the second
+        lookup passes `None`, which re-widens to every period sharing the end date
+        and raises -- on exactly the query the first lookup had just answered.
+        """
+        fact = self._resolve(both_shapes, RESTATED_VALUES, INSTANT)
+        assert fact.period_start is None, "the instant, not the duration"
+        assert fact.value == Decimal(4)
+        assert fact.accn.value == "0000004281-19-000031"
+
+    def test_the_duration_is_unaffected(self, both_shapes: Warehouse) -> None:
+        """Control: the other shape still resolves by its start date, and restates.
+
+        First reported as 8 in the 10-K, corrected to 4 in the following 10-Q. The
+        restated arm takes the corrected value while keeping the original filing
+        date, which is the whole point of the arm.
+        """
+        fact = self._resolve(both_shapes, RESTATED_VALUES, UNITS_2017_START)
+        assert fact.period_start == UNITS_2017_START
+        assert fact.value == Decimal(4)
+        assert fact.knowledge_date == date(2018, 2, 26)
+
+    def test_first_reported_sees_the_original_count(self, both_shapes: Warehouse) -> None:
+        fact = self._resolve(both_shapes, FIRST_REPORTED, UNITS_2017_START)
+        assert fact.value == Decimal(8)
+
+    def test_not_naming_a_shape_still_refuses(self, both_shapes: Warehouse) -> None:
+        """`None` must keep meaning "do not narrow", or the sentinel buys nothing.
+
+        Silently preferring one shape would be worse than refusing: the caller
+        would get a number without ever learning there were two.
+        """
+        with pytest.raises(AmbiguousPeriod, match="2 reporting periods"):
+            self._resolve(both_shapes, RESTATED_VALUES, None)
+
+    def test_accruals_names_the_shape_of_its_balance_sheet_reads(self, loaded: Warehouse) -> None:
+        """The same hazard one layer up, held shut before it can be hit.
+
+        `accruals` reads total assets by end date. No filer in the warehouse tags
+        `Assets` as a duration -- 73,844 facts across 800 filers, every one an
+        instant -- so the shape below is hypothetical, not observed, and is here
+        only to exercise the branch. It is the shape Arconic demonstrates is
+        possible on a concept, applied to the one this feature depends on.
+
+        The failure it prevents is a refusal, not a wrong number: the ambiguity
+        guard raises rather than guessing. That still matters, because the query
+        would be refused for having asked imprecisely about a period that is not
+        actually in doubt.
+        """
+        loaded.write_facts(
+            [
+                make_fact(
+                    value="1",
+                    filed_at=TENK_FILED,
+                    accn=TENK_ACCN,
+                    concept=TOTAL_ASSETS,
+                    unit="USD",
+                    period_start=FY2009_START,
+                    period_end=FY2009_END,
+                )
+            ]
+        )
+        result = _compute(loaded, AFTER_FIRST, FIRST_REPORTED)
+        assert result.average_assets == (
+            Decimal(ASSETS_2009_FIRST) + Decimal(ASSETS_2008_FIRST)
+        ) / Decimal(2), "the instant, not the duration that shares its end date"

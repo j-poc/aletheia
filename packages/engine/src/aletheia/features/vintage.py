@@ -33,7 +33,7 @@ from datetime import date
 from typing import Final
 
 from aletheia.core.types import Cik
-from aletheia.pit import PitFact, PitView
+from aletheia.pit import PeriodStart, PitFact, PitView
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,13 +54,21 @@ class Vintage:
         concept: str,
         *,
         period_end: date,
-        period_start: date | None = None,
+        period_start: PeriodStart = None,
         unit: str | None = None,
     ) -> PitFact:
         """Fetch ``concept`` under this policy.
 
         The returned fact always carries the ``knowledge_date`` this policy
         implies, so downstream code never has to remember which arm it is in.
+
+        ``period_start`` takes three values, not two: a date, ``None`` for "do
+        not narrow by start date", or :data:`~aletheia.pit.INSTANT` for a
+        balance-sheet item, which is measured at a moment and therefore has no
+        start date of its own. A caller reading a balance sheet must pass
+        ``INSTANT``: ``None`` reads as "do not narrow", so it matches every
+        period sharing the end date and raises rather than answering whenever a
+        filer has tagged the same concept both ways.
 
         Arms that respect filing dates go through :meth:`PitView.first_reported`,
         which is guarded: if the period had not been filed by ``view.as_of`` it

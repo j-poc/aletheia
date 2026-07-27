@@ -49,7 +49,7 @@ from typing import Final
 from aletheia.core.errors import InsufficientData
 from aletheia.core.types import Accession, Cik
 from aletheia.features.vintage import Vintage
-from aletheia.pit import PitFact, PitView
+from aletheia.pit import INSTANT, PitFact, PitView
 
 NET_INCOME: Final = "NetIncomeLoss"
 OPERATING_CASH_FLOW: Final = "NetCashProvidedByUsedInOperatingActivities"
@@ -180,8 +180,18 @@ def accruals(
     cash_flow = _operating_cash_flow(
         view, cik, period_end=period_end, period_start=period_start, vintage=vintage
     )
-    assets_end = vintage.resolve(view, cik, TOTAL_ASSETS, period_end=period_end, unit=USD)
-    assets_start = vintage.resolve(view, cik, TOTAL_ASSETS, period_end=prior_period_end, unit=USD)
+    # `INSTANT`, not the default `None`: total assets is a balance-sheet item,
+    # measured at a moment. `None` means "do not narrow by start date", which is a
+    # different request that happens to return the same row until some filer tags
+    # the concept as a duration too -- and then it stops answering at all. Naming
+    # the shape here is what makes the query say what it means. Measured over the
+    # warehouse: 73,844 `Assets` facts across 800 filers, every one an instant.
+    assets_end = vintage.resolve(
+        view, cik, TOTAL_ASSETS, period_end=period_end, period_start=INSTANT, unit=USD
+    )
+    assets_start = vintage.resolve(
+        view, cik, TOTAL_ASSETS, period_end=prior_period_end, period_start=INSTANT, unit=USD
+    )
 
     average_assets = (assets_end.value + assets_start.value) / Decimal(2)
     if average_assets <= 0:
