@@ -865,3 +865,178 @@ class TestAPeriodRevisedMoreThanOnce:
         assert known["accn"] != current["accn"], "a later filing exists"
         assert known["value"] == current["value"], "and it changed nothing"
         assert payload["known_is_current"] is True
+
+
+class TestAPeriodRevisedAndThenRevisedBack:
+    """The chain returns to where it started, so its two ends say nothing moved.
+
+    Every flag on this endpoint except this one compares two points: first
+    against latest, or known against one of them. All of them are blind to a
+    period that was revised and then revised back, because on those the two ends
+    are the same number. 10,080 of the warehouse's 357,101 revised us-gaap
+    periods are that shape -- 2.82%.
+
+    The fixture is real. AAR Corp's accrued current liabilities at 2021-05-31
+    were reported at $174.2m in the FY2021 10-K, cut to $148.3m in the 10-Q of
+    2021-12-21, and put back to $174.2m in the FY2022 10-K. Five filings, two
+    distinct values, identical endpoints -- and the page responded by printing
+    "The value never moved; only its source document did" beside a left column
+    reading 148300000 and a right column reading 174200000.
+    """
+
+    AAR_CIK = 1750
+    # An instant. Accrued liabilities are a balance, measured at a moment.
+    PERIOD_END = date(2021, 5, 31)
+    CONCEPT = "AccruedLiabilitiesCurrent"
+    ORIGINAL = "174200000"
+    INTERIM = "148300000"
+    # (value, accn, filed, form) in publication order, verbatim from the warehouse.
+    CHAIN: ClassVar[list[tuple[str, str, date, str]]] = [
+        (ORIGINAL, "0001104659-21-094125", date(2021, 7, 21), "10-K"),
+        (ORIGINAL, "0001104659-21-118843", date(2021, 9, 23), "10-Q"),
+        (INTERIM, "0001104659-21-152249", date(2021, 12, 21), "10-Q"),
+        (INTERIM, "0001104659-22-036639", date(2022, 3, 22), "10-Q"),
+        (ORIGINAL, "0001104659-22-081498", date(2022, 7, 21), "10-K"),
+    ]
+
+    # The control, riding the same filings. AAR tagged total equity for this
+    # period in four of those five documents and never changed it: $974.4m every
+    # time. Same company, same period, same accessions -- the only difference is
+    # that this one is the ordinary case, and it has to keep reading as such.
+    EQUITY = "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"
+    EQUITY_VALUE = "974400000"
+    EQUITY_ACCNS: ClassVar[list[int]] = [0, 1, 2, 4]
+
+    @pytest.fixture
+    def liabilities(self, warehouse: Warehouse) -> Iterator[TestClient]:
+        warehouse.write_entity(make_entity(cik=self.AAR_CIK, name="AAR CORP", sic="3720"))
+        warehouse.write_identifiers([make_identifier(cik=self.AAR_CIK, ticker="AIR")])
+        warehouse.write_filings(
+            [
+                make_filing(
+                    accn=accn,
+                    filed_at=filed,
+                    form=form,
+                    cik=self.AAR_CIK,
+                    period_of_report=self.PERIOD_END,
+                )
+                for _, accn, filed, form in self.CHAIN
+            ]
+        )
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value=value,
+                    filed_at=filed,
+                    accn=accn,
+                    concept=self.CONCEPT,
+                    unit="USD",
+                    cik=self.AAR_CIK,
+                    form=form,
+                    period_start=None,
+                    period_end=self.PERIOD_END,
+                )
+                for value, accn, filed, form in self.CHAIN
+            ]
+        )
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value=self.EQUITY_VALUE,
+                    filed_at=self.CHAIN[index][2],
+                    accn=self.CHAIN[index][1],
+                    concept=self.EQUITY,
+                    unit="USD",
+                    cik=self.AAR_CIK,
+                    form=self.CHAIN[index][3],
+                    period_start=None,
+                    period_end=self.PERIOD_END,
+                )
+                for index in self.EQUITY_ACCNS
+            ]
+        )
+        api.app.dependency_overrides[api.get_warehouse] = lambda: warehouse
+        try:
+            yield TestClient(api.app)
+        finally:
+            api.app.dependency_overrides.clear()
+
+    def _ask(self, liabilities: TestClient, day: str) -> dict[str, object]:
+        response = liabilities.get(
+            "/api/asof/AIR",
+            params={
+                "knowledge_date": day,
+                "concept": self.CONCEPT,
+                "period_end": self.PERIOD_END.isoformat(),
+                "period_start": "instant",
+            },
+        )
+        assert response.status_code == 200, response.text
+        return dict(response.json())
+
+    def test_the_endpoints_agree_and_every_two_point_flag_says_nothing_happened(
+        self, liabilities: TestClient
+    ) -> None:
+        """Pinning the blind spot itself, so the fix cannot be mistaken for luck.
+
+        These four assertions describe the *old* behaviour and are all still
+        correct -- comparing first to latest genuinely does show no change here.
+        The defect was never that they were wrong; it was that the page had
+        nothing else to ask.
+        """
+        payload = self._ask(liabilities, "2026-06-01")
+        first: dict[str, object] = payload["as_first_reported"]  # type: ignore[assignment]
+        current: dict[str, object] = payload["as_it_stands_today"]  # type: ignore[assignment]
+        assert first["value"] == self.ORIGINAL
+        assert current["value"] == self.ORIGINAL
+        assert first["accn"] != current["accn"], "five filings, not one"
+        assert payload["value_changed"] is False
+        assert payload["already_restated_by_then"] is False
+
+    def test_and_the_chain_says_otherwise(self, liabilities: TestClient) -> None:
+        payload = self._ask(liabilities, "2026-06-01")
+        assert payload["value_ever_changed"] is True
+
+    def test_between_the_two_filings_the_reader_holds_a_figure_that_no_longer_exists(
+        self, liabilities: TestClient
+    ) -> None:
+        """The date at which the page contradicted itself on screen.
+
+        Left column 148300000, right column 174200000, and a sentence between
+        them saying the value never moved.
+        """
+        payload = self._ask(liabilities, "2022-01-01")
+        known: dict[str, object] = payload["as_known"]  # type: ignore[assignment]
+        assert known["value"] == self.INTERIM
+        assert payload["value_ever_changed"] is True
+        # Still false: today's figure really does equal the first-reported one.
+        assert payload["value_changed"] is False
+        # And the left column is neither the current figure nor the original.
+        assert payload["already_restated_by_then"] is True
+        assert payload["known_is_current"] is False
+
+    def test_a_period_that_truly_never_moved_is_not_swept_up(self, liabilities: TestClient) -> None:
+        """The discriminator. `value_ever_changed` must stay false on the common case.
+
+        Without it, `value_ever_changed <- True` passes every test above, the
+        "re-presented, not revised" and "never revised" branches become
+        unreachable, and the page starts announcing a revision on the 90.6% of
+        refilings that carry the figure forward untouched. Total equity for this
+        very period, filed four times without moving, is that case.
+        """
+        response = liabilities.get(
+            "/api/asof/AIR",
+            params={
+                "knowledge_date": "2026-06-01",
+                "concept": self.EQUITY,
+                "period_end": self.PERIOD_END.isoformat(),
+                "period_start": "instant",
+            },
+        )
+        assert response.status_code == 200, response.text
+        payload = dict(response.json())
+        current: dict[str, object] = payload["as_it_stands_today"]  # type: ignore[assignment]
+        assert current["value"] == self.EQUITY_VALUE
+        assert payload["is_restated"] is False, "the latest filing is the one a reader holds"
+        assert payload["value_ever_changed"] is False
+        assert payload["value_changed"] is False

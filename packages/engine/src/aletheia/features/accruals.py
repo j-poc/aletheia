@@ -83,6 +83,7 @@ class FactInput:
     accn: Accession
     knowledge_date: date
     report_seq: int
+    differs_from_first_report: bool
 
     @classmethod
     def of(cls, fact: PitFact) -> FactInput:
@@ -94,6 +95,7 @@ class FactInput:
             accn=fact.accn,
             knowledge_date=fact.knowledge_date,
             report_seq=fact.report_seq,
+            differs_from_first_report=fact.differs_from_first_report,
         )
 
 
@@ -120,8 +122,15 @@ class Accruals:
 
     @property
     def uses_restated_input(self) -> bool:
-        """True when any input came from a restatement rather than a first report."""
-        return any(item.report_seq > 1 for item in self.inputs)
+        """True when any input's value differs from the one first published for it.
+
+        On ``report_seq > 1`` this flagged every input a later filing had merely
+        repeated -- 91.8% of republished rows carry the original figure forward
+        -- so under the restated vintage it was on almost permanently and
+        distinguished nothing. What makes an accruals figure suspect is being
+        computed from a number that moved, not from a number that got refiled.
+        """
+        return any(item.differs_from_first_report for item in self.inputs)
 
 
 def annual_periods(view: PitView, cik: Cik | int) -> list[tuple[date, date]]:

@@ -23,6 +23,7 @@ being blessed by it.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
@@ -204,6 +205,39 @@ class TestVintagePolicies:
         result = _compute(loaded, AFTER_RESTATEMENT, FIRST_REPORTED)
         assert result.net_income == Decimal(NI_FIRST)
         assert not result.uses_restated_input
+
+    def test_the_restated_flag_names_the_inputs_that_moved_and_only_those(
+        self, loaded: Warehouse
+    ) -> None:
+        """`uses_restated_input` is about values, not about which document supplied them.
+
+        Under this vintage all four inputs come from the 10-K/A, so all four have
+        ``report_seq > 1`` and the old test -- "any input past the first report"
+        -- was true for reasons that had nothing to do with restatement. Apple
+        republished FY2009 operating cash flow in that amendment at exactly the
+        $10.159bn it had already reported. Net income and both balance-sheet
+        dates genuinely moved. The flag has to separate them, or on the real
+        warehouse it is on permanently: 91.8% of republished rows never moved.
+        """
+        result = _compute(loaded, AFTER_RESTATEMENT, RESTATED_VALUES)
+        assert result.uses_restated_input
+        moved = {item.concept for item in result.inputs if item.differs_from_first_report}
+        assert moved == {NET_INCOME, TOTAL_ASSETS}
+        carried_forward = [item for item in result.inputs if item.concept == OPERATING_CASH_FLOW]
+        assert len(carried_forward) == 1
+        assert carried_forward[0].report_seq > 1, "it did come from the amendment"
+        assert not carried_forward[0].differs_from_first_report, "and it was the same number"
+
+        # And the property itself, on nothing but carried-forward inputs. The
+        # assertions above read `differs_from_first_report` off each input
+        # directly, so they hold whatever `uses_restated_input` is computed
+        # from -- including the `report_seq > 1` version this test exists to
+        # rule out, which every input in this fixture satisfies. This is the
+        # line that fails under it.
+        republished = tuple(item for item in result.inputs if not item.differs_from_first_report)
+        assert republished, "the fixture needs at least one figure that was merely refiled"
+        assert all(item.report_seq > 1 for item in republished)
+        assert not replace(result, inputs=republished).uses_restated_input
 
     def test_restated_values_takes_the_number_but_keeps_the_date(self, loaded: Warehouse) -> None:
         """The value channel in isolation: new numbers, honest publication date."""

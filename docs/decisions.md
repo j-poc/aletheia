@@ -409,3 +409,100 @@ em dash; the CLI catches the exception and prints `from 0`, but nothing tested
 it, so a later tidy-up could have deleted the `except` and taken
 `aletheia revisions` down on any zero-base ticker. `tests/unit/test_cli.py` now
 covers that path — the first test of the CLI's rendering layer, which had none.
+
+## D14 — "Restated" is a property of the chain, not of two points on it
+
+D11 established that a refiling is not a restatement. It fixed the HTTP surface.
+Two other consumers were never audited, and both were wrong in the same way — and
+a third question turned out to be unanswerable from any pair of points at all.
+
+**The CLI said "restated" on 5,798,180 figures that never moved.** `aletheia asof`
+marked a row with `report_seq > 1`, and `report_seq` counts *documents*. Measured
+against the 800-filer warehouse:
+
+```
+rows the CLI marks '← restated' : 6,314,367
+of which the value never moved  : 5,798,180  (91.8%)
+```
+
+This is the first command the README tells a reader to run, and it fired on that
+very screen — the FY2025 Q2 revenue rows below appear again in the following
+year's 10-Q as prior-year comparatives, same $95.359bn, different accession:
+
+```
+    2025-03-29            219.659B  2026-05-01    2  0000320193-26-000013  ← restated
+    2025-03-29             95.359B  2026-05-01    2  0000320193-26-000013  ← restated
+```
+
+`features/accruals.py` had the same defect in `uses_restated_input`
+(`any(item.report_seq > 1 ...)`), which under the restated vintage is true of
+every input by construction and therefore distinguished nothing.
+
+**And a period can be revised and then revised back.** Every flag on the as-of
+endpoint compares two points — first against latest, or known against one of
+them. All of them are blind to a chain that returns to where it started, because
+its endpoints are equal. AAR Corp's accrued current liabilities at 2021-05-31:
+
+```
+ 1  174,200,000  2021-07-21  10-K
+ 2  174,200,000  2021-09-23  10-Q
+ 3  148,300,000  2021-12-21  10-Q
+ 4  148,300,000  2022-03-22  10-Q
+ 5  174,200,000  2022-07-21  10-K
+```
+
+`value_changed` is false there, so the page fell through to the re-presentation
+branch. Observed live at `knowledge_date=2022-01-01`, verbatim from the rendered
+HTML:
+
+```
+As known on 2022-01-01   148300000 USD
+   "...an intermediate figure — neither the original nor the one standing today."
+As it stands today       174200000 USD
+   "This period was re-presented, not revised. AAR CORP reported 174200000 on
+    2021-07-21, and a later filing on 2022-07-21 carried the same figure forward
+    under a different accession. The value never moved; only its source document
+    did."
+```
+
+Two visibly different numbers, one sentence saying neither had moved — and the
+sentence directly above it, added in D13, correctly calling the left column an
+intermediate figure. The page contradicted itself in adjacent paragraphs.
+
+```
+revised us-gaap periods (>=2 distinct values) : 357,101
+first value == last value                     :  10,080  (2.82%)
+```
+
+**Decision.** Both questions move into the view (migration 005), because both are
+properties of the whole chain and neither is derivable from a pair of rows:
+
+- `differs_from_first_report` — this fact's value is not the one first published
+  for its period. Replaces `report_seq`-based tests in the CLI and in accruals.
+- `period_distinct_values` — how many values the period has ever carried.
+  Surfaces as `PitFact.value_ever_changed` and as `value_ever_changed` on the
+  as-of endpoint, and gates the two page branches that assert nothing moved.
+
+The window for the count deliberately has no `ORDER BY`: an ordered window makes
+it cumulative, which answers "how many values had appeared by this row" — 1 on
+the first row of every revised period. The comparison uses `IS DISTINCT FROM`
+rather than `<>` so a null can never produce a null boolean that reads as "not
+restated", which is the failure this migration exists to end.
+
+The page gains a fourth branch for the shape none of the other three could
+describe. `revisions()` already read the chain correctly — LAG over consecutive
+publications — and emits both legs of an A→B→A; it needed no change, and it is
+the pattern the rest of the codebase should have followed.
+
+**Fixtures are real and each carries its own discriminator.** Apple's Q2 FY2025
+revenue, republished unchanged, for the CLI marker — paired with Morgan Stanley's
+FY2011 current long-term debt (0 → $35.082bn) so the fix cannot degenerate into
+"never say restated". AAR Corp's accrued liabilities for the A→B→A, paired with
+AAR's total equity for the same period, filed four times at $974.4m without
+moving, so `value_ever_changed <- True` cannot pass. In accruals, Apple
+republished FY2009 operating cash flow in the 10-K/A at the same $10.159bn while
+net income and both balance-sheet dates moved — one vintage, both cases.
+
+**Also fixed here:** `features/vintage._replace_dates` rebuilt `PitFact` field by
+field, so a new field silently vanished from any fact passing through it rather
+than raising. It now uses `dataclasses.replace`.

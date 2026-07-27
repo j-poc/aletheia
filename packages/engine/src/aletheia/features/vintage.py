@@ -28,7 +28,7 @@ making.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Final
 
@@ -111,22 +111,11 @@ class Vintage:
 
 
 def _replace_dates(fact: PitFact, *, knowledge_date: date) -> PitFact:
-    return PitFact(
-        cik=fact.cik,
-        taxonomy=fact.taxonomy,
-        concept=fact.concept,
-        unit=fact.unit,
-        period_start=fact.period_start,
-        period_end=fact.period_end,
-        value=fact.value,
-        accn=fact.accn,
-        form=fact.form,
-        filed_at=fact.filed_at,
-        knowledge_date=knowledge_date,
-        report_seq=fact.report_seq,
-        source_uri=fact.source_uri,
-        content_sha256=fact.content_sha256,
-    )
+    # `dataclasses.replace`, not a field-by-field rebuild. The hand-written
+    # version had to be edited every time PitFact grew a field, and the failure
+    # mode when it was not is a fact that silently loses provenance rather than
+    # a type error at the call site.
+    return replace(fact, knowledge_date=knowledge_date)
 
 
 FIRST_REPORTED: Final = Vintage(

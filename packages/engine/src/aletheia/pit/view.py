@@ -84,13 +84,39 @@ class PitFact:
     filed_at: date
     knowledge_date: date
     report_seq: int
-    """1 for the first publication of this period; 2+ for each restatement."""
+    """1 for the first publication of this period; 2+ for each *republication*.
+
+    Counts documents, not values. Most republications change nothing: 91.8% of
+    the rows with ``report_seq > 1`` in the warehouse carry the first-reported
+    figure forward untouched. Reach for :attr:`differs_from_first_report` to ask
+    whether the number moved.
+    """
+    differs_from_first_report: bool
+    """This fact's value is not the one first published for its period."""
+    period_distinct_values: int
+    """How many different values this period has ever carried, across all filings.
+
+    Not derivable from the two ends of the chain: a period revised and then
+    revised back has three or more reports, two distinct values, and identical
+    endpoints.
+    """
     source_uri: str
     content_sha256: str
 
     @property
     def is_first_report(self) -> bool:
+        """This is the period's first *publication*.
+
+        A statement about the document, not the figure -- false on every
+        re-presentation of an unchanged number. Almost every caller that wants
+        to say "restated" wants :attr:`differs_from_first_report`.
+        """
         return self.report_seq == 1
+
+    @property
+    def value_ever_changed(self) -> bool:
+        """The period's value moved at some point, whether or not it moved back."""
+        return self.period_distinct_values > 1
 
     @property
     def pin(self) -> date | _Instant:
@@ -727,7 +753,8 @@ def as_of(warehouse: Warehouse, knowledge_date: date) -> PitView:
 
 _FACT_SELECT: Final = (
     "cik, taxonomy, concept, unit, period_start, period_end, value, accn, form, "
-    "filed_at, knowledge_date, report_seq, source_uri, content_sha256"
+    "filed_at, knowledge_date, report_seq, differs_from_first_report, "
+    "period_distinct_values, source_uri, content_sha256"
 )
 
 
@@ -745,8 +772,10 @@ def _to_fact(row: Sequence[Any]) -> PitFact:
         filed_at=row[9],
         knowledge_date=row[10],
         report_seq=int(row[11]),
-        source_uri=str(row[12]),
-        content_sha256=str(row[13]),
+        differs_from_first_report=bool(row[12]),
+        period_distinct_values=int(row[13]),
+        source_uri=str(row[14]),
+        content_sha256=str(row[15]),
     )
 
 

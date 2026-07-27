@@ -29,6 +29,12 @@ MS_CIK = 895421
 CONCEPT = "LongTermDebtCurrent"
 PERIOD_END = date(2011, 12, 31)
 
+AAPL_CIK = 320193
+REVENUE = "RevenueFromContractWithCustomerExcludingAssessedTax"
+Q2_START = date(2024, 12, 29)
+Q2_END = date(2025, 3, 29)
+Q2_VALUE = "95359000000"
+
 
 @pytest.fixture
 def data_dir(tmp_path: Path) -> Path:
@@ -143,3 +149,110 @@ class TestRenderingARevisionOffAZeroBase:
         )
         assert code == 0
         assert "from 0" in capsys.readouterr().out
+
+
+@pytest.fixture
+def repeated_quarter(tmp_path: Path) -> Path:
+    """One quarter published twice, unchanged, under two accessions.
+
+    Real, and taken from the command the README tells a reader to run first.
+    Apple's Q2 FY2025 revenue was reported in the 10-Q of 2025-05-02 and appears
+    again in the 10-Q of 2026-05-01 as the prior-year comparative -- the same
+    $95.359bn, a different document. Nothing was restated.
+    """
+    with Warehouse.open(tmp_path / "warehouse.duckdb") as store:
+        store.start_run(source="test", params={"fixture": True}, run_id=RUN_ID)
+        store.write_entity(make_entity(cik=AAPL_CIK, name="Apple Inc.", sic="3571"))
+        store.write_identifiers([make_identifier(cik=AAPL_CIK, ticker="AAPL")])
+        publications = [
+            ("0000320193-25-000057", date(2025, 5, 2)),
+            ("0000320193-26-000013", date(2026, 5, 1)),
+        ]
+        store.write_filings(
+            [
+                make_filing(
+                    accn=accn,
+                    filed_at=filed,
+                    form="10-Q",
+                    cik=AAPL_CIK,
+                    period_of_report=Q2_END,
+                )
+                for accn, filed in publications
+            ]
+        )
+        store.write_facts(
+            [
+                make_fact(
+                    value=Q2_VALUE,
+                    filed_at=filed,
+                    accn=accn,
+                    concept=REVENUE,
+                    unit="USD",
+                    cik=AAPL_CIK,
+                    form="10-Q",
+                    period_start=Q2_START,
+                    period_end=Q2_END,
+                )
+                for accn, filed in publications
+            ]
+        )
+    return tmp_path
+
+
+class TestTheAsOfMarker:
+    """What the flagship command writes next to a republished figure.
+
+    The marker was keyed off `report_seq`, which counts documents. It printed
+    "restated" on 6,314,367 rows of the real warehouse and was wrong on
+    5,798,180 of them -- 91.8% figures that had not moved. Two of the wrong ones
+    were on the screen the README uses as its proof, which is the worst possible
+    place for this system to cry wolf.
+    """
+
+    def test_a_republished_figure_that_never_moved_is_not_called_restated(
+        self, repeated_quarter: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        code = main(
+            [
+                "--data-dir",
+                str(repeated_quarter),
+                "asof",
+                "AAPL",
+                "--concept",
+                REVENUE,
+                "--date",
+                "2026-06-01",
+            ]
+        )
+        assert code == 0
+        out = capsys.readouterr().out
+        # The row is the second publication -- `report_seq` reads 2 -- and the
+        # value is byte-for-byte the first one.
+        assert "0000320193-26-000013" in out, out
+        assert "restated" not in out, out
+        assert "re-presented" in out, out
+
+    def test_a_changed_value_still_is(
+        self, data_dir: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The other side of the same marker, so the fix cannot be "never say it".
+
+        Morgan Stanley's FY2011 current long-term debt did move -- 0 to
+        $35.082bn -- and the second row has to carry the warning.
+        """
+        code = main(
+            [
+                "--data-dir",
+                str(data_dir),
+                "asof",
+                "MS",
+                "--concept",
+                CONCEPT,
+                "--date",
+                "2013-06-01",
+            ]
+        )
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "← restated" in out, out
+        assert "re-presented" not in out, out

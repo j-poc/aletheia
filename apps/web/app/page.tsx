@@ -133,7 +133,12 @@ export default async function Page({ searchParams }: Params) {
               // refilings in the warehouse carry the number forward unchanged.
               // `value_changed`, not a drift comparison: drift is null whenever
               // the first report was 0, and 123,177 refilings are 0 -> 0.
-              tone={data.value_changed ? "restated" : "known"}
+              // `value_ever_changed` rather than `value_changed`, because the
+              // warning is about whether this number is safe to use at an
+              // arbitrary date, and on a period revised and then revised back it
+              // is not -- today's figure matches the original while a reader
+              // inside that window held neither.
+              tone={data.value_ever_changed ? "restated" : "known"}
             />
           </div>
 
@@ -182,6 +187,36 @@ export default async function Page({ searchParams }: Params) {
                     today.
                   </>
                 )}
+              </p>
+            ) : data.value_ever_changed ? (
+              <p className="text-sm leading-relaxed">
+                {/* Endpoints match, history does not. `value_changed` compares
+                    first-reported against current, so a period revised and then
+                    revised back falls straight through it -- and the branches
+                    below, both of which say in so many words that the number
+                    never moved. Live on AAR Corp: 174.2m -> 148.3m -> 174.2m,
+                    with "The value never moved" printed beside a left column
+                    reading 148300000 and a right column reading 174200000. */}
+                <span className="font-medium text-[var(--color-restated)]">
+                  This period was revised, and then revised back.
+                </span>{" "}
+                {data.company} reported{" "}
+                <strong className="tabular">{data.as_first_reported.value}</strong> on{" "}
+                {data.as_first_reported.knowledge_date}, a later filing moved it, and it
+                stands today at that same{" "}
+                <strong className="tabular">{data.as_it_stands_today.value}</strong>. The
+                two columns agree; the history does not.{" "}
+                {data.already_restated_by_then && !data.known_is_current ? (
+                  <>
+                    On the knowledge date above a reader held{" "}
+                    <strong className="tabular">{data.as_known.value}</strong> — a figure
+                    that no longer exists anywhere in the record.
+                  </>
+                ) : (
+                  "Move the knowledge date into the window between those filings to see the figure a reader held instead."
+                )}{" "}
+                Comparing first-reported against current — the only comparison a vendor
+                panel supports — shows no change at all here.
               </p>
             ) : data.is_restated ? (
               <p className="text-sm leading-relaxed">

@@ -249,7 +249,20 @@ def _cmd_asof(args: argparse.Namespace) -> int:
         print(header)
         print("-" * len(header))
         for fact in facts:
-            marker = "" if fact.is_first_report else "  ← restated"
+            # The marker reports the *value*, not the sequence number beside it.
+            # Keyed off `is_first_report` this line printed "restated" on every
+            # republication -- 6,314,367 rows of the warehouse, 5,798,180 of them
+            # (91.8%) figures that had not moved at all. It fired on the two
+            # Apple revenue rows in the README's own command, where a later 10-Q
+            # simply carried the quarter forward as a comparative. Marking a
+            # re-presentation as a restatement on the first command a reader
+            # types is the one place this system cannot afford to cry wolf.
+            if fact.differs_from_first_report:
+                marker = "  ← restated"
+            elif fact.is_first_report:
+                marker = ""
+            else:
+                marker = "  ← re-presented"
             print(
                 f"{fact.period_end!s:>14}  {_fmt(fact.value):>18}  "
                 f"{fact.knowledge_date!s:>10}  {fact.report_seq:>3}  {fact.accn}{marker}"

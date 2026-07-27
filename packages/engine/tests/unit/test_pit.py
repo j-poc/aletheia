@@ -16,7 +16,7 @@ import pytest
 
 from aletheia.core.errors import AmbiguousPeriod, InsufficientData
 from aletheia.core.types import Cik
-from aletheia.pit import INSTANT, as_of
+from aletheia.pit import INSTANT, PitFact, as_of
 from aletheia.store.db import Warehouse
 from tests._factories import (
     FIRST_REPORT_FILED,
@@ -651,3 +651,147 @@ class TestAPeriodEndDoesNotIdentifyAPeriod:
         assert "instant" not in spans
         assert "2014-09-28..2015-09-26 (363d)" in message
         assert "2015-06-28..2015-09-26 (90d)" in message
+
+
+class TestWhatAFactKnowsAboutItsOwnChain:
+    """The two columns that describe a period's whole filing history.
+
+    ``report_seq`` counts documents. On the real warehouse 91.8% of the rows it
+    numbers above 1 carry the first-reported figure forward untouched, so every
+    caller reading it as "restated" was answering a question nobody asked.
+    ``differs_from_first_report`` and ``period_distinct_values`` are the two
+    questions they meant, and neither is derivable from a fact's position.
+
+    Fixture: AAR Corp's accrued current liabilities at 2021-05-31, filed five
+    times as 174.2m, 174.2m, 148.3m, 148.3m, 174.2m -- one re-presentation of
+    each value, two distinct values, and endpoints that agree. Alongside it,
+    riding the same filings, a concept that genuinely never moved.
+    """
+
+    AAR = Cik(1750)
+    PERIOD_END = date(2021, 5, 31)
+    CONCEPT = "AccruedLiabilitiesCurrent"
+    ORIGINAL = Decimal("174200000")
+    INTERIM = Decimal("148300000")
+    CHAIN = (
+        ("174200000", "0001104659-21-094125", date(2021, 7, 21)),
+        ("174200000", "0001104659-21-118843", date(2021, 9, 23)),
+        ("148300000", "0001104659-21-152249", date(2021, 12, 21)),
+        ("148300000", "0001104659-22-036639", date(2022, 3, 22)),
+        ("174200000", "0001104659-22-081498", date(2022, 7, 21)),
+    )
+    # The control. Without a period that never moved, a `period_distinct_values`
+    # stuck at the constant 2 would satisfy every other assertion here.
+    STEADY = "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"
+    STEADY_VALUE = Decimal("974400000")
+
+    @pytest.fixture
+    def chain(self, warehouse: Warehouse) -> Warehouse:
+        for value, accn, filed in self.CHAIN:
+            warehouse.write_facts(
+                [
+                    make_fact(
+                        value=value,
+                        filed_at=filed,
+                        accn=accn,
+                        concept=self.CONCEPT,
+                        unit="USD",
+                        cik=int(self.AAR),
+                        period_start=None,
+                        period_end=self.PERIOD_END,
+                    ),
+                    make_fact(
+                        value=str(self.STEADY_VALUE),
+                        filed_at=filed,
+                        accn=accn,
+                        concept=self.STEADY,
+                        unit="USD",
+                        cik=int(self.AAR),
+                        period_start=None,
+                        period_end=self.PERIOD_END,
+                    ),
+                ]
+            )
+        return warehouse
+
+    def _on(self, chain: Warehouse, day: date, concept: str | None = None) -> PitFact:
+        return as_of(chain, day).fact(
+            self.AAR,
+            concept or self.CONCEPT,
+            period_end=self.PERIOD_END,
+            period_start=INSTANT,
+        )
+
+    def test_a_republished_figure_knows_it_did_not_move(self, chain: Warehouse) -> None:
+        """Second publication, same number. ``report_seq`` says 2 and means it."""
+        fact = self._on(chain, date(2021, 11, 1))
+        assert fact.value == self.ORIGINAL
+        assert fact.report_seq == 2
+        assert fact.is_first_report is False
+        assert fact.differs_from_first_report is False
+
+    def test_a_changed_figure_knows_it_moved(self, chain: Warehouse) -> None:
+        fact = self._on(chain, date(2022, 1, 1))
+        assert fact.value == self.INTERIM
+        assert fact.report_seq == 3
+        assert fact.differs_from_first_report is True
+
+    def test_the_count_covers_the_whole_period_not_the_rows_before_it(
+        self, chain: Warehouse
+    ) -> None:
+        """Every fact in a period reports the same total, the first one included.
+
+        This is the ordered-window trap. ``count(DISTINCT value)`` over a window
+        carrying an ORDER BY becomes cumulative -- "how many values had appeared
+        by this row" -- which reads 1 on the first publication of every revised
+        period in the warehouse and would tell a reader standing on 2021-08-01
+        that this figure had never been anything else. The question is about the
+        period, not about the row, so the answer is 2 at every point on the chain.
+        """
+        assert self._on(chain, date(2021, 8, 1)).period_distinct_values == 2
+        assert self._on(chain, date(2021, 11, 1)).period_distinct_values == 2
+        assert self._on(chain, date(2022, 1, 1)).period_distinct_values == 2
+        assert self._on(chain, date(2026, 6, 1)).period_distinct_values == 2
+
+    def test_the_first_fact_already_knows_the_value_will_move(self, chain: Warehouse) -> None:
+        """And it is the fact where a cumulative count would say otherwise.
+
+        ``value_ever_changed`` describes the period's whole history, which is
+        knowable from the data even where it is not knowable to a reader on the
+        knowledge date. That is a deliberate split: the *value* is filtered to
+        what was public, the *chain description* is not, exactly as
+        ``report_seq`` has always behaved.
+        """
+        first = self._on(chain, date(2021, 8, 1))
+        assert first.report_seq == 1
+        assert first.is_first_report is True
+        assert first.differs_from_first_report is False
+        assert first.value_ever_changed is True
+
+    def test_the_last_filing_matches_the_first_and_the_chain_still_says_it_moved(
+        self, chain: Warehouse
+    ) -> None:
+        """Where every two-point comparison goes blind.
+
+        First-reported and latest are both 174.2m, so comparing them sees
+        nothing. 10,080 of the warehouse's 357,101 revised us-gaap periods --
+        2.82% -- are this shape.
+        """
+        latest = self._on(chain, date(2026, 6, 1))
+        assert latest.value == self.ORIGINAL
+        assert latest.report_seq == 5
+        assert latest.differs_from_first_report is False
+        assert latest.value_ever_changed is True
+
+    def test_a_period_that_never_moved_is_not_swept_up(self, chain: Warehouse) -> None:
+        """The discriminator. Same five filings, same period, one value throughout.
+
+        Five republications and nothing to report: this is what the 91.8%
+        looks like, and it is the row that must stay quiet.
+        """
+        steady = self._on(chain, date(2026, 6, 1), self.STEADY)
+        assert steady.value == self.STEADY_VALUE
+        assert steady.report_seq == 5
+        assert steady.differs_from_first_report is False
+        assert steady.period_distinct_values == 1
+        assert steady.value_ever_changed is False

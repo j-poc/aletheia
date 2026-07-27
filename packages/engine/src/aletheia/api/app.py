@@ -299,6 +299,17 @@ def asof(
         # displayed 6.154bn beside 6.115bn under a sentence claiming they were
         # the same number.
         "known_is_current": known.value == restated.value,
+        # Every flag above compares two points on the chain. None of them can see
+        # a period that was revised and then revised back, because its endpoints
+        # match: `value_changed` goes false and the page fell through to "the
+        # value never moved; only its source document did" -- printed, live, on
+        # AAR Corp's accrued current liabilities for 2021-05-31, which went
+        # 174.2m -> 148.3m -> 174.2m over five filings, while the left column of
+        # the same screen showed 148.3m beside 174.2m. 10,080 of the 357,101
+        # revised us-gaap periods have matching endpoints. Counting the distinct
+        # values a period ever carried is the only form of the question that
+        # reads the chain rather than its two ends.
+        "value_ever_changed": restated.value_ever_changed,
     }
 
 

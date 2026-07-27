@@ -72,6 +72,12 @@ export type AsOf = {
    * three or more distinct values, and on those the left column can show an
    * intermediate figure that is neither the original nor the current one. */
   known_is_current: boolean;
+  /** The value moved at some point in this period's filing history — whether or
+   * not it moved back. Every other flag here compares two points on the chain
+   * and so is blind to a period revised and then revised back: 10,080 of 357,101
+   * revised periods end where they started, and on those `value_changed` is
+   * false while the history is anything but unchanged. */
+  value_ever_changed: boolean;
 };
 
 export type Revision = {
