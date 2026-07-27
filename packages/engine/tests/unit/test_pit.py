@@ -172,6 +172,41 @@ class TestRevisions:
         with pytest.raises(ZeroDivisionError, match="use absolute_change"):
             _ = revision.relative_change
 
+    def test_a_magnitude_filter_keeps_revisions_off_a_zero_base(self, warehouse: Warehouse) -> None:
+        """Undefined is not small.
+
+        A move off zero has no relative change to compare, and requiring
+        ``prior_value <> 0`` drops it -- so a caller asking for "revisions above
+        50%" is silently not shown the unbounded ones. It is not a corner case:
+        4,449 of the warehouse's 394,320 revisions start from zero, and the API
+        applies this filter by default, so all 4,449 were missing from the
+        revision explorer. Arconic restated equity in affiliates for 2017 from $0
+        to $1.02bn and it appeared under no threshold at all.
+        """
+        warehouse.write_facts(
+            [
+                make_fact(value="0", filed_at=date(2009, 10, 27), accn="0001193125-09-214859"),
+                make_fact(value="1.5", filed_at=date(2010, 1, 25), accn="0001193125-10-012091"),
+            ]
+        )
+        view = as_of(warehouse, AFTER_RESTATEMENT)
+        for threshold in (0.05, 0.50, 100.0):
+            assert len(view.revisions(AAPL, min_relative_change=threshold)) == 1, threshold
+
+    def test_but_a_zero_to_zero_pair_is_not_a_revision_at_any_threshold(
+        self, warehouse: Warehouse
+    ) -> None:
+        """The other side. Passing every threshold must not mean passing on nothing."""
+        warehouse.write_facts(
+            [
+                make_fact(value="0", filed_at=date(2009, 10, 27), accn="0001193125-09-214859"),
+                make_fact(value="0", filed_at=date(2010, 1, 25), accn="0001193125-10-012091"),
+            ]
+        )
+        view = as_of(warehouse, AFTER_RESTATEMENT)
+        assert view.revisions(AAPL) == []
+        assert view.revisions(AAPL, min_relative_change=0.05) == []
+
 
 class TestMacroVintages:
     def test_returns_the_figure_published_at_the_time(self, warehouse: Warehouse) -> None:

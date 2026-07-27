@@ -464,7 +464,18 @@ class PitView:
             conditions.append("concept = ?")
             params.append(concept)
         if min_relative_change is not None:
-            conditions.append("prior_value <> 0 AND abs((value - prior_value) / prior_value) >= ?")
+            # A revision off a zero base passes every threshold. Its relative
+            # change is undefined -- there is no denominator -- and a filter that
+            # requires `prior_value <> 0` silently reads "undefined" as "small",
+            # which is backwards: these are unbounded, not negligible. 4,449 of
+            # the warehouse's 394,320 revisions start from zero, and the API
+            # applies this filter by default (`min_change=0.05`), so every one of
+            # them was invisible in the revision explorer -- including Arconic
+            # restating equity in affiliates for 2017 from $0 to $1.02bn.
+            conditions.append(
+                "((prior_value <> 0 AND abs((value - prior_value) / prior_value) >= ?)"
+                " OR (prior_value = 0 AND value <> 0))"
+            )
             params.append(Decimal(str(min_relative_change)))
 
         rows = self._warehouse.execute(

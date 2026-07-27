@@ -264,3 +264,97 @@ free to drift. One shared predicate builder, one sentinel, four signatures.
 layer and in the HTTP contract (`period_start=instant`), so removing it would
 break callers. It is additive, though -- `None` and a date behave exactly as
 before, which is asserted directly.
+
+---
+
+## D11 — "Restated" is two questions, and answering them as one cries wolf
+
+**Taken:** 2026-07-27. **Reversal cost:** low — one added response field; the two existing ones keep their names.
+
+A later filing *superseding* an earlier one and a later filing *changing the
+number* are different events. The API answered only the first and named it
+`is_restated`, and the viewer rendered that as a restatement warning.
+
+**Measured over the warehouse.** Of 3,956,913 `(first report, later report)`
+pairs — same `(cik, taxonomy, concept, unit, period_start, period_end)` — the
+value is unchanged in **3,586,802 of them, 90.6%**. Only 370,111 moved. The
+overwhelming majority of refilings are the next periodic report re-presenting a
+prior period's comparative column, which is the same finding that killed D6 as a
+hypothesis, now applied to the card that describes it. Warning on all of them
+puts a restatement flag on nine periods in ten that never had one, and a reader
+who learns the flag means nothing stops reading it.
+
+**Three fields, because there are three questions.**
+
+| Field | Asks | Basis |
+|---|---|---|
+| `is_restated` | does a later document supersede the one this date would have had | accession |
+| `value_changed` | did the number move | `Decimal` equality of the two values |
+| `already_restated_by_then` | was the value *already* revised by the knowledge date | `Decimal` equality |
+
+`already_restated_by_then` was accession-based and is now value-based, which is
+what its name always claimed. Accession-based it fired on any period whose next
+annual report had been filed — after a year, nearly all of them — and the left
+card then told the reader a restatement had already been published on a figure
+that never moved. Observed on AAR Corp's `ProfitLoss` for the six months ending
+2018-11-30: $22.1M filed 2018-12-19, the identical figure carried forward under
+accession `0001104659-19-074491` on 2019-12-20, and the card claiming a
+restatement at any knowledge date after that.
+
+**Why not compare `relative_drift` to zero.** That was the first fix and it is
+wrong in two directions, because drift is `None` whenever the first report was 0
+— there is no denominator. **123,177** refilings in the warehouse are `0 -> 0`,
+and a null-drift check reports every one as a restatement. **2,924** first
+reports of 0 later moved to a non-zero figure — Arconic first reported $0 of
+discontinued-operations income for FY2018 on 2019-02-21 and restated it to $333M
+on 2021-02-16 — and those carry the same null. One comparison, two opposite
+cases, indistinguishable. Comparing the values has neither blind spot, and
+`Decimal` equality ignores the storage scale, so `22100000` and `22100000.00`
+compare equal where their rendered strings might not.
+
+**Server-side, not in the page.** The page could subtract the two figures it
+already displays, but they cross the wire as display strings through `plain()`,
+so a formatting change would silently flip a claim about whether a company
+restated its accounts. The comparison belongs where the `Decimal`s are, and it is
+then also right for every other consumer of the endpoint.
+
+**One further defect the same overload caused.** The card's first branch keyed on
+`is_restated`, which goes *false* once the restated filing is also the latest one
+a reader would have had — the accessions match. On the AAPL FY2008 fixture that
+put "this period was never restated" on the exact case the system was built to
+show, at any knowledge date after the restatement became the current report. The
+branch now keys on `value_changed`, so a period whose value moved reads as
+restated regardless of which document is currently on top.
+
+---
+
+## D12 — A revision off a zero base passes every magnitude threshold
+
+**Taken:** 2026-07-27. **Reversal cost:** low — one SQL predicate. Same defect class as D10 and D11.
+
+`PitView.revisions(min_relative_change=x)` required `prior_value <> 0` before
+comparing the ratio, which silently dropped every revision whose original figure
+was zero. Undefined was being read as *small*, and it is the opposite: a move off
+zero is unbounded.
+
+The API applies this filter **by default** (`min_change=0.05`), so the omission
+was live on the revision explorer, not latent. Measured: **4,449** of the
+warehouse's **394,320** revisions start from zero and were therefore invisible at
+every threshold, including Arconic restating equity in affiliates for 2017 from
+$0 to $1.02bn (published 2019-02-21) and discontinued-operations income for 2018
+from $0 to $333M (published 2021-02-16). A user filtering for large revisions was
+being shown strictly fewer of them than a user asking for all revisions, which
+inverts what the control means.
+
+A zero base now passes any threshold. The reported `relative_change` stays
+`None` — there is still no ratio to report — and the table renders an em dash,
+which is the honest rendering of an undefined quantity and is already how the
+column handles it. The non-revision case is unaffected: `0 -> 0` is excluded by
+the `value <> prior_value` predicate that governs the whole query, and that is
+asserted directly rather than assumed.
+
+This is the third instance of the same underlying mistake: a quantity that has no
+denominator was being encoded as a value that compares equal to "nothing
+happened". D10 was `period_start=None` meaning both "no filter" and "instant";
+D11 was `relative_drift=None` standing in for "the value did not change"; this is
+the same null standing in for "the change was small".
