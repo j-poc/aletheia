@@ -29,11 +29,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from aletheia.core.config import load_settings
 from aletheia.core.errors import InsufficientData
 from aletheia.core.types import Cik
-from aletheia.pit import PitView, as_of
+from aletheia.pit import PitFiling, PitView, as_of
 from aletheia.store.db import Warehouse
-from aletheia.surveillance.forensics import assess, rank
+from aletheia.surveillance.forensics import PERIODIC_FORMS, assess, rank
 
 DEFAULT_CONCEPT = "EarningsPerShareDiluted"
+LAG_ELIGIBLE_FORMS = PERIODIC_FORMS
+"""Only these consult filer history, so only these need it fetched."""
 
 
 class _State:
@@ -277,11 +279,20 @@ def feed(
     view = as_of(warehouse, target)
     filings = view.filings(since=target)
 
+    # Filer history is only consulted by the filing-lag flag, which applies to
+    # periodic reports alone. Fetching it for every filing meant ~3,900 extra
+    # queries on a normal day -- one per filing -- to inform a check that most of
+    # them are not eligible for. Fetched once per distinct periodic filer instead.
+    history_by_cik: dict[int, list[PitFiling]] = {}
+    periodic_ciks = {int(filing.cik) for filing in filings if filing.form in LAG_ELIGIBLE_FORMS}
+    for cik_value in sorted(periodic_ciks):
+        history_by_cik[cik_value] = view.filings(cik=cik_value, forms=LAG_ELIGIBLE_FORMS)
+
     assessments = []
     for filing in filings:
         history = [
             past
-            for past in view.filings(cik=filing.cik)
+            for past in history_by_cik.get(int(filing.cik), ())
             if past.knowledge_date < filing.knowledge_date
         ]
         assessments.append(assess(filing, filer_history=history))

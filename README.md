@@ -23,16 +23,51 @@ when the number did not exist and nobody on earth could have known it.
 A backtest of late 2009 built on that panel is trading on information published in
 2010. Nothing warns you. The Sharpe ratio comes out fine.
 
+Verbatim, against the real warehouse:
+
 ```
 $ aletheia asof AAPL --concept EarningsPerShareDiluted --period-end 2008-09-27 \
       --date 2009-12-01 --compare-restated
+AAPL · EarningsPerShareDiluted · as known on 2009-12-01
+
+ period ending               value   published  rpt  filing
+-----------------------------------------------------------
+    2008-09-27                5.36  2009-10-27    1  0001193125-09-214859
+
+as it stands today (LOOKAHEAD — what a vendor panel would give you):
+  6.78  published 2010-10-27
+  difference vs. what was knowable on 2009-12-01: +26.49% — the error a conventional backtest would make
 
 $ aletheia asof AAPL --concept EarningsPerShareDiluted --period-end 2008-09-27 \
       --date 2010-06-01 --compare-restated
+AAPL · EarningsPerShareDiluted · as known on 2010-06-01
+
+ period ending               value   published  rpt  filing
+-----------------------------------------------------------
+    2008-09-27                6.78  2010-01-25    2  0001193125-10-012091  ← restated
 ```
 
 Same company, same fiscal period, same query. Two dates, two answers, because on
 those two dates two different things were true. That is the entire product.
+
+## It is not one company, and it is not rare
+
+Across an 800-filer universe drawn from a 2011 SEC cross-section — **13,447,437
+XBRL facts over 1,364,574 filings**:
+
+| | |
+|---|---|
+| Distinct (company, concept, fiscal period) combinations | **6,255,108** |
+| …carrying more than one distinct reported value | **1,024,857** |
+| Share | **16.4%** |
+
+One in six reported numbers changed after it was first published. A flat vendor
+panel returns only the final value for every one of them, on every date.
+
+Not all of those are formal restatements — many are prior-year comparatives
+re-presented under a changed classification in the next annual report, which the
+revision explorer separates by publication lag. That distinction was measured, not
+assumed, and it is why the flagship study's hypothesis was swapped (D6 → D7).
 
 ---
 
