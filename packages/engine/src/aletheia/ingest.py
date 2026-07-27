@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date
+from typing import Final
 
 from aletheia.core.clock import Clock
 from aletheia.core.config import Settings
@@ -34,6 +35,15 @@ from aletheia.store.records import (
     IdentifierRecord,
 )
 
+CONSECUTIVE_FAILURE_LIMIT: Final = 5
+"""Stop a batch after this many failures in a row.
+
+An exhausted API quota looks identical on every subsequent symbol, so retrying
+226 of them costs twenty minutes and yields nothing but a list of identical
+errors. Five in a row is well past coincidence and well short of aborting on a
+transient blip. A per-name entitlement gap deliberately does not count -- that is
+the survivorship measurement, not a fault."""
+
 
 @dataclass(slots=True)
 class IngestOutcome:
@@ -46,9 +56,18 @@ class IngestOutcome:
     unreachable: list[str] = field(default_factory=list)
     """Identifiers the source declined to serve — the survivorship hole, enumerated."""
     failed: list[str] = field(default_factory=list)
+    aborted_after: str | None = None
+    """Set when a run stopped early because the source stopped answering.
+
+    A batch that grinds through 200 more names against an exhausted quota
+    produces nothing but a long list of identical failures, and reports it as a
+    completed run with poor coverage -- which reads like a data problem rather
+    than an entitlement one."""
 
     def summary(self) -> str:
         parts = [f"{self.source}: {self.rows_written} rows written", self.report.summary()]
+        if self.aborted_after:
+            parts.append(f"ABORTED: {self.aborted_after}")
         if self.unreachable:
             parts.append(f"{len(self.unreachable)} unreachable (entitlement)")
         if self.failed:
@@ -231,17 +250,31 @@ class Ingestor:
         outcome = self._begin("fmp.prices", {"n": len(symbols), "start": start, "end": end})
         if self._prices is None:
             return self._fail(outcome, RuntimeError("price source not configured"))
-        for symbol in symbols:
+
+        consecutive = 0
+        for index, symbol in enumerate(symbols):
             try:
                 bars, report = self._prices.daily_bars(
                     symbol, start=start, end=end, run_id=outcome.run_id
                 )
                 outcome.report.merge(report)
                 outcome.rows_written += self._warehouse.write_prices(bars)
+                consecutive = 0
             except DelistedCoverageError:
+                # An entitlement gap for one name says nothing about the next, so
+                # this deliberately does not trip the breaker. It is the
+                # survivorship measurement, not a fault.
                 outcome.unreachable.append(symbol)
+                consecutive = 0
             except (SourceError, OSError) as exc:
                 outcome.failed.append(f"{symbol}: {exc}")
+                consecutive += 1
+                if consecutive >= CONSECUTIVE_FAILURE_LIMIT:
+                    outcome.aborted_after = (
+                        f"{consecutive} consecutive failures ending at {symbol} "
+                        f"({index + 1} of {len(symbols)} attempted); last error: {exc}"
+                    )
+                    break
         return self._succeed(outcome)
 
     def ingest_delistings(self) -> IngestOutcome:

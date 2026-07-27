@@ -162,3 +162,55 @@ Observed: 8,166 filers in the frame, 2,998 above the floor, 800 sampled.
 
 Sector exclusions (financials, utilities — for which accruals are not comparable)
 are applied at study time, not at ingest, per D4.
+
+---
+
+## D9 — The flagship study is blocked on price entitlement, and is reported blocked
+
+**Taken:** 2026-07-27. **Reversal cost:** none — it is a spend decision, reserved for the maintainer.
+
+Everything the study needs is built and tested. It did not run, and the reason is
+data availability rather than code.
+
+**What happened.** The 800-filer fundamentals ingest completed: 800 entities,
+1,364,574 filings, 13,447,437 facts. Symbol resolution produced 226 tradable
+names (311 financials and utilities screened out per the accruals literature, 261
+filers with no listed common stock — bond issuers, trusts and subsidiaries that
+file with the SEC but have no equity to trade). The price stage then requested
+226 symbols from FMP and got 8 before the account's **daily quota** was exhausted:
+
+```
+{"Error Message": "Limit Reach . Please upgrade your plan ..."}
+```
+
+Two alternatives were probed live and neither is usable: Yahoo's chart API now
+requires a cookie-and-crumb handshake and returns `429` to this address on the
+crumb endpoint itself; Stooq puts a JavaScript proof-of-work wall in front of its
+CSV. Both were already recorded as unavailable during the original data survey.
+
+**Why the study was not run anyway.** Eight symbols cannot populate five
+quantiles. A result from them would be noise dressed as a finding, and publishing
+it would be exactly the unlabelled stand-in the standards forbid. The three-arm
+comparison is only meaningful over a universe wide enough for a cross-sectional
+sort, so a thin run does not "partially" answer the question — it answers a
+different one and looks the same.
+
+**What unblocks it**, in order of preference:
+
+1. **Wait for the quota to reset** and re-run `--stage prices`. Free, and the
+   circuit breaker now stops the batch after five consecutive failures instead of
+   grinding through the remainder, so a second exhaustion is visible in seconds.
+2. **A paid price source.** Sharadar, Norgate, QuantRocket or an FMP upgrade,
+   roughly $50–200/month. This also closes the D1 survivorship hole, which the
+   free tier never can. **Reserved for the maintainer — it is a spend decision.**
+
+**What was fixed because of this.** The run took twenty-two minutes to accomplish
+nothing and exited `0`. `429` is in the retryable set, so each of the remaining
+221 symbols was retried four times with backoff against a quota that was never
+coming back, and the outcome read as poor coverage rather than as an entitlement
+failure. `ingest_prices` now trips a circuit breaker after
+`CONSECUTIVE_FAILURE_LIMIT` consecutive failures and records `aborted_after` with
+the reason and how far it got. A per-name `DelistedCoverageError` deliberately
+does **not** count toward the breaker — that is the survivorship measurement, and
+tripping on it would replace the count the system exists to report with an abort
+message.
