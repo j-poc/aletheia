@@ -217,34 +217,8 @@ def _sandbox_env(sandbox: Path) -> dict[str, str]:
     return env
 
 
-def _unredirected_imports(sandbox: Path, env: dict[str, str]) -> list[str]:
-    """Empty when both packages import from ``sandbox``; otherwise what went wrong.
-
-    The whole gate rests on this. If the redirection fails, pytest exercises the
-    real unmutated code, every mutant survives, and the output is a report that
-    the test suite catches nothing -- alarming but wrong, and the true cause
-    would not be visible anywhere in it.
-    """
-    probe = "import aletheia, trialkeeper; print(aletheia.__file__); print(trialkeeper.__file__)"
-    result = subprocess.run(  # noqa: S603
-        [sys.executable, "-c", probe],
-        cwd=ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        tail = result.stderr.strip().splitlines()
-        return [f"import probe failed: {tail[-1] if tail else 'no output'}"]
-    resolved = result.stdout.splitlines()
-    if len(resolved) != 2:
-        return [f"import probe printed {len(resolved)} path(s), expected 2"]
-    return [path for path in resolved if not path.startswith(f"{sandbox}{os.sep}")]
-
-
-def _run(tests: tuple[str, ...], sandbox: Path, env: dict[str, str]) -> bool:
-    """True when the named tests -- collected from the sandbox -- pass.
+def _pytest_argv(paths: list[Path]) -> list[str]:
+    """The one pytest command line this harness uses, so the probe cannot diverge from the run.
 
     ``-c`` and ``--rootdir`` are pinned to the real repo because the test paths
     now live under ``/tmp``: without them pytest would look for its config beside
@@ -252,21 +226,89 @@ def _run(tests: tuple[str, ...], sandbox: Path, env: dict[str, str]) -> bool:
     ``filterwarnings = ["error"]`` and the marker declarations. The tests would
     still run, under quietly different rules.
     """
+    return [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-q",
+        "--no-header",
+        "-p",
+        "no:cacheprovider",
+        "-c",
+        str(ROOT / "pyproject.toml"),
+        "--rootdir",
+        str(ROOT),
+        *[str(path) for path in paths],
+    ]
+
+
+PROBE_TEST = "packages/engine/tests/unit/test_zz_import_redirection_probe.py"
+
+PROBE_SOURCE = '''"""Written into the sandbox by scripts/mutation_gate.py; never committed.
+
+Records where ``aletheia`` and ``trialkeeper`` actually resolved, from inside a
+real pytest process, so the redirection check measures the same import
+resolution the mutants will get rather than a plausible-looking approximation.
+"""
+
+import os
+import pathlib
+
+import aletheia
+import trialkeeper
+
+
+def test_record_import_origins() -> None:
+    pathlib.Path(os.environ["ALETHEIA_PROBE_OUT"]).write_text(
+        f"{aletheia.__file__}\\n{trialkeeper.__file__}\\n", encoding="utf-8"
+    )
+'''
+
+
+def _unredirected_imports(sandbox: Path, env: dict[str, str]) -> list[str]:
+    """Empty when both packages import from ``sandbox``; otherwise what went wrong.
+
+    The whole gate rests on this. If the redirection fails, pytest exercises the
+    real unmutated code, every mutant survives, and the output is a report that
+    the test suite catches nothing -- alarming but wrong, and the true cause
+    would not be visible anywhere in it.
+
+    The probe runs *under pytest*, with the same argv, cwd and environment as a
+    mutant run, and from a directory inside the copied tree so it inherits the
+    same ``conftest.py`` chain. A bare ``python -c`` would have been easier and
+    would have tested a path the real run does not take: pytest prepends its own
+    ``pythonpath`` ini entries to ``sys.path`` ahead of ``PYTHONPATH``, so a
+    check that skips pytest cannot see a shadowing entry that would change where
+    the mutants import from.
+    """
+    probe_file = sandbox / PROBE_TEST
+    probe_file.write_text(PROBE_SOURCE, encoding="utf-8")
+    recorded = sandbox / "import-origins.txt"
+    probe_env = dict(env)
+    probe_env["ALETHEIA_PROBE_OUT"] = str(recorded)
     result = subprocess.run(  # noqa: S603
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-q",
-            "--no-header",
-            "-p",
-            "no:cacheprovider",
-            "-c",
-            str(ROOT / "pyproject.toml"),
-            "--rootdir",
-            str(ROOT),
-            *[str(sandbox / test) for test in tests],
-        ],
+        _pytest_argv([probe_file]),
+        cwd=ROOT,
+        env=probe_env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        tail = (result.stdout + result.stderr).strip().splitlines()
+        return [f"import probe failed under pytest: {tail[-1] if tail else 'no output'}"]
+    if not recorded.exists():
+        return ["import probe passed without recording anything, so it proved nothing"]
+    resolved = recorded.read_text(encoding="utf-8").splitlines()
+    if len(resolved) != 2:
+        return [f"import probe recorded {len(resolved)} path(s), expected 2"]
+    return [path for path in resolved if not path.startswith(f"{sandbox}{os.sep}")]
+
+
+def _run(tests: tuple[str, ...], sandbox: Path, env: dict[str, str]) -> bool:
+    """True when the named tests -- collected from the sandbox -- pass."""
+    result = subprocess.run(  # noqa: S603
+        _pytest_argv([sandbox / test for test in tests]),
         cwd=ROOT,
         env=env,
         capture_output=True,

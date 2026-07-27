@@ -684,7 +684,25 @@ completely wrong report: that the test suite catches nothing.
 
 So `_unredirected_imports` runs before the first mutant and requires
 `aletheia.__file__` and `trialkeeper.__file__` to resolve inside the sandbox.
-Verified in both directions:
+
+**The check runs under pytest, not beside it.** The first version was a
+`python -c` probe, which was easier and measured the wrong thing: pytest inserts
+its own `pythonpath` ini entries at the front of `sys.path`, ahead of anything
+in `PYTHONPATH`, so a bare interpreter can resolve an import differently from
+the process that runs the mutants. It happens not to today — `pythonpath` is
+`["packages/engine", "packages/trialkeeper"]` and the packages live one level
+further down under `src/`, so those entries match nothing — but a control whose
+correctness depends on a layout detail elsewhere in the config is not a control.
+The probe is now a generated test file placed inside the copied tree, run
+through `_pytest_argv`, the single command line the real mutants use; it records
+where each package resolved and the harness reads that back. Same interpreter,
+same argv, same `conftest.py` chain, same working directory.
+
+Verified in both directions, under the venv interpreter the gate actually runs
+on (an early attempt at this control used the system `python3`, which cannot
+import either package at all — the run failed for a reason unrelated to what was
+being tested, and a failure in the expected direction for the wrong reason is
+not evidence):
 
 | Run | Result |
 |---|---|

@@ -208,9 +208,12 @@ running the gate while an editor, a linter or another session is reading those
 files changes nothing under them. The redirection is verified before the first
 mutant, because its failure mode is silent: unredirected imports would exercise
 the real code, every mutant would survive, and the gate would report a suite that
-catches nothing. Both halves are checked — break the redirection with the check in
-place and the run fails naming the two paths that escaped; break it with the check
-removed and all ten mutants survive.
+catches nothing. That check runs *under pytest*, on the same command line as a
+mutant — pytest builds `sys.path` differently from a bare interpreter, so a
+cheaper probe would have verified a path the real run never takes. Both halves
+are checked — break the redirection with the check in place and the run fails
+naming the two paths that escaped; break it with the check removed and all ten
+mutants survive.
 
 That determinism gate immediately earned itself: the backtest kernel sorted on
 signal value alone, and Python's sort is stable, so tied values inherited whatever
