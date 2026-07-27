@@ -77,11 +77,24 @@ class ArmSummary:
     n_periods: int
     periods_per_year: float
     gross_annualised: float
+    """Geometric. Compounding -50% then +50% is a loss; an arithmetic mean says flat."""
     net_annualised: float
+    """Geometric, net of modelled costs. The figure to quote as a return."""
+    net_arithmetic_annualised: float
+    """Arithmetic: mean per period x periods per year.
+
+    Reported alongside the geometric figure so the Sharpe below is on a matched
+    basis with a stated return. The Sharpe's numerator is an arithmetic mean, so
+    pairing it with the geometric return would compare two different quantities --
+    the error that makes an annualised Sharpe and an annualised return disagree."""
+    net_stdev_annualised: float
+    """Per-period deviation x sqrt(periods per year). The Sharpe's denominator."""
     net_mean_per_period: float
     net_stdev_per_period: float
     sharpe_per_period: float
     annualised_sharpe: float
+    """``net_arithmetic_annualised / net_stdev_annualised`` -- both moments scaled,
+    which is the whole content of the matched-basis rule."""
     mean_turnover: float
     mean_cost_per_period: float
     n_excluded: int
@@ -104,6 +117,8 @@ class ArmSummary:
             periods_per_year=periods_per_year,
             gross_annualised=annualise(result.gross_returns, periods_per_year=periods_per_year),
             net_annualised=annualise(net, periods_per_year=periods_per_year),
+            net_arithmetic_annualised=mean * periods_per_year,
+            net_stdev_annualised=stdev * float(np.sqrt(periods_per_year)),
             net_mean_per_period=mean,
             net_stdev_per_period=stdev,
             sharpe_per_period=sharpe,
@@ -125,6 +140,8 @@ class ArmSummary:
             "periods_per_year": _round(self.periods_per_year),
             "gross_annualised": _round(self.gross_annualised),
             "net_annualised": _round(self.net_annualised),
+            "net_arithmetic_annualised": _round(self.net_arithmetic_annualised),
+            "net_stdev_annualised": _round(self.net_stdev_annualised),
             "net_mean_per_period": _round(self.net_mean_per_period),
             "net_stdev_per_period": _round(self.net_stdev_per_period),
             "sharpe_per_period": _round(self.sharpe_per_period),
@@ -244,15 +261,24 @@ class EvidenceCard:
             "",
             "## Arms",
             "",
-            "| Arm | Periods | Gross p.a. | Net p.a. | Sharpe p.a. | Turnover | Excluded |",
-            "|---|---:|---:|---:|---:|---:|---:|",
+            "| Arm | Periods | Gross p.a. | Net p.a. | Net p.a. (arith.) | Vol p.a. "
+            "| Sharpe p.a. | Turnover | Excluded |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
         lines.extend(
             f"| `{arm.label}` | {arm.n_periods} | {arm.gross_annualised:+.2%} | "
-            f"{arm.net_annualised:+.2%} | {arm.annualised_sharpe:.2f} | "
+            f"{arm.net_annualised:+.2%} | {arm.net_arithmetic_annualised:+.2%} | "
+            f"{arm.net_stdev_annualised:.2%} | {arm.annualised_sharpe:.2f} | "
             f"{arm.mean_turnover:.2f}x | {arm.n_excluded:,} |"
             for arm in self.arms
         )
+        lines += [
+            "",
+            "Gross and net returns are geometric. The arithmetic column and the "
+            "volatility are on a matched basis with the Sharpe ratio, whose "
+            "numerator is an arithmetic mean -- quoting the geometric return "
+            "against that Sharpe would compare two different quantities.",
+        ]
 
         if self.comparisons:
             lines += [

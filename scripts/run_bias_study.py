@@ -53,6 +53,7 @@ from aletheia.features.vintage import FIRST_REPORTED, NAIVE_VENDOR, RESTATED_VAL
 from aletheia.pit import as_of
 from aletheia.research.evidence import ArmSummary, Comparison, EvidenceCard, Provenance
 from aletheia.research.kernel import run_quantile_sort
+from aletheia.research.prices import CachedPrices
 from aletheia.research.study import build_panels
 from trialkeeper import (
     TrialLedger,
@@ -96,6 +97,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", choices=("symbols", "prices", "study"), required=True)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--family",
+        default=TRIAL_FAMILY,
+        help=(
+            "Trial-ledger family. Every run registers a trial, and the trial count "
+            "sets the deflated-Sharpe bar -- so debug and smoke runs belong in a "
+            "separate family (e.g. --family accrual-vintage-bias-debug) rather than "
+            "silently raising the bar for the real result."
+        ),
+    )
     args = parser.parse_args(argv)
 
     with Application.build() as app:
@@ -106,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
             return _stage_symbols(app, view, vintage, limit=args.limit)
         if args.stage == "prices":
             return _stage_prices(app)
-        return _stage_study(app, view, vintage)
+        return _stage_study(app, view, vintage, family=args.family, limit=args.limit)
 
 
 # ------------------------------------------------------------------ stages --
@@ -118,7 +129,12 @@ def _stage_symbols(app: Application, view: Any, vintage: date, *, limit: int | N
     panels = build_panels(
         view,
         ciks=ciks,
-        formation_dates=_formation_dates(vintage)[-1:],
+        # Every formation date, not just the last. Resolving only at the final
+        # date would list the firms still computable in 2026 -- so a firm that was
+        # live in 2013 and died in 2017 would never be requested from the price
+        # vendor, never return 402, and never appear in the survivorship stamp.
+        # The stamp would then report a hole far smaller than the real one.
+        formation_dates=_formation_dates(vintage),
         vintages=(FIRST_REPORTED,),
         exclude_financials=CONFIG["exclude_financials"],
         exclude_utilities=CONFIG["exclude_utilities"],
@@ -194,16 +210,18 @@ def _stage_prices(app: Application) -> int:
     return 0
 
 
-def _stage_study(app: Application, view: Any, vintage: date) -> int:
+def _stage_study(
+    app: Application, view: Any, vintage: date, *, family: str, limit: int | None
+) -> int:
     formations = _formation_dates(vintage)
-    ciks = _universe_ciks(limit=None)
+    ciks = _universe_ciks(limit=limit)
     vintages = (FIRST_REPORTED, RESTATED_VALUES, NAIVE_VENDOR)
 
     ledger = TrialLedger(LEDGER)
     config_hash = canonical_hash(CONFIG)
-    ledger.register(
+    trial = ledger.register(
         hypothesis=HYPOTHESIS,
-        family=TRIAL_FAMILY,
+        family=family,
         config={**CONFIG, "config_hash": config_hash},
         registered_at=datetime.now(UTC).isoformat(),
     )
@@ -219,11 +237,13 @@ def _stage_study(app: Application, view: Any, vintage: date) -> int:
     )
     print(panels.report.explain(), flush=True)
 
-    def load_prices(symbol: str, *, start: date, end: date) -> Any:
+    def fetch_history(symbol: str) -> Any:
         # Bound at the data vintage, not at the formation date: prices are never
         # restated, so retrieval is not the point-in-time question. *Which* bars a
         # simulation may act on is, and the kernel enforces that itself.
-        return view.prices(symbol, start=start, end=end, execution_lag_days=0)
+        return view.prices(symbol, start=PRICE_START, end=vintage, execution_lag_days=0)
+
+    load_prices = CachedPrices(fetch_history)
 
     results = {}
     for policy in vintages:
@@ -238,6 +258,18 @@ def _stage_study(app: Application, view: Any, vintage: date) -> int:
             long_high=CONFIG["long_high"],
         )
         print("   " + results[policy.name].explain(), flush=True)
+    print(load_prices.explain(), flush=True)
+
+    # The fix that made the timing channel real: if these two arms are identical,
+    # period selection collapsed back onto a single fiscal year and the channel is
+    # measuring nothing. Checked rather than assumed, because the failure is silent.
+    if results[RESTATED_VALUES.name].net_returns == results[NAIVE_VENDOR.name].net_returns:
+        print(
+            "\nWARNING: the restated and naive arms produced identical returns. "
+            "The timing channel is not wired -- both arms are reading the same "
+            "fiscal year at every formation date.",
+            flush=True,
+        )
 
     card = _build_card(
         app=app,
@@ -245,13 +277,16 @@ def _stage_study(app: Application, view: Any, vintage: date) -> int:
         panels_report=panels.report.explain(),
         results=results,
         config_hash=config_hash,
-        trial_count=ledger.count(family=TRIAL_FAMILY),
+        trial_count=ledger.count(family=family),
+        family=family,
     )
     CARD_JSON.parent.mkdir(parents=True, exist_ok=True)
     CARD_JSON.write_bytes(card.to_json())
     CARD_MD.write_text(card.to_markdown(), encoding="utf-8")
+    # The sequence comes from the registration itself rather than from a count
+    # that happens to line up today.
     ledger.record_outcome(
-        sequence=ledger.count(include_amendments=True),
+        sequence=trial.sequence,
         outcome={"repro_hash": card.repro_hash, "verdict": card.verdict},
     )
 
@@ -271,6 +306,7 @@ def _build_card(
     results: dict[str, Any],
     config_hash: str,
     trial_count: int,
+    family: str,
 ) -> EvidenceCard:
     periods_per_year = float(CONFIG["periods_per_year"])
     arms = tuple(
@@ -357,7 +393,7 @@ def _build_card(
         arms=arms,
         comparisons=comparisons,
         trial_count=trial_count,
-        trial_family=TRIAL_FAMILY,
+        trial_family=family,
         caveats=(
             "Prices for names delisted during the window are unobtainable on this data "
             "plan (decision D1). They are excluded identically from every arm, so the "

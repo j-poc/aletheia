@@ -61,13 +61,22 @@ class Drop(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class FirmPeriod:
-    """One firm-year that every arm was able to compute."""
+    """One firm at one formation date, with each arm's chosen fiscal year.
+
+    The arms may sit on **different** fiscal years, and that is the point. A
+    period-indexed vendor panel hands you FY2015 on 2015-12-31, seven weeks before
+    the 10-K exists; over those seven weeks the honest arm is still reading FY2014.
+    That gap is the timing channel. Forcing every arm onto the same fiscal year --
+    which an earlier version of this module did -- makes the naive arm identical to
+    the restated arm and the timing channel measure exactly zero.
+    """
 
     cik: Cik
     symbol: str
-    period_end: date
-    prior_period_end: date
     by_vintage: dict[str, Accruals]
+
+    def period_end(self, vintage: str) -> date:
+        return self.by_vintage[vintage].period_end
 
     def observation(self, vintage: str) -> SignalObservation:
         result = self.by_vintage[vintage]
@@ -174,24 +183,20 @@ def build_panels(
 
     for cik, symbol in resolved:
         report.firms_seen.add(int(cik))
-        periods = annual_period_ends(view, cik)
-        if len(periods) < 2:
-            report.drop(Drop.NO_ANNUAL_PERIOD)
+        # Computed once per firm across every fiscal year and every arm, then
+        # *selected* per formation date. Recomputing at each of ~174 monthly
+        # formation dates would repeat the same arithmetic twelve times per fiscal
+        # year for no change in the answer.
+        series = _firm_series(view, cik, vintages=vintages, report=report)
+        if series is None:
             continue
-        pairs = list(pairwise(periods))
 
         for formation in formation_dates:
-            firm_period = _firm_period_for(
-                view,
-                cik=cik,
-                symbol=symbol,
-                pairs=pairs,
-                formation=formation,
-                vintages=vintages,
-                report=report,
-            )
-            if firm_period is None:
+            picked = _pick_per_arm(series, formation=formation, vintages=vintages)
+            if picked is None:
+                report.drop(Drop.NOT_YET_FILED)
                 continue
+            firm_period = FirmPeriod(cik=Cik(int(cik)), symbol=symbol, by_vintage=picked)
             report.kept += 1
             report.firms_kept.add(int(cik))
             for vintage in vintages:
@@ -202,57 +207,72 @@ def build_panels(
     return result
 
 
-def _firm_period_for(
+def _firm_series(
     view: PitView,
-    *,
     cik: Cik | int,
-    symbol: str,
-    pairs: Sequence[tuple[date, date]],
-    formation: date,
+    *,
     vintages: Sequence[Vintage],
     report: PanelReport,
-) -> FirmPeriod | None:
-    """The most recent fiscal year this firm had filed by ``formation``.
+) -> dict[str, list[Accruals]] | None:
+    """Every fiscal year this firm reported, under every arm.
 
-    Selection uses the *honest* arm's knowledge date for every arm. Letting the
-    naive arm pick a fresher period would confound the vintage comparison with a
-    difference in which fiscal year each arm is trading -- a second effect on top
-    of the one being measured.
+    Computed at the data vintage, so nothing here is filtered by a formation date.
+    Point-in-time discipline is applied afterwards by :func:`_pick_per_arm`, which
+    selects on each arm's own knowledge date, and again by the kernel, which
+    re-checks every observation it is handed.
     """
-    candidates = [
-        (prior_end, period_end) for prior_end, period_end in pairs if period_end < formation
-    ]
-    if not candidates:
-        report.drop(Drop.NO_PRIOR_YEAR)
+    periods = annual_period_ends(view, cik)
+    if len(periods) < 2:
+        report.drop(Drop.NO_ANNUAL_PERIOD)
         return None
 
-    for prior_end, period_end in reversed(candidates):
+    series: dict[str, list[Accruals]] = {vintage.name: [] for vintage in vintages}
+    for prior_end, period_end in pairwise(periods):
         try:
             computed = {
                 vintage.name: accruals(
-                    view,
-                    cik,
-                    period_end=period_end,
-                    prior_period_end=prior_end,
-                    vintage=vintage,
+                    view, cik, period_end=period_end, prior_period_end=prior_end, vintage=vintage
                 )
                 for vintage in vintages
             }
         except (InsufficientData, ValueError):
+            # One arm short is the whole firm-year short: an arm computed on a
+            # different set of years would not be comparable with the others.
+            report.drop(Drop.MISSING_INPUT)
             continue
-        honest = next(iter(computed.values()))
-        if honest.knowledge_date > formation:
-            continue
-        return FirmPeriod(
-            cik=Cik(int(cik)),
-            symbol=symbol,
-            period_end=period_end,
-            prior_period_end=prior_end,
-            by_vintage=computed,
-        )
+        for name, value in computed.items():
+            series[name].append(value)
 
-    report.drop(Drop.NOT_YET_FILED)
-    return None
+    if any(not values for values in series.values()):
+        report.drop(Drop.NO_PRIOR_YEAR)
+        return None
+    return series
+
+
+def _pick_per_arm(
+    series: dict[str, list[Accruals]],
+    *,
+    formation: date,
+    vintages: Sequence[Vintage],
+) -> dict[str, Accruals] | None:
+    """The freshest fiscal year each arm could see on ``formation``.
+
+    Each arm selects on its **own** knowledge date. For the honest arms that is
+    the filing date of the slowest input; for the naive arm it is the fiscal period
+    end, which is what lets it reach a year the others cannot yet see.
+
+    Returns ``None`` unless every arm has something, so the traded universe stays
+    identical across arms even though the fiscal years differ.
+    """
+    picked: dict[str, Accruals] = {}
+    for vintage in vintages:
+        candidates = [value for value in series[vintage.name] if value.knowledge_date <= formation]
+        if not candidates:
+            return None
+        picked[vintage.name] = max(
+            candidates, key=lambda value: (value.knowledge_date, value.period_end)
+        )
+    return picked
 
 
 def _resolve_symbols(

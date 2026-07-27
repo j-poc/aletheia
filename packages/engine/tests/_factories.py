@@ -12,6 +12,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from aletheia.core.types import Accession, Cik, Fact, Filing
+from aletheia.store.records import EntityRecord, IdentifierRecord
 
 RETRIEVED_AT = datetime(2026, 7, 27, 12, 0, 0, tzinfo=UTC)
 RUN_ID = "run-test-0001"
@@ -98,3 +99,43 @@ def first_report() -> Fact:
 def restatement() -> Fact:
     """The same period, restated 90 days later. +26.5%."""
     return make_fact(value=RESTATEMENT_EPS, filed_at=RESTATEMENT_FILED, accn=RESTATEMENT_ACCN)
+
+
+def make_entity(
+    *,
+    cik: int = AAPL_CIK,
+    name: str = "APPLE INC",
+    sic: str | None = "3571",
+    fiscal_year_end: str | None = "0930",
+    run_id: str = RUN_ID,
+) -> EntityRecord:
+    """Registrant metadata. SIC 3571 is electronic computers — not screened out."""
+    return EntityRecord(
+        cik=Cik(cik),
+        name=name,
+        entity_type="operating",
+        sic=sic,
+        sic_description="Electronic Computers",
+        fiscal_year_end=fiscal_year_end,
+        state_of_incorp="CA",
+        observed_at=RETRIEVED_AT.date(),
+        source_uri=f"https://data.sec.gov/submissions/CIK{cik:010d}.json",
+        retrieved_at=RETRIEVED_AT,
+        content_sha256="2" * 64,
+        ingest_run_id=run_id,
+    )
+
+
+def make_identifier(
+    *, cik: int = AAPL_CIK, ticker: str = "AAPL", run_id: str = RUN_ID
+) -> IdentifierRecord:
+    return IdentifierRecord(
+        cik=Cik(cik),
+        ticker=ticker,
+        exchange="Nasdaq",
+        observed_at=RETRIEVED_AT.date(),
+        source_uri=f"https://data.sec.gov/submissions/CIK{cik:010d}.json",
+        retrieved_at=RETRIEVED_AT,
+        content_sha256="3" * 64,
+        ingest_run_id=run_id,
+    )
