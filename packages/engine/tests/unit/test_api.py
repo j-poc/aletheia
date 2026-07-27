@@ -80,22 +80,61 @@ class TestTheCoreGuaranteeOverHttp:
             },
         ).json()
         assert early["as_known"]["value"] == "5.36"
-        assert late["as_known"]["value"] == "5.36", (
-            "first_reported must stay first-reported regardless of the knowledge date"
+        assert late["as_known"]["value"] == "6.78", (
+            "what was knowable changes when the restatement is published; pinning "
+            "this to the first report would return 5.36 on both dates and remove "
+            "the entire demonstration"
         )
         assert early["as_it_stands_today"]["value"] == "6.78"
         assert early["is_restated"] is True
 
-    def test_the_drift_between_the_two_is_reported(self, client: TestClient) -> None:
-        payload = client.get(
+    def test_the_first_report_is_returned_alongside_and_does_not_move(
+        self, client: TestClient
+    ) -> None:
+        """Both semantics are served, because research wants the other one.
+
+        `as_known` answers "what would I have seen on this date". `as_first_reported`
+        answers "what did the market originally react to" -- which is the right
+        input for an event study and does not change with the viewing date.
+        """
+        for day in ("2009-12-01", "2010-06-01"):
+            payload = client.get(
+                "/api/asof/AAPL",
+                params={"knowledge_date": day, "period_end": FY2008_END.isoformat()},
+            ).json()
+            assert payload["as_first_reported"]["value"] == "5.36"
+
+    def test_the_viewer_says_whether_the_restatement_had_already_landed(
+        self, client: TestClient
+    ) -> None:
+        early = client.get(
             "/api/asof/AAPL",
-            params={
-                "knowledge_date": "2009-12-01",
-                "concept": "EarningsPerShareDiluted",
-                "period_end": FY2008_END.isoformat(),
-            },
+            params={"knowledge_date": "2009-12-01", "period_end": FY2008_END.isoformat()},
         ).json()
-        assert payload["relative_drift"] == pytest.approx((6.78 - 5.36) / 5.36)
+        late = client.get(
+            "/api/asof/AAPL",
+            params={"knowledge_date": "2010-06-01", "period_end": FY2008_END.isoformat()},
+        ).json()
+        assert early["already_restated_by_then"] is False
+        assert late["already_restated_by_then"] is True
+
+    def test_the_drift_is_measured_from_the_first_report(self, client: TestClient) -> None:
+        """And therefore does not collapse to zero once the restatement is public.
+
+        Measuring drift against whatever was current on the knowledge date reports
+        +0.00% for every date after the restatement landed, while the text on the
+        same card still describes the move from the original figure.
+        """
+        for day in ("2009-12-01", "2010-06-01"):
+            payload = client.get(
+                "/api/asof/AAPL",
+                params={
+                    "knowledge_date": day,
+                    "concept": "EarningsPerShareDiluted",
+                    "period_end": FY2008_END.isoformat(),
+                },
+            ).json()
+            assert payload["relative_drift"] == pytest.approx((6.78 - 5.36) / 5.36), day
 
     def test_money_crosses_the_wire_as_a_string(self, client: TestClient) -> None:
         """A JSON number is an IEEE double in every browser that parses it."""
@@ -121,7 +160,7 @@ class TestTheCoreGuaranteeOverHttp:
             params={"knowledge_date": "2009-01-01", "period_end": FY2008_END.isoformat()},
         )
         assert response.status_code == 404
-        assert "no first report" in response.json()["detail"]
+        assert "had not been published" in response.json()["detail"]
 
 
 class TestLookups:

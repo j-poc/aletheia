@@ -52,9 +52,11 @@ export type AsOf = {
   concept: string;
   knowledge_date: string;
   as_known: Fact;
+  as_first_reported: Fact;
   as_it_stands_today: Fact;
   relative_drift: number | null;
   is_restated: boolean;
+  already_restated_by_then: boolean;
 };
 
 export type Revision = {

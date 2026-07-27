@@ -187,18 +187,25 @@ def asof(
     full = as_of(warehouse, _data_vintage(warehouse))
 
     try:
-        known = (
-            view.first_reported(cik, concept, period_end=period_end)
-            if period_end
-            else view.fact(cik, concept)
-        )
+        # The latest report public on or before the knowledge date -- NOT the first
+        # report. "What was knowable on D" changes as restatements arrive, and that
+        # change is the entire demonstration: ask on 2009-12-01 and Apple's FY2008
+        # diluted EPS is 5.36, ask on 2010-06-01 and it is 6.78, because the
+        # restatement was published in between. Pinning this to first_reported would
+        # return 5.36 on both dates and quietly remove the thing being shown.
+        known = view.fact(cik, concept, period_end=period_end)
+        first = view.first_reported(cik, concept, period_end=known.period_end)
     except InsufficientData as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     restated = full.unsafe_latest_restated(cik, concept, period_end=known.period_end)
+    # Drift is measured from the FIRST report, not from whatever was current on the
+    # knowledge date. Measuring from `known` reports +0.00% for any date after the
+    # restatement landed, while the accompanying text still describes the move from
+    # the original figure -- a number and a sentence disagreeing on the same card.
     drift = None
-    if known.value != 0:
-        drift = float((restated.value - known.value) / abs(known.value))
+    if first.value != 0:
+        drift = float((restated.value - first.value) / abs(first.value))
 
     return {
         "ticker": ticker.upper(),
@@ -207,9 +214,11 @@ def asof(
         "concept": concept,
         "knowledge_date": knowledge_date.isoformat(),
         "as_known": _fact(known),
+        "as_first_reported": _fact(first),
         "as_it_stands_today": _fact(restated),
         "relative_drift": drift,
         "is_restated": restated.accn.value != known.accn.value,
+        "already_restated_by_then": known.accn.value != first.accn.value,
     }
 
 

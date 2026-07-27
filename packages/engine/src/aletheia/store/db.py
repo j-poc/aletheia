@@ -114,6 +114,8 @@ class Warehouse:
     def __init__(self, connection: duckdb.DuckDBPyConnection, *, path: Path) -> None:
         self._con = connection
         self.path = path
+        self.current_run_id: str | None = None
+        """The run most recently opened, so fetched payloads can be attributed."""
 
     # ------------------------------------------------------------ lifecycle --
 
@@ -230,7 +232,12 @@ class Warehouse:
     # ----------------------------------------------------------- provenance --
 
     def start_run(self, *, source: str, params: dict[str, Any], run_id: str) -> str:
-        """Open an ingest run. The run row exists before any data is written."""
+        """Open an ingest run. The run row exists before any data is written.
+
+        The id is also held on the instance so payloads fetched during the run can
+        be attributed to it without every layer having to thread it through.
+        """
+        self.current_run_id = run_id
         self._con.execute(
             """
             INSERT INTO ingest_runs

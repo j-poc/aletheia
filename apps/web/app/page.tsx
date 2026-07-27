@@ -91,10 +91,14 @@ export default async function Page({ searchParams }: Params) {
           <div className="grid gap-4 md:grid-cols-2">
             <ValueCard
               heading={`As known on ${data.knowledge_date}`}
-              caption="First reported. What a practitioner actually had."
+              caption={
+                data.already_restated_by_then
+                  ? "The restatement had already been published by this date, so this is it."
+                  : "The most recent figure filed by this date. What a practitioner actually had."
+              }
               fact={data.as_known}
               cik={data.cik}
-              tone="known"
+              tone={data.already_restated_by_then ? "restated" : "known"}
             />
             <ValueCard
               heading="As it stands today"
@@ -109,12 +113,12 @@ export default async function Page({ searchParams }: Params) {
             {data.is_restated ? (
               <p className="text-sm leading-relaxed">
                 <span className="font-medium text-[var(--color-restated)]">
-                  These are different numbers.
+                  This period was restated.
                 </span>{" "}
                 {data.company} first reported{" "}
-                <strong className="tabular">{data.as_known.value}</strong> on{" "}
-                {data.as_known.knowledge_date}, then restated it to{" "}
-                <strong className="tabular">{data.as_it_stands_today.value}</strong> on{" "}
+                <strong className="tabular">{data.as_first_reported.value}</strong> on{" "}
+                {data.as_first_reported.knowledge_date}, and it now stands at{" "}
+                <strong className="tabular">{data.as_it_stands_today.value}</strong> as of{" "}
                 {data.as_it_stands_today.knowledge_date}
                 {data.relative_drift !== null && (
                   <>
@@ -123,13 +127,13 @@ export default async function Page({ searchParams }: Params) {
                     <strong className="tabular">{pct(data.relative_drift)}</strong>
                   </>
                 )}
-                . Any simulation of{" "}
-                {data.knowledge_date.slice(0, 4)} using the restated figure is reading{" "}
-                {monthsBetween(
-                  data.as_known.knowledge_date,
-                  data.as_it_stands_today.knowledge_date,
-                )}{" "}
-                months into the future.
+                .{" "}
+                {data.already_restated_by_then
+                  ? "By the knowledge date above, the restatement was already public — so the left column shows it too. Move the date earlier to see what came before."
+                  : `A simulation dated ${data.knowledge_date} that used the restated figure would be reading ${monthsBetween(
+                      data.as_first_reported.knowledge_date,
+                      data.as_it_stands_today.knowledge_date,
+                    )} months into the future.`}
               </p>
             ) : (
               <p className="text-sm leading-relaxed text-[var(--color-muted)]">

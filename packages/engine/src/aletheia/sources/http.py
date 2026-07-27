@@ -19,7 +19,7 @@ make four things impossible by construction:
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Final
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -109,11 +109,13 @@ class Fetcher:
         timeout_seconds: float = 60.0,
         max_attempts: int = 4,
         client: httpx.Client | None = None,
+        on_stored: Callable[[str, StoredPayload], None] | None = None,
     ) -> None:
         self._payloads = payloads
         self._clock = clock
         self._limiter = RateLimiter(rate_per_second)
         self._max_attempts = max_attempts
+        self._on_stored = on_stored
         self._owns_client = client is None
         self._client = client or httpx.Client(
             timeout=timeout_seconds,
@@ -175,6 +177,13 @@ class Fetcher:
                 suffix=suffix,
                 http_status=response.status_code,
             )
+            if self._on_stored is not None:
+                # Indexing happens here, at the one place every payload passes
+                # through, rather than at each call site. Wiring it per source left
+                # the ledger holding 1 row against 2,281 files on disk -- the
+                # row-level provenance on each fact was intact, but the index that
+                # is supposed to enumerate what was fetched was not.
+                self._on_stored(source, stored)
             return FetchResult(body=body, status_code=response.status_code, stored=stored)
 
         assert last_error is not None  # noqa: S101 - loop always sets it before exhausting

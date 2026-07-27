@@ -17,7 +17,7 @@ from typing import Self
 from aletheia.core.clock import Clock, SystemClock
 from aletheia.core.config import Settings, load_settings
 from aletheia.ingest import Ingestor
-from aletheia.provenance.payloads import PayloadStore
+from aletheia.provenance.payloads import PayloadStore, StoredPayload
 from aletheia.sources.edgar import EdgarClient
 from aletheia.sources.fred import FredClient
 from aletheia.sources.http import Fetcher
@@ -55,10 +55,31 @@ class Application:
             Warehouse.open(settings.warehouse_path, read_only=read_only)
         )
         payloads = PayloadStore(settings.raw_dir)
+
+        def index_payload(source: str, stored: StoredPayload) -> None:
+            """Record every fetched payload in the provenance ledger.
+
+            Wired here rather than inside Fetcher so the HTTP layer keeps no
+            reference to the warehouse, and rather than at each ingest call site
+            because doing it per-source is how the ledger came to hold one row
+            against several thousand files.
+            """
+            warehouse.record_payload(
+                content_sha256=stored.content_sha256,
+                source=source,
+                source_uri=stored.source_uri,
+                retrieved_at=stored.retrieved_at,
+                byte_len=stored.byte_len,
+                stored_path=stored.path,
+                ingest_run_id=warehouse.current_run_id or "unattributed",
+                http_status=stored.http_status,
+            )
+
         fetcher = stack.enter_context(
             Fetcher(
                 payloads=payloads,
                 clock=resolved_clock,
+                on_stored=index_payload,
                 user_agent=settings.sec_user_agent,
                 rate_per_second=settings.sec_rate_limit_per_sec,
                 timeout_seconds=settings.http_timeout_seconds,

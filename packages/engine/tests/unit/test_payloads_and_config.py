@@ -10,11 +10,14 @@ import gzip
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 import pytest
 
+from aletheia.core.clock import FrozenClock
 from aletheia.core.config import DEFAULT_SEC_USER_AGENT, Secret, load_settings
-from aletheia.core.errors import ConfigError
-from aletheia.provenance.payloads import PayloadStore
+from aletheia.core.errors import ConfigError, PermanentSourceError
+from aletheia.provenance.payloads import PayloadStore, StoredPayload
+from aletheia.sources.http import Fetcher
 
 RETRIEVED_AT = datetime(2026, 7, 27, 12, 0, tzinfo=UTC)
 PAYLOAD = b'{"cik":320193,"val":5.36}'
@@ -128,3 +131,70 @@ class TestSettings:
         assert settings.raw_dir == tmp_path / "raw"
         assert settings.warehouse_path == tmp_path / "warehouse.duckdb"
         assert settings.evidence_dir == tmp_path / "evidence"
+
+
+class TestEveryFetchedPayloadIsIndexed:
+    """The provenance ledger must enumerate what was fetched, not a subset.
+
+    Indexing used to happen at the ingest call sites, and only one of them did it.
+    A production warehouse ended up holding **one** ledger row against 2,281
+    payload files on disk. Row-level provenance was intact -- every fact carried a
+    content hash that resolved to a real file -- but the index that is supposed to
+    answer "what did this system fetch" was empty, and nothing said so.
+
+    The hook now lives in the one place every payload passes through, so a new
+    source cannot forget to call it.
+    """
+
+    def test_the_hook_fires_for_every_fetch(
+        self, payloads: PayloadStore, clock: FrozenClock
+    ) -> None:
+        seen: list[tuple[str, str]] = []
+
+        def sink(source: str, stored: StoredPayload) -> None:
+            seen.append((source, stored.content_sha256))
+
+        transport = httpx.MockTransport(
+            lambda request: httpx.Response(200, json={"ok": str(request.url)})
+        )
+        with httpx.Client(transport=transport) as client:
+            fetcher = Fetcher(
+                payloads=payloads,
+                clock=clock,
+                user_agent="test",
+                client=client,
+                on_stored=sink,
+            )
+            fetcher.get("https://example.invalid/a", source="alpha")
+            fetcher.get("https://example.invalid/b", source="beta")
+
+        assert [source for source, _ in seen] == ["alpha", "beta"]
+        assert len({digest for _, digest in seen}) == 2
+
+    def test_no_hook_means_no_error(self, payloads: PayloadStore, clock: FrozenClock) -> None:
+        """The hook is optional; a Fetcher without one still fetches and stores."""
+        transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"ok": 1}))
+        with httpx.Client(transport=transport) as client:
+            result = Fetcher(payloads=payloads, clock=clock, user_agent="test", client=client).get(
+                "https://example.invalid/a", source="alpha"
+            )
+        assert result.stored is not None
+        assert result.stored.path.exists()
+
+    def test_a_failed_fetch_indexes_nothing(
+        self, payloads: PayloadStore, clock: FrozenClock
+    ) -> None:
+        """A 404 stores no bytes, so it must not appear in the ledger either."""
+        seen: list[str] = []
+        transport = httpx.MockTransport(lambda request: httpx.Response(404, text="nope"))
+        with httpx.Client(transport=transport) as client:
+            fetcher = Fetcher(
+                payloads=payloads,
+                clock=clock,
+                user_agent="test",
+                client=client,
+                on_stored=lambda source, stored: seen.append(source),
+            )
+            with pytest.raises(PermanentSourceError):
+                fetcher.get("https://example.invalid/missing", source="alpha")
+        assert seen == []
