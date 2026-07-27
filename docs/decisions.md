@@ -214,3 +214,53 @@ the reason and how far it got. A per-name `DelistedCoverageError` deliberately
 does **not** count toward the breaker — that is the survivorship measurement, and
 tripping on it would replace the count the system exists to report with an abort
 message.
+
+---
+
+## D10 — A period start takes three values, not two
+
+`period_start=None` was doing two jobs. As a query argument it meant "do not
+narrow by start date". As a stored column it meant "this is a balance-sheet
+instant, measured at a moment, and has no start date at all". Both readings are
+natural and they contradict each other, so a caller holding an instant had no way
+to ask for it: passing its own `period_start` back passed `None`, which widened
+the query to every period sharing that end date.
+
+Two meanings need three states. `INSTANT`, a sentinel in `pit/view.py`, is the
+third, and `PitFact.pin` hands back whichever of the two a fact needs. A bound
+parameter cannot carry it -- `period_start = NULL` is never true in SQL, so
+passing `None` as a parameter matches nothing rather than matching the instant --
+which is why the predicate is built rather than parameterised.
+
+**Measured, not assumed.** 590 `(cik, taxonomy, concept, unit, period_end)`
+groups in the warehouse hold an instant *and* a duration -- 222 filers, 257
+distinct concepts -- so the collision is real rather than theoretical. Arconic (CIK 4281) tagged `NumberOfReportingUnits`
+for 2017 as a duration in the 2018 10-K and as an instant in the 2019 10-K; both
+now sit under the same end date. Separately: `Assets` is an instant in all 73,844
+of its facts across 800 filers, and the flow concepts are durations in all of
+theirs, which is why the balance-sheet reads in `features/accruals.py` now name
+`INSTANT` explicitly.
+
+**What it cost to not have it.** Three defects, all downstream of the same
+overload:
+
+1. `features/vintage.py` handed `first.period_start` to its second lookup, so the
+   restated arm re-widened a query it had just narrowed and raised on it.
+2. The API had no way to express the instant at all, so the ambiguity error told
+   the caller to pass a parameter the endpoint did not accept.
+3. Worse than either: `unsafe_latest_restated` reads the **full** vintage, so a
+   filing made years later could add a second period under an end date and turn a
+   question that was answerable on its knowledge date into a `400`. AAR Corp's
+   `ProfitLoss` ending 2018-11-30 was one period on 2018-12-19 and two after the
+   2019-03-20 10-Q. Future data reaching backwards inside the one component whose
+   entire claim is that it cannot.
+
+**Why a sentinel and not a separate method.** `facts()`, `first_reported()` and
+`unsafe_latest_restated()` all narrow the same way; a parallel set of
+`*_at_instant` methods would have doubled the surface and left the two families
+free to drift. One shared predicate builder, one sentinel, four signatures.
+
+*Reversal cost: moderate.* The sentinel is in the public signature of the PIT
+layer and in the HTTP contract (`period_start=instant`), so removing it would
+break callers. It is additive, though -- `None` and a date behave exactly as
+before, which is asserted directly.

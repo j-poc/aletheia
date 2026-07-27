@@ -119,12 +119,29 @@ export default async function Page({ searchParams }: Params) {
               caption="What a vendor panel returns for this period. Lookahead if used before it was filed."
               fact={data.as_it_stands_today}
               cik={data.cik}
-              tone={data.is_restated ? "restated" : "known"}
+              // Only a changed *value* earns the warning colour. A new accession
+              // carrying the same figure is a re-presentation, and colouring it
+              // like a restatement would cry wolf on the common case.
+              tone={data.is_restated && data.relative_drift !== 0 ? "restated" : "known"}
             />
           </div>
 
           <section className="rounded-lg border border-[var(--color-edge)] bg-[var(--color-panel)] p-5">
-            {data.is_restated ? (
+            {data.is_restated && data.relative_drift === 0 ? (
+              <p className="text-sm leading-relaxed">
+                {/* A later filing repeated the same number under a new accession.
+                    Calling that a restatement would overstate it -- nothing about
+                    the figure changed, only which document is now its source. The
+                    distinction is the README's, and the card has to keep it. */}
+                <span className="font-medium">This period was re-presented, not revised.</span>{" "}
+                {data.company} reported{" "}
+                <strong className="tabular">{data.as_first_reported.value}</strong> on{" "}
+                {data.as_first_reported.knowledge_date}, and a later filing on{" "}
+                {data.as_it_stands_today.knowledge_date} carried the same figure forward
+                under a different accession. The value never moved; only its source
+                document did. A vendor panel would cite the later one.
+              </p>
+            ) : data.is_restated ? (
               <p className="text-sm leading-relaxed">
                 <span className="font-medium text-[var(--color-restated)]">
                   This period was restated.
@@ -241,9 +258,13 @@ function ValueCard({
         <Row label="Period" value={periodLabel(fact)} />
         <Row label="Became public" value={fact.knowledge_date} />
         <Row label="Form" value={fact.form} />
+        {/* "refiling", not "restatement": `report_seq` counts how many times this
+            period has been published, and most repeats carry the number forward
+            unchanged. Whether the value actually moved is the paragraph's job,
+            and it has the two figures to compare. */}
         <Row
           label="Report"
-          value={fact.report_seq === 1 ? "first publication" : `restatement #${fact.report_seq - 1}`}
+          value={fact.report_seq === 1 ? "first publication" : `refiling #${fact.report_seq - 1}`}
         />
         <div className="flex justify-between gap-4">
           <dt className="text-[var(--color-muted)]">Accession</dt>
