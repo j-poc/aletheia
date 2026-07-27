@@ -604,6 +604,19 @@ pass rather than newly introduced, and it is the right reading when the label is
 a return measured from the price at `i` to the price at `i + h`: the label
 touches both endpoints.
 
+**The margin is now pinned by a test.** Re-verification of the fix found the one
+gap the new tests left: a variant narrowing *only* the forward side to
+`[p - h, p + h - 1]` still satisfies the overlap invariant, so every test above
+passed on it. The window recorded here as deliberate was therefore enforced by
+nothing — a documented choice that nothing enforces is a comment, not a choice.
+`test_the_conservative_purge_margin_is_pinned` asserts the exact per-fold counts
+`[5, 10, 10, 10, 5]` for `purged_kfold(100, n_splits=5, label_horizon=5)`; the
+strictly minimal window gives `[4, 8, 8, 8, 4]`. Verified two-sided: narrowing
+both sides fails three tests, narrowing the forward side alone fails only this
+one. The cost of the conservatism is 1 row per edge fold and 2 per interior fold,
+independent of horizon and sample size. Narrowing it later is a legitimate
+choice — it just has to come with an edit to this decision.
+
 **Counting changed with it.** `purged` is now every row the purge removed, and
 `embargoed` counts only rows dropped by the embargo *alone*. An embargo shorter
 than the label horizon therefore reports `0` — honest, because it removed nothing
