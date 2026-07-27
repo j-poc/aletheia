@@ -767,3 +767,37 @@ compares the stamp against a sha obtained by shelling out to git directly
 and skips, with the reason stated, when there is no repository. Two-sided:
 with the stamp forced to `"unknown"` at runtime the old assertion still passes
 and the new one fails.
+
+## D18 — A skip is a test result, and it has to be earned
+
+**Taken:** 2026-07-27. **Reversal cost:** none.
+
+The review of D17 found that the new provenance test derived the repository root
+with `Path(version.__file__).resolve().parents[4]` — the same expression
+`code_version` uses. Sharing it looked harmless, and it was not: a regression in
+that arithmetic would break `code_version` *and* make the test that checks it
+skip. The one thing that would catch the defect would quietly decline to run.
+
+The arithmetic was also wrong. `parents[4]` is `<root>/packages`, not `<root>` —
+`git rev-parse --show-toplevel` says so. It worked anyway, because `git -C`
+searches upward from wherever it is pointed, so any directory inside the working
+tree answers correctly. That is the worst kind of correct: harmless one level
+down, and fatal one level up, where the path leaves the repository entirely and
+every stamp silently becomes `"unknown"`.
+
+Both are fixed. `source_tree_root()` is `parents[5]`, pinned against git's own
+answer by `test_the_derived_root_is_the_actual_repository_root`. The skip
+decision moved to `_discoverable_repository()`, which walks upward looking for
+`.git` and shares no logic with what it checks — so a repository that exists but
+cannot be read is now a failure, and only a genuine absence is a skip.
+
+Measured by mutating the depth in `version.py` and restoring it:
+
+| Depth | Root pin | Stamp test |
+|---|---|---|
+| `parents[5]` (correct) | PASSED | PASSED |
+| `parents[4]` (what shipped) | **FAILED** | PASSED — git's upward search still resolves it |
+| `parents[6]` (one too far) | **FAILED** | **FAILED** — and this is the case that used to skip |
+
+The bottom-right cell is the whole point. Under the previous test that run was a
+silent skip, reported as success by every summary line in the build.

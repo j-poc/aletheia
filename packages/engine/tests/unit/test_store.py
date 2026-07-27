@@ -361,17 +361,33 @@ class TestTheRevisionViewOrdersByWhenAFilingBecamePublic:
         ).value == Decimal("6.7800000000")
 
 
-def _git_sha_of_source_tree() -> str | None:
-    """The short sha git reports for the tree the engine was imported from, or None.
+def _discoverable_repository() -> Path | None:
+    """The repository containing the imported engine, found by walking up for ``.git``.
 
-    Deliberately shells out rather than calling ``code_version``: a test that
-    checked the stamp against the function that produced it would pass whatever
-    that function did.
+    Deliberately arithmetic-free. The obvious implementation reuses
+    ``version.source_tree_root()``, which is a ``parents[N]`` expression -- and
+    then a regression in that expression would make ``code_version`` return
+    ``"unknown"`` *and* make the test below skip, so the one thing that would
+    catch the regression would quietly decline to run. Walking upward shares no
+    logic with what it is checking, so "no repository" now means what it says.
+    """
+    start = Path(version_module.__file__).resolve()
+    for candidate in (start, *start.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def _git_short_sha(root: Path) -> str | None:
+    """The short sha git reports for ``root``, or None if git cannot answer.
+
+    Shells out rather than calling ``code_version``: a test that checked the
+    stamp against the function that produced it would pass whatever that
+    function did.
     """
     executable = shutil.which("git")
     if executable is None:
         return None
-    root = Path(version_module.__file__).resolve().parents[4]
     completed = subprocess.run(  # noqa: S603 - resolved absolute path, fixed argv, no shell
         [executable, "-C", str(root), "rev-parse", "--short=12", "HEAD"],
         capture_output=True,
@@ -408,13 +424,17 @@ class TestProvenance:
         The expected sha is obtained from git directly rather than from
         ``code_version``, so this compares the stamp against an independent
         source instead of against itself. Skipped, with the reason stated, when
-        the source tree genuinely is not in a repository -- which is the case
-        inside the mutation gate's sandbox copy, and is why the provenance stamp
-        is one of the few things that harness cannot mutation-test.
+        there is genuinely no repository -- which is the case inside the mutation
+        gate's sandbox copy, and is why the provenance stamp is one of the few
+        things that harness cannot mutation-test. Note the order: the skip is
+        decided by ``_discoverable_repository``, so a repository that exists but
+        cannot be read is a failure rather than a silent skip.
         """
-        expected = _git_sha_of_source_tree()
-        if expected is None:
+        repository = _discoverable_repository()
+        if repository is None:
             pytest.skip("source tree is not in a git repository, so there is no sha to expect")
+        expected = _git_short_sha(repository)
+        assert expected is not None, f"{repository} is a repository but git would not name its HEAD"
 
         warehouse.finish_run("run-test-0001", status="ok", rows_written=2, bytes_fetched=1234)
         stamped = warehouse.execute("SELECT code_version FROM ingest_runs").fetchone()
@@ -422,6 +442,21 @@ class TestProvenance:
         assert stamped[0] in (expected, f"{expected}-dirty"), (
             f"stamped {stamped[0]!r}, expected {expected!r} or {expected!r}-dirty"
         )
+
+    def test_the_derived_root_is_the_actual_repository_root(self) -> None:
+        """`code_version` walked to `<root>/packages`, not `<root>`.
+
+        It worked: ``git -C`` searches upward, so any directory inside the
+        working tree answers correctly, and the off-by-one was invisible. It is
+        only invisible in one direction, though -- one level further up leaves
+        the repository and every stamp silently becomes ``"unknown"``. A depth
+        that is right by accident is a depth nobody will notice going wrong, so
+        it is pinned against git's own answer here.
+        """
+        repository = _discoverable_repository()
+        if repository is None:
+            pytest.skip("source tree is not in a git repository, so there is no root to compare")
+        assert version_module.source_tree_root() == repository
 
     def test_failed_runs_are_kept(self, warehouse: Warehouse) -> None:
         warehouse.finish_run("run-test-0001", status="failed", error="HTTP 403 from FMP")

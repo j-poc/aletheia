@@ -25,12 +25,27 @@ def code_version(repo_root: Path | None = None) -> str:
     Returns ``"unknown"`` outside a repository. Cached: this is called on every
     row write, and shelling out per row would dominate ingest time.
     """
-    root = repo_root or Path(__file__).resolve().parents[4]
+    root = repo_root or source_tree_root()
     sha = _git(root, "rev-parse", "--short=12", "HEAD")
     if sha is None:
         return UNKNOWN
     dirty = _git(root, "status", "--porcelain")
     return f"{sha}-dirty" if dirty else sha
+
+
+def source_tree_root() -> Path:
+    """The repository root, given this file at ``<root>/packages/engine/src/aletheia/core/``.
+
+    Six levels up, not five. It was five, which resolved to ``<root>/packages``
+    and worked anyway: ``git -C`` searches upward, so any directory inside the
+    working tree answers correctly. A review caught it because the off-by-one
+    was silently harmless in one direction and fatal in the other -- one level
+    further up leaves the repository entirely and ``rev-parse`` returns
+    ``fatal: not a git repository``, which this function reports as ``unknown``
+    rather than as an error. Pinned by
+    ``test_the_derived_root_is_the_actual_repository_root``.
+    """
+    return Path(__file__).resolve().parents[5]
 
 
 def _git(root: Path, *args: str) -> str | None:
