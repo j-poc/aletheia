@@ -34,7 +34,7 @@ from typing import Final
 
 from aletheia.core.errors import AletheiaError, InsufficientData
 from aletheia.core.types import Cik
-from aletheia.features.accruals import Accruals, accruals, annual_period_ends
+from aletheia.features.accruals import Accruals, accruals, annual_periods
 from aletheia.features.vintage import Vintage
 from aletheia.pit import PitView
 from aletheia.research.kernel import SignalObservation
@@ -221,17 +221,24 @@ def _firm_series(
     selects on each arm's own knowledge date, and again by the kernel, which
     re-checks every observation it is handed.
     """
-    periods = annual_period_ends(view, cik)
+    periods = annual_periods(view, cik)
     if len(periods) < 2:
         report.drop(Drop.NO_ANNUAL_PERIOD)
         return None
 
     series: dict[str, list[Accruals]] = {vintage.name: [] for vintage in vintages}
-    for prior_end, period_end in pairwise(periods):
+    for (_, prior_end), (period_start, period_end) in pairwise(periods):
         try:
             computed = {
                 vintage.name: accruals(
-                    view, cik, period_end=period_end, prior_period_end=prior_end, vintage=vintage
+                    view,
+                    cik,
+                    period_end=period_end,
+                    prior_period_end=prior_end,
+                    # Both dates: an end date alone matches the fiscal year and its
+                    # fourth quarter, and the PIT layer now refuses rather than guess.
+                    period_start=period_start,
+                    vintage=vintage,
                 )
                 for vintage in vintages
             }

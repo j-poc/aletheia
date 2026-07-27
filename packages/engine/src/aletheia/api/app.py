@@ -331,16 +331,22 @@ def quality(warehouse: Warehouse = Depends(get_warehouse)) -> dict[str, Any]:
         row = warehouse.execute(f"SELECT count(*) FROM {table}").fetchone()  # noqa: S608
         counts[table] = int(row[0]) if row else 0
 
+    # period_start is part of the key, not decoration. A fiscal year and its fourth
+    # quarter share a period_end and are different periods reporting different
+    # numbers; grouping without the start date reads that as a revision. On this
+    # warehouse that mistake manufactured 667,003 of them -- it turned a true 5.0%
+    # into a false 16.4%.
     revised = warehouse.execute(
         """
         SELECT count(*) FROM (
-            SELECT cik, concept, unit, period_end
+            SELECT cik, concept, unit, period_start, period_end
               FROM facts GROUP BY ALL HAVING count(DISTINCT value) > 1
         )
         """
     ).fetchone()
     periods = warehouse.execute(
-        "SELECT count(*) FROM (SELECT cik, concept, unit, period_end FROM facts GROUP BY ALL)"
+        "SELECT count(*) FROM ("
+        "SELECT cik, concept, unit, period_start, period_end FROM facts GROUP BY ALL)"
     ).fetchone()
 
     runs = warehouse.execute(

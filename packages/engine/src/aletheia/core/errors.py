@@ -91,3 +91,22 @@ class InsufficientData(AletheiaError):
     whether absence-of-evidence is tradeable, rather than silently receiving a
     NaN that propagates into a Sharpe ratio.
     """
+
+
+class AmbiguousPeriod(AletheiaError):
+    """One ``period_end`` matched more than one reporting period.
+
+    A fiscal year and its fourth quarter end on the same day. Apple's FY2015 net
+    income is $53.394B over 363 days and its Q4 2015 net income is $11.124B over
+    90 days, and both are tagged ``period_end = 2015-09-26`` with
+    ``report_seq = 1``. A query keyed on the end date alone matches both.
+
+    Returning either one silently is how an accruals ratio ends up dividing a
+    quarter's earnings by a year's cash flow and reporting it as a finding. So the
+    ambiguity is raised instead, naming the candidates, and the caller states which
+    period it meant.
+    """
+
+    def __init__(self, message: str, *, candidates: tuple[object, ...] = ()) -> None:
+        super().__init__(message)
+        self.candidates = candidates

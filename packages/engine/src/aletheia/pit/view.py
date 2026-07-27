@@ -33,7 +33,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any, Final
 
-from aletheia.core.errors import InsufficientData, LookaheadViolation
+from aletheia.core.errors import AmbiguousPeriod, InsufficientData, LookaheadViolation
 from aletheia.core.types import Accession, Cik
 from aletheia.store.db import Warehouse
 
@@ -219,13 +219,25 @@ class PitView:
         concept: str,
         *,
         period_end: date | None = None,
+        period_start: date | None = None,
         taxonomy: str = DEFAULT_TAXONOMY,
         unit: str | None = None,
     ) -> PitFact:
-        """Latest report of one period that was public on or before ``as_of``."""
+        """Latest report of one period that was public on or before ``as_of``.
+
+        Raises :class:`AmbiguousPeriod` when ``period_end`` matches more than one
+        reporting period and ``period_start`` was not given -- see the note on
+        :meth:`first_reported`.
+        """
         facts = self.facts(
-            cik, concept, period_end=period_end, taxonomy=taxonomy, unit=unit, limit=1
+            cik,
+            concept,
+            period_end=period_end,
+            period_start=period_start,
+            taxonomy=taxonomy,
+            unit=unit,
         )
+        _assert_one_period(facts, concept=concept, cik=cik, period_end=period_end)
         if not facts:
             raise InsufficientData(
                 f"{concept} for CIK {int(cik)}"
@@ -240,6 +252,7 @@ class PitView:
         concept: str,
         *,
         period_end: date | None = None,
+        period_start: date | None = None,
         taxonomy: str = DEFAULT_TAXONOMY,
         unit: str | None = None,
         limit: int | None = None,
@@ -255,6 +268,9 @@ class PitView:
         if period_end is not None:
             conditions.append("period_end = ?")
             params.append(period_end)
+        if period_start is not None:
+            conditions.append("period_start = ?")
+            params.append(period_start)
         if unit is not None:
             conditions.append("unit = ?")
             params.append(unit)
@@ -282,12 +298,24 @@ class PitView:
         concept: str,
         *,
         period_end: date,
+        period_start: date | None = None,
         taxonomy: str = DEFAULT_TAXONOMY,
         unit: str | None = None,
     ) -> PitFact:
         """The value as originally published — never a later restatement.
 
         The right input for any study of what the market actually reacted to.
+
+        **``period_end`` alone does not identify a period.** A fiscal year and its
+        fourth quarter end on the same day: Apple's FY2015 net income is $53.394B
+        over 363 days and its Q4 2015 net income is $11.124B over 90 days, both
+        tagged ``2015-09-26`` at ``report_seq = 1``. 860,961 groups in a
+        778-filer warehouse are ambiguous this way.
+
+        When more than one period matches, this raises :class:`AmbiguousPeriod`
+        rather than picking. Returning either silently is how an accruals ratio
+        comes to divide a quarter's earnings by a year's cash flow and report it
+        as a finding.
         """
         conditions = [
             "cik = ?",
@@ -298,14 +326,18 @@ class PitView:
             "report_seq = 1",
         ]
         params: list[Any] = [int(cik), concept, taxonomy, period_end, self.as_of]
+        if period_start is not None:
+            conditions.append("period_start = ?")
+            params.append(period_start)
         if unit is not None:
             conditions.append("unit = ?")
             params.append(unit)
         facts = self._facts(
             f"SELECT {_FACT_SELECT} FROM v_facts_pit WHERE {' AND '.join(conditions)} "  # noqa: S608
-            f"ORDER BY unit LIMIT 1",
+            f"ORDER BY unit, period_start",
             params,
         )
+        _assert_one_period(facts, concept=concept, cik=cik, period_end=period_end)
         if not facts:
             raise InsufficientData(
                 f"{concept} for CIK {int(cik)} period ending {period_end} "
@@ -319,6 +351,7 @@ class PitView:
         concept: str,
         *,
         period_end: date,
+        period_start: date | None = None,
         taxonomy: str = DEFAULT_TAXONOMY,
         unit: str | None = None,
     ) -> PitFact:
@@ -332,14 +365,21 @@ class PitView:
         """
         conditions = ["cik = ?", "concept = ?", "taxonomy = ?", "period_end = ?"]
         params: list[Any] = [int(cik), concept, taxonomy, period_end]
+        if period_start is not None:
+            conditions.append("period_start = ?")
+            params.append(period_start)
         if unit is not None:
             conditions.append("unit = ?")
             params.append(unit)
         rows = self._warehouse.execute(
             f"SELECT {_FACT_SELECT} FROM v_facts_pit WHERE {' AND '.join(conditions)} "  # noqa: S608
-            f"ORDER BY knowledge_date DESC, accn DESC LIMIT 1",
+            f"ORDER BY knowledge_date DESC, accn DESC",
             params,
         ).fetchall()
+        _assert_one_period(
+            [_to_fact(row) for row in rows], concept=concept, cik=cik, period_end=period_end
+        )
+        rows = rows[:1]
         if not rows:
             raise InsufficientData(
                 f"{concept} for CIK {int(cik)} period ending {period_end} was never published"
@@ -642,4 +682,31 @@ def _to_fact(row: Sequence[Any]) -> PitFact:
         report_seq=int(row[11]),
         source_uri=str(row[12]),
         content_sha256=str(row[13]),
+    )
+
+
+def _assert_one_period(
+    facts: Sequence[PitFact], *, concept: str, cik: Cik | int, period_end: date | None
+) -> None:
+    """Refuse to answer when the request named more than one reporting period.
+
+    The check is on ``period_start``: two facts sharing an end date but starting on
+    different days are a year and a quarter, not a value and its restatement.
+    Restatements are already collapsed by ``report_seq`` and by the recency
+    window, so anything left here is a genuine ambiguity in the question.
+    """
+    starts = {fact.period_start for fact in facts}
+    if len(starts) <= 1:
+        return
+    spans = ", ".join(
+        f"{start.isoformat() if start else 'instant'}..{period_end} ({(period_end - start).days}d)"
+        if start and period_end
+        else "instant"
+        for start in sorted(starts, key=lambda value: (value is None, value))
+    )
+    raise AmbiguousPeriod(
+        f"{concept} for CIK {int(cik)} ending {period_end} matches "
+        f"{len(starts)} reporting periods ({spans}); pass period_start to say which. "
+        f"A fiscal year and its fourth quarter share an end date.",
+        candidates=tuple(sorted(starts, key=lambda value: (value is None, value))),
     )

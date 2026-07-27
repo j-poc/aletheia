@@ -37,7 +37,7 @@ from aletheia.features.accruals import (
     TOTAL_ASSETS,
     Accruals,
     accruals,
-    annual_period_ends,
+    annual_periods,
 )
 from aletheia.features.vintage import (
     FIRST_REPORTED,
@@ -158,6 +158,7 @@ def _compute(warehouse: Warehouse, view_date: date, vintage: Vintage) -> Accrual
         FIRM,
         period_end=FY2009_END,
         prior_period_end=FY2008_END,
+        period_start=FY2009_START,
         vintage=vintage,
     )
 
@@ -325,11 +326,11 @@ class TestPeriodDiscovery:
                 ),
             ]
         )
-        assert annual_period_ends(as_of(warehouse, AFTER_FIRST), FIRM) == [FY2009_END]
+        assert annual_periods(as_of(warehouse, AFTER_FIRST), FIRM) == [(FY2009_START, FY2009_END)]
 
     def test_instant_facts_are_not_mistaken_for_periods(self, warehouse: Warehouse) -> None:
         """Balance-sheet facts have no start date and no duration to classify."""
         warehouse.write_facts(
             [_stock(ASSETS_2009_FIRST, period_end=FY2009_END, filed_at=TENK_FILED, accn=TENK_ACCN)]
         )
-        assert annual_period_ends(as_of(warehouse, AFTER_FIRST), FIRM) == []
+        assert annual_periods(as_of(warehouse, AFTER_FIRST), FIRM) == []

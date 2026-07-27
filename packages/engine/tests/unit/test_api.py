@@ -24,6 +24,7 @@ from tests._factories import (
     RESTATEMENT_FILED,
     first_report,
     make_entity,
+    make_fact,
     make_filing,
     make_identifier,
     restatement,
@@ -288,3 +289,73 @@ class TestConcurrentRequests:
 
         assert all(item == observed[0] for item in observed)
         assert observed[0]["facts"] == 2
+
+
+class TestRevisionCoverageCountsPeriodsNotEndDates:
+    """A fiscal year and its fourth quarter share a period_end.
+
+    They are different periods reporting different numbers. Grouping revision
+    coverage without period_start reads that as a value that changed after
+    publication. On the real warehouse the mistake manufactured 667,003 spurious
+    revisions and turned a true 5.0% into a published 16.4% — which I had already
+    written into the README before re-deriving it.
+    """
+
+    @pytest.fixture
+    def year_and_quarter(self, client: TestClient, warehouse: Warehouse) -> TestClient:
+        """One concept, one end date, two genuinely different periods."""
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value="10000",
+                    filed_at=date(2016, 2, 1),
+                    accn="0000320193-16-000001",
+                    concept="Revenues",
+                    unit="USD",
+                    period_start=date(2015, 1, 1),  # full year
+                    period_end=date(2015, 12, 31),
+                ),
+                make_fact(
+                    value="2500",
+                    filed_at=date(2016, 2, 1),
+                    accn="0000320193-16-000001",
+                    concept="Revenues",
+                    unit="USD",
+                    period_start=date(2015, 10, 1),  # Q4, same end date
+                    period_end=date(2015, 12, 31),
+                ),
+            ]
+        )
+        return client
+
+    def test_a_year_and_its_quarter_are_not_a_revision(self, year_and_quarter: TestClient) -> None:
+        payload = year_and_quarter.get("/api/quality").json()["revision_coverage"]
+        # The AAPL fixture contributes exactly one genuine revision (5.36 -> 6.78).
+        assert payload["periods_with_a_changed_value"] == 1, (
+            "the year/quarter pair sharing an end date must not count as a revision"
+        )
+
+    def test_both_periods_are_still_counted_as_periods(self, year_and_quarter: TestClient) -> None:
+        """Control: they are two distinct periods, so the denominator sees both."""
+        payload = year_and_quarter.get("/api/quality").json()["revision_coverage"]
+        assert payload["distinct_periods"] == 3  # AAPL FY2008 + the year + the quarter
+
+    def test_a_genuine_restatement_of_one_period_still_counts(
+        self, year_and_quarter: TestClient, warehouse: Warehouse
+    ) -> None:
+        """The other side: the guard must not suppress real revisions."""
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value="11000",
+                    filed_at=date(2017, 2, 1),
+                    accn="0000320193-17-000001",
+                    concept="Revenues",
+                    unit="USD",
+                    period_start=date(2015, 1, 1),
+                    period_end=date(2015, 12, 31),
+                )
+            ]
+        )
+        payload = year_and_quarter.get("/api/quality").json()["revision_coverage"]
+        assert payload["periods_with_a_changed_value"] == 2

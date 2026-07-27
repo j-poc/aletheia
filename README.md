@@ -57,11 +57,11 @@ XBRL facts over 1,364,574 filings**:
 
 | | |
 |---|---|
-| Distinct (company, concept, fiscal period) combinations | **6,255,108** |
-| …carrying more than one distinct reported value | **1,024,857** |
-| Share | **16.4%** |
+| Distinct (company, concept, unit, fiscal period) combinations | **7,133,051** |
+| …carrying more than one distinct reported value | **357,854** |
+| Share | **5.0%** |
 
-One in six reported numbers changed after it was first published. A flat vendor
+One reported number in twenty changed after it was first published. A flat vendor
 panel returns only the final value for every one of them, on every date.
 
 Not all of those are formal restatements — many are prior-year comparatives

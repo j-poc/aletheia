@@ -124,21 +124,25 @@ class Accruals:
         return any(item.report_seq > 1 for item in self.inputs)
 
 
-def annual_period_ends(view: PitView, cik: Cik | int) -> list[date]:
-    """Fiscal year-ends for which an annual income statement exists.
+def annual_periods(view: PitView, cik: Cik | int) -> list[tuple[date, date]]:
+    """``(period_start, period_end)`` for each annual income statement.
 
-    Discovered from ``NetIncomeLoss`` durations. This enumerates *candidate*
-    periods only; whether any given period was knowable on a given date is
-    decided by :meth:`Vintage.resolve`, which raises if it was not.
+    Both dates, not just the end. A fiscal year and its fourth quarter end on the
+    same day, so an end date alone does not name a period -- and asking for one by
+    end date alone now raises :class:`AmbiguousPeriod` rather than silently
+    returning the quarter.
+
+    This enumerates *candidate* periods; whether any of them was knowable on a
+    given date is decided by :meth:`Vintage.resolve`, which raises if it was not.
     """
-    ends: set[date] = set()
+    periods: set[tuple[date, date]] = set()
     for fact in view.facts(cik, NET_INCOME, unit=USD):
         if fact.period_start is None:
             continue
         span = (fact.period_end - fact.period_start).days
         if ANNUAL_MIN_DAYS <= span <= ANNUAL_MAX_DAYS:
-            ends.add(fact.period_end)
-    return sorted(ends)
+            periods.add((fact.period_start, fact.period_end))
+    return sorted(periods)
 
 
 def accruals(
@@ -147,6 +151,7 @@ def accruals(
     *,
     period_end: date,
     prior_period_end: date,
+    period_start: date | None = None,
     vintage: Vintage,
 ) -> Accruals:
     """Cash-flow-statement accruals for the year ending ``period_end``.
@@ -166,8 +171,15 @@ def accruals(
             f"{prior_period_end} to {period_end} is {gap} days"
         )
 
-    income = vintage.resolve(view, cik, NET_INCOME, period_end=period_end, unit=USD)
-    cash_flow = _operating_cash_flow(view, cik, period_end=period_end, vintage=vintage)
+    # The flow concepts are keyed on both dates: a year and its Q4 share an end
+    # date, and reading the quarter's earnings against the year's cash flow would
+    # produce a number that looks exactly like an accruals ratio and is not one.
+    income = vintage.resolve(
+        view, cik, NET_INCOME, period_end=period_end, period_start=period_start, unit=USD
+    )
+    cash_flow = _operating_cash_flow(
+        view, cik, period_end=period_end, period_start=period_start, vintage=vintage
+    )
     assets_end = vintage.resolve(view, cik, TOTAL_ASSETS, period_end=period_end, unit=USD)
     assets_start = vintage.resolve(view, cik, TOTAL_ASSETS, period_end=prior_period_end, unit=USD)
 
@@ -201,7 +213,12 @@ def accruals(
 
 
 def _operating_cash_flow(
-    view: PitView, cik: Cik | int, *, period_end: date, vintage: Vintage
+    view: PitView,
+    cik: Cik | int,
+    *,
+    period_end: date,
+    period_start: date | None = None,
+    vintage: Vintage,
 ) -> PitFact:
     """Cash from operations, falling back to the continuing-operations tag.
 
@@ -212,8 +229,20 @@ def _operating_cash_flow(
     exactly the distress this signal is about.
     """
     try:
-        return vintage.resolve(view, cik, OPERATING_CASH_FLOW, period_end=period_end, unit=USD)
+        return vintage.resolve(
+            view,
+            cik,
+            OPERATING_CASH_FLOW,
+            period_end=period_end,
+            period_start=period_start,
+            unit=USD,
+        )
     except InsufficientData:
         return vintage.resolve(
-            view, cik, OPERATING_CASH_FLOW_CONTINUING, period_end=period_end, unit=USD
+            view,
+            cik,
+            OPERATING_CASH_FLOW_CONTINUING,
+            period_end=period_end,
+            period_start=period_start,
+            unit=USD,
         )

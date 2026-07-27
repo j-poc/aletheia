@@ -14,7 +14,7 @@ from decimal import Decimal
 
 import pytest
 
-from aletheia.core.errors import InsufficientData
+from aletheia.core.errors import AmbiguousPeriod, InsufficientData
 from aletheia.core.types import Cik
 from aletheia.pit import as_of
 from aletheia.store.db import Warehouse
@@ -257,3 +257,92 @@ def _load_prices(warehouse: Warehouse) -> None:
         )
         for day in (2, 3, 4, 5)
     )
+
+
+class TestAPeriodEndDoesNotIdentifyAPeriod:
+    """A fiscal year and its fourth quarter end on the same day.
+
+    Real numbers from the warehouse: Apple's FY2015 net income is $53,394,000,000
+    over 363 days and its Q4 2015 net income is $11,124,000,000 over 90 days, both
+    tagged period_end 2015-09-26 at report_seq 1. 860,961 (cik, concept, unit,
+    period_end) groups across a 778-filer warehouse hold more than one period_start.
+
+    Before this guard, first_reported keyed on the end date alone, matched both,
+    and returned whichever sorted first. An accruals ratio built on that divides a
+    quarter's earnings by a year's cash flow and reports it as a signal.
+    """
+
+    FY2015_START = date(2014, 9, 28)
+    Q4_2015_START = date(2015, 6, 28)
+    SHARED_END = date(2015, 9, 26)
+    FY_INCOME = "53394000000"
+    Q4_INCOME = "11124000000"
+
+    @pytest.fixture
+    def year_and_quarter(self, warehouse: Warehouse) -> Warehouse:
+        for start, value in (
+            (self.FY2015_START, self.FY_INCOME),
+            (self.Q4_2015_START, self.Q4_INCOME),
+        ):
+            warehouse.write_facts(
+                [
+                    make_fact(
+                        value=value,
+                        filed_at=date(2015, 10, 28),
+                        accn="0001193125-15-356351",
+                        concept="NetIncomeLoss",
+                        unit="USD",
+                        period_start=start,
+                        period_end=self.SHARED_END,
+                    )
+                ]
+            )
+        return warehouse
+
+    def test_an_ambiguous_request_raises_rather_than_guessing(
+        self, year_and_quarter: Warehouse
+    ) -> None:
+        view = as_of(year_and_quarter, date(2016, 1, 1))
+        with pytest.raises(AmbiguousPeriod, match="matches 2 reporting periods"):
+            view.first_reported(AAPL, "NetIncomeLoss", period_end=self.SHARED_END)
+
+    def test_the_error_names_the_candidates_so_the_caller_can_choose(
+        self, year_and_quarter: Warehouse
+    ) -> None:
+        view = as_of(year_and_quarter, date(2016, 1, 1))
+        try:
+            view.first_reported(AAPL, "NetIncomeLoss", period_end=self.SHARED_END)
+        except AmbiguousPeriod as exc:
+            assert set(exc.candidates) == {self.FY2015_START, self.Q4_2015_START}
+            assert "363d" in str(exc)
+            assert "90d" in str(exc)
+        else:  # pragma: no cover - the test above already asserts it raises
+            pytest.fail("expected AmbiguousPeriod")
+
+    def test_naming_the_period_start_returns_the_year(self, year_and_quarter: Warehouse) -> None:
+        """Control: with the ambiguity resolved, the right number comes back."""
+        view = as_of(year_and_quarter, date(2016, 1, 1))
+        fact = view.first_reported(
+            AAPL, "NetIncomeLoss", period_end=self.SHARED_END, period_start=self.FY2015_START
+        )
+        assert fact.value == Decimal(self.FY_INCOME)
+
+    def test_naming_the_quarter_returns_the_quarter(self, year_and_quarter: Warehouse) -> None:
+        view = as_of(year_and_quarter, date(2016, 1, 1))
+        fact = view.first_reported(
+            AAPL, "NetIncomeLoss", period_end=self.SHARED_END, period_start=self.Q4_2015_START
+        )
+        assert fact.value == Decimal(self.Q4_INCOME)
+
+    def test_an_unambiguous_period_still_needs_no_start_date(self, loaded: Warehouse) -> None:
+        """The guard must not make every ordinary call require a start date."""
+        fact = as_of(loaded, AFTER_RESTATEMENT).first_reported(
+            AAPL, "EarningsPerShareDiluted", period_end=FY2008_END
+        )
+        assert fact.value == Decimal("5.36")
+
+    def test_the_lookahead_escape_hatch_is_guarded_too(self, year_and_quarter: Warehouse) -> None:
+        """unsafe_latest_restated skips the date filter, not the sanity checks."""
+        view = as_of(year_and_quarter, date(2016, 1, 1))
+        with pytest.raises(AmbiguousPeriod):
+            view.unsafe_latest_restated(AAPL, "NetIncomeLoss", period_end=self.SHARED_END)

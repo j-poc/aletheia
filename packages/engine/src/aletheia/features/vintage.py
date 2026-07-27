@@ -54,6 +54,7 @@ class Vintage:
         concept: str,
         *,
         period_end: date,
+        period_start: date | None = None,
         unit: str | None = None,
     ) -> PitFact:
         """Fetch ``concept`` under this policy.
@@ -75,13 +76,23 @@ class Vintage:
         a 2015 panel.
         """
         if self.date_at_period_end:
-            naive = view.unsafe_latest_restated(cik, concept, period_end=period_end, unit=unit)
+            naive = view.unsafe_latest_restated(
+                cik, concept, period_end=period_end, period_start=period_start, unit=unit
+            )
             return _replace_dates(naive, knowledge_date=period_end)
 
-        first = view.first_reported(cik, concept, period_end=period_end, unit=unit)
+        first = view.first_reported(
+            cik, concept, period_end=period_end, period_start=period_start, unit=unit
+        )
         if not self.use_restated:
             return first
-        restated = view.unsafe_latest_restated(cik, concept, period_end=period_end, unit=first.unit)
+        restated = view.unsafe_latest_restated(
+            cik,
+            concept,
+            period_end=period_end,
+            period_start=first.period_start,
+            unit=first.unit,
+        )
         # Only the *value* comes from the restatement; the publication date stays
         # honest, which is what isolates the value channel from the timing channel.
         return _replace_dates(restated, knowledge_date=first.knowledge_date)
