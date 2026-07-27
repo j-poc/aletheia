@@ -1,0 +1,31 @@
+# Data is reproducible from the sources and large; the warehouse and raw payloads
+# stay out of git. What IS committed is everything needed to rebuild them: the
+# ingest code, the migrations, and the run manifests.
+data/raw/
+data/*.duckdb
+data/*.duckdb.wal
+data/warehouse.duckdb*
+
+# The paper book is deliberately NOT ignored: its whole value is that its history
+# is committed and therefore timestamped. See docs/paper-book.md.
+!data/book/
+
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+node_modules/
+.next/
+out/
+
+.DS_Store
+.env
+.env.local

@@ -1,0 +1,165 @@
+"""Warehouse invariants.
+
+The AAPL FY2008 diluted-EPS restatement (5.36 filed 2009-10-27, 6.78 filed
+2010-01-25) is used as the fixture throughout because it is real, verifiable
+against EDGAR, and exercises the one property that distinguishes this warehouse
+from a vendor panel: the same period holding two different values, each with its
+own knowledge date.
+"""
+
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
+
+import pytest
+
+from aletheia.core.errors import IntegrityViolation, MigrationError
+from aletheia.store.db import Warehouse
+from tests._factories import FY2008_END, first_report, make_fact, restatement
+
+FIRST_REPORT = first_report()
+RESTATEMENT = restatement()
+
+
+class TestMigrations:
+    def test_creates_expected_tables(self, warehouse: Warehouse) -> None:
+        tables = {
+            row[0]
+            for row in warehouse.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'"
+            ).fetchall()
+        }
+        assert {
+            "facts",
+            "filings",
+            "entities",
+            "entity_identifiers",
+            "macro_observations",
+            "prices",
+            "delistings",
+            "raw_payloads",
+            "ingest_runs",
+            "schema_migrations",
+        } <= tables
+
+    def test_is_idempotent(self, tmp_path: Path) -> None:
+        path = tmp_path / "w.duckdb"
+        with Warehouse.open(path) as first:
+            applied = first.migrate()
+        assert applied == [], "second migrate() in the same process must apply nothing"
+        with Warehouse.open(path) as second:
+            assert second.migrate() == []
+
+    def test_rejects_edited_migration(self, tmp_path: Path) -> None:
+        """Editing a shipped migration must fail loudly, not diverge silently."""
+        path = tmp_path / "w.duckdb"
+        with Warehouse.open(path):
+            pass
+        with Warehouse.open(path, migrate=False) as store:
+            store.execute("UPDATE schema_migrations SET checksum = 'tampered' WHERE version = 1")
+            with pytest.raises(MigrationError, match="changed after being applied"):
+                store.migrate()
+
+
+class TestFactWrites:
+    def test_round_trips_with_full_provenance(self, warehouse: Warehouse) -> None:
+        assert warehouse.write_facts([FIRST_REPORT]) == 1
+        row = warehouse.execute(
+            "SELECT value, filed_at, accn, source_uri, content_sha256, ingest_run_id FROM facts"
+        ).fetchone()
+        assert row is not None
+        value, filed_at, accn, source_uri, sha, run_id = row
+        assert value == Decimal("5.3600000000")  # stored at the declared scale
+        assert filed_at == date(2009, 10, 27)
+        assert accn == "0001193125-09-214859"
+        assert source_uri.startswith("https://data.sec.gov/")
+        assert len(sha) == 64
+        assert run_id == "run-test-0001"
+
+    def test_reingest_is_idempotent(self, warehouse: Warehouse) -> None:
+        assert warehouse.write_facts([FIRST_REPORT, RESTATEMENT]) == 2
+        assert warehouse.write_facts([FIRST_REPORT, RESTATEMENT]) == 0
+        assert warehouse.count("facts") == 2
+
+    def test_duplicates_within_a_batch_collapse(self, warehouse: Warehouse) -> None:
+        assert warehouse.write_facts([FIRST_REPORT, FIRST_REPORT, FIRST_REPORT]) == 1
+
+    def test_restatement_is_kept_not_deduplicated(self, warehouse: Warehouse) -> None:
+        """Same company, concept and period; different filing. Two rows, not one.
+
+        A vendor panel keeps only the second. Keeping both is the entire premise.
+        """
+        warehouse.write_facts([FIRST_REPORT, RESTATEMENT])
+        values = [
+            row[0]
+            for row in warehouse.execute(
+                "SELECT value FROM facts WHERE period_end = ? ORDER BY filed_at", [FY2008_END]
+            ).fetchall()
+        ]
+        assert values == [Decimal("5.3600000000"), Decimal("6.7800000000")]
+
+    def test_refuses_to_truncate_precision(self, warehouse: Warehouse) -> None:
+        """Silently rounding a reported number is a data-integrity failure."""
+        too_precise = make_fact(
+            value="1.23456789012345", filed_at=date(2010, 1, 25), accn="0001193125-10-012091"
+        )
+        with pytest.raises(IntegrityViolation, match="decimal places"):
+            warehouse.write_facts([too_precise])
+
+    def test_empty_batch_is_a_no_op(self, warehouse: Warehouse) -> None:
+        assert warehouse.write_facts([]) == 0
+
+
+class TestRevisionView:
+    def test_surfaces_the_value_change(self, warehouse: Warehouse) -> None:
+        warehouse.write_facts([FIRST_REPORT, RESTATEMENT])
+        rows = warehouse.execute(
+            """
+            SELECT report_seq, value, prior_value, prior_filed_at
+              FROM v_fact_revisions
+             WHERE period_end = ?
+             ORDER BY report_seq
+            """,
+            [FY2008_END],
+        ).fetchall()
+        assert len(rows) == 2
+        assert rows[0] == (1, Decimal("5.3600000000"), None, None)
+        assert rows[1][1] == Decimal("6.7800000000")
+        assert rows[1][2] == Decimal("5.3600000000")
+        assert rows[1][3] == date(2009, 10, 27)
+
+    def test_revision_magnitude_matches_the_real_filing(self, warehouse: Warehouse) -> None:
+        """+26.5% — the retrospective iPhone revenue-recognition change."""
+        warehouse.write_facts([FIRST_REPORT, RESTATEMENT])
+        row = warehouse.execute(
+            "SELECT value, prior_value FROM v_fact_revisions WHERE prior_value IS NOT NULL"
+        ).fetchone()
+        assert row is not None
+        new_value, old_value = row
+        change = (new_value - old_value) / old_value
+        assert round(change, 4) == Decimal("0.2649")
+
+
+class TestProvenance:
+    def test_run_lifecycle_is_recorded(self, warehouse: Warehouse) -> None:
+        warehouse.finish_run("run-test-0001", status="ok", rows_written=2, bytes_fetched=1234)
+        row = warehouse.execute(
+            "SELECT status, rows_written, bytes_fetched, code_version, finished_at FROM ingest_runs"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == "ok"
+        assert row[1] == 2
+        assert row[2] == 1234
+        assert row[3]  # a code version was stamped
+        assert row[4] is not None
+
+    def test_failed_runs_are_kept(self, warehouse: Warehouse) -> None:
+        warehouse.finish_run("run-test-0001", status="failed", error="HTTP 403 from FMP")
+        row = warehouse.execute("SELECT status, error FROM ingest_runs").fetchone()
+        assert row == ("failed", "HTTP 403 from FMP")
+
+    def test_rejects_unknown_terminal_status(self, warehouse: Warehouse) -> None:
+        with pytest.raises(ValueError, match="invalid terminal status"):
+            warehouse.finish_run("run-test-0001", status="maybe")

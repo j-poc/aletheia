@@ -1,0 +1,87 @@
+[project]
+name = "aletheia-workspace"
+version = "0.1.0"
+description = "ALETHEIA — point-in-time evidence engine for systematic research"
+requires-python = ">=3.13"
+dependencies = [
+    "aletheia",
+    "trialkeeper",
+]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+aletheia = { workspace = true }
+trialkeeper = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "hypothesis>=6.120",
+    "ruff>=0.8",
+    "mypy>=1.14",
+    "types-requests",
+]
+
+# ---------------------------------------------------------------- tooling ----
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["packages/engine/src", "packages/trialkeeper/src"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",      # pycodestyle
+    "F",           # pyflakes
+    "I",           # isort
+    "N",           # pep8-naming
+    "UP",          # pyupgrade
+    "B",           # bugbear
+    "A",           # builtins shadowing
+    "C4",          # comprehensions
+    "DTZ",         # naive datetimes — load-bearing here, we are a bitemporal system
+    "S",           # bandit: no shell injection, no hardcoded secrets, no bare asserts
+    "T20",         # no print() in library code
+    "SIM",         # simplify
+    "PTH",         # pathlib
+    "RUF",
+]
+ignore = [
+    "E501",        # line length handled by the formatter
+    # N818 wants every exception to end in "Error". `LookaheadViolation` and
+    # `IntegrityViolation` name the invariant that was broken, which is the thing
+    # a reader needs; appending "Error" to a word that already means "a failure"
+    # costs clarity for no gain.
+    "N818",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"packages/engine/src/aletheia/cli/*" = ["T20"]   # the CLI exists to print
+"**/tests/*" = ["T20", "S101"]                   # assert is how tests assert
+"scripts/*" = ["T20"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+disallow_any_generics = true
+mypy_path = ["packages/engine/src", "packages/trialkeeper/src"]
+explicit_package_bases = true
+namespace_packages = true
+
+[[tool.mypy.overrides]]
+module = ["duckdb.*", "pyarrow.*", "scipy.*", "pandas.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["packages/engine/tests", "packages/trialkeeper/tests"]
+pythonpath = ["packages/engine", "packages/trialkeeper"]
+addopts = "-q --strict-markers --strict-config"
+markers = [
+    "live: hits a real external API (deselect with '-m \"not live\"')",
+    "slow: takes more than a few seconds",
+]
+filterwarnings = ["error"]

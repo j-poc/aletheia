@@ -1,0 +1,34 @@
+[project]
+name = "aletheia"
+version = "0.1.0"
+description = "Point-in-time evidence engine: bitemporal SEC/EDGAR + macro warehouse with structural lookahead prevention."
+requires-python = ">=3.13"
+license = { text = "MIT" }
+dependencies = [
+    "duckdb>=1.1",
+    "httpx>=0.28",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "pyarrow>=17.0",
+    "pydantic>=2.9",
+    # DuckDB needs pytz to hand TIMESTAMPTZ values back to Python. Without it,
+    # reading any provenance timestamp raises at query time rather than at import.
+    "pytz>=2024.1",
+    "scipy>=1.14",
+    "trialkeeper",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
+
+[project.scripts]
+aletheia = "aletheia.cli.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aletheia"]
+
+[tool.uv.sources]
+trialkeeper = { workspace = true }

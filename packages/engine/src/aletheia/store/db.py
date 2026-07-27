@@ -1,0 +1,496 @@
+"""DuckDB warehouse: migrations, provenance-aware writes, raw reads.
+
+Two properties this module is responsible for.
+
+**Idempotent ingest.** Every write is ``ON CONFLICT DO NOTHING`` against a real
+primary key, and batches are de-duplicated in Python first. Running the same
+ingest twice must leave identical row counts — otherwise "re-run the pipeline"
+silently changes your data, and every downstream number with it.
+
+**No lossy coercion.** A ``Decimal`` that will not fit the stored scale raises
+rather than truncating. A value quietly losing precision on the way into a
+warehouse is the kind of defect that surfaces years later as an unexplainable
+discrepancy against a custodian.
+
+Reads here are *raw* — they ignore knowledge dates. Feature and research code
+must not import this module; it goes through :mod:`aletheia.pit` instead, and
+that boundary is enforced by a test.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from collections.abc import Iterable, Sequence
+from datetime import UTC, datetime
+from decimal import Decimal
+from pathlib import Path
+from types import TracebackType
+from typing import Any, Final, Self
+
+import duckdb
+import pyarrow as pa
+
+from aletheia.core.errors import IntegrityViolation, MigrationError, StoreError
+from aletheia.core.hashing import canonical_hash, sha256_bytes
+from aletheia.core.types import Fact, Filing, MacroObservation, PriceBar
+from aletheia.core.version import code_version
+
+MIGRATIONS_DIR: Final = Path(__file__).parent / "migrations"
+_MIGRATION_RE: Final = re.compile(r"^(\d{3})_(\w+)\.sql$")
+VALUE_SCALE: Final = 10
+"""Decimal places stored for `facts.value`. Exceeding it is an error, not a round."""
+
+_FACT_COLUMNS: Final = (
+    "fact_key",
+    "cik",
+    "taxonomy",
+    "concept",
+    "unit",
+    "period_start",
+    "period_end",
+    "value",
+    "accn",
+    "form",
+    "filed_at",
+    "fy",
+    "fp",
+    "frame",
+    "source_uri",
+    "retrieved_at",
+    "content_sha256",
+    "ingest_run_id",
+)
+
+_FACT_SCHEMA: Final = pa.schema(
+    [
+        ("fact_key", pa.string()),
+        ("cik", pa.int64()),
+        ("taxonomy", pa.string()),
+        ("concept", pa.string()),
+        ("unit", pa.string()),
+        ("period_start", pa.date32()),
+        ("period_end", pa.date32()),
+        ("value", pa.decimal128(38, VALUE_SCALE)),
+        ("accn", pa.string()),
+        ("form", pa.string()),
+        ("filed_at", pa.date32()),
+        ("fy", pa.int32()),
+        ("fp", pa.string()),
+        ("frame", pa.string()),
+        ("source_uri", pa.string()),
+        ("retrieved_at", pa.timestamp("us", tz="UTC")),
+        ("content_sha256", pa.string()),
+        ("ingest_run_id", pa.string()),
+    ]
+)
+
+
+class Warehouse:
+    """A DuckDB database file plus the invariants we keep in it."""
+
+    def __init__(self, connection: duckdb.DuckDBPyConnection, *, path: Path) -> None:
+        self._con = connection
+        self.path = path
+
+    # ------------------------------------------------------------ lifecycle --
+
+    @classmethod
+    def open(cls, path: Path, *, read_only: bool = False, migrate: bool = True) -> Self:
+        """Open (creating if needed) and bring the schema up to date."""
+        if not read_only:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            connection = duckdb.connect(str(path), read_only=read_only)
+        except duckdb.Error as exc:  # pragma: no cover - environment dependent
+            raise StoreError(f"cannot open warehouse at {path}: {exc}") from exc
+        warehouse = cls(connection, path=path)
+        if migrate and not read_only:
+            warehouse.migrate()
+        return warehouse
+
+    @classmethod
+    def in_memory(cls) -> Self:
+        """Ephemeral warehouse for tests. Migrated, never persisted."""
+        warehouse = cls(duckdb.connect(":memory:"), path=Path(":memory:"))
+        warehouse.migrate()
+        return warehouse
+
+    def close(self) -> None:
+        self._con.close()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.close()
+
+    # ------------------------------------------------------------ migration --
+
+    def migrate(self) -> list[int]:
+        """Apply pending migrations in version order; return versions applied.
+
+        Re-verifies the checksum of already-applied migrations. Editing a shipped
+        migration is a silent schema divergence between machines, so it is
+        refused rather than ignored.
+        """
+        self._con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version INTEGER PRIMARY KEY, name VARCHAR NOT NULL,
+                checksum VARCHAR NOT NULL, applied_at TIMESTAMPTZ NOT NULL
+            )
+            """
+        )
+        applied: dict[int, str] = {
+            int(row[0]): str(row[1])
+            for row in self._con.execute(
+                "SELECT version, checksum FROM schema_migrations"
+            ).fetchall()
+        }
+
+        newly_applied: list[int] = []
+        for version, name, path in _discover_migrations():
+            text = path.read_text(encoding="utf-8")
+            checksum = sha256_bytes(text.encode("utf-8"))
+            if version in applied:
+                if applied[version] != checksum:
+                    raise MigrationError(
+                        f"migration {version:03d}_{name}.sql changed after being applied "
+                        f"(stored {applied[version][:12]}, on disk {checksum[:12]}). "
+                        f"Add a new migration instead of editing a shipped one."
+                    )
+                continue
+            try:
+                self._con.execute("BEGIN TRANSACTION")
+                self._con.execute(text)
+                self._con.execute(
+                    "INSERT INTO schema_migrations VALUES (?, ?, ?, ?)",
+                    [version, name, checksum, datetime.now(UTC)],
+                )
+                self._con.execute("COMMIT")
+            except duckdb.Error as exc:
+                self._con.execute("ROLLBACK")
+                raise MigrationError(f"migration {version:03d}_{name} failed: {exc}") from exc
+            newly_applied.append(version)
+        return newly_applied
+
+    # ----------------------------------------------------------- provenance --
+
+    def start_run(self, *, source: str, params: dict[str, Any], run_id: str) -> str:
+        """Open an ingest run. The run row exists before any data is written."""
+        self._con.execute(
+            """
+            INSERT INTO ingest_runs
+                (run_id, source, params_hash, params_json, started_at, status, code_version)
+            VALUES (?, ?, ?, ?, ?, 'running', ?)
+            ON CONFLICT DO NOTHING
+            """,
+            [
+                run_id,
+                source,
+                canonical_hash(params),
+                json.dumps(params, sort_keys=True, default=str),
+                datetime.now(UTC),
+                code_version(),
+            ],
+        )
+        return run_id
+
+    def finish_run(
+        self,
+        run_id: str,
+        *,
+        status: str,
+        rows_written: int = 0,
+        bytes_fetched: int = 0,
+        error: str | None = None,
+    ) -> None:
+        """Close an ingest run. Failed runs are recorded, never deleted."""
+        if status not in {"ok", "failed"}:
+            raise ValueError(f"invalid terminal status: {status!r}")
+        self._con.execute(
+            """
+            UPDATE ingest_runs
+               SET finished_at = ?, status = ?, rows_written = ?, bytes_fetched = ?, error = ?
+             WHERE run_id = ?
+            """,
+            [datetime.now(UTC), status, rows_written, bytes_fetched, error, run_id],
+        )
+
+    def record_payload(
+        self,
+        *,
+        content_sha256: str,
+        source: str,
+        source_uri: str,
+        retrieved_at: datetime,
+        byte_len: int,
+        stored_path: Path,
+        ingest_run_id: str,
+        http_status: int | None = None,
+    ) -> bool:
+        """Index a fetched payload. Returns False if these exact bytes were seen before."""
+        before = self._scalar(
+            "SELECT count(*) FROM raw_payloads WHERE content_sha256 = ?", [content_sha256]
+        )
+        self._con.execute(
+            """
+            INSERT INTO raw_payloads
+                (content_sha256, source, source_uri, retrieved_at, byte_len,
+                 http_status, stored_path, ingest_run_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
+            """,
+            [
+                content_sha256,
+                source,
+                source_uri,
+                retrieved_at,
+                byte_len,
+                http_status,
+                str(stored_path),
+                ingest_run_id,
+            ],
+        )
+        return before == 0
+
+    # --------------------------------------------------------------- writes --
+
+    def write_facts(self, facts: Iterable[Fact]) -> int:
+        """Insert facts idempotently. Returns the number of *new* rows."""
+        rows = _dedupe(facts, key=lambda f: f.identity())
+        if not rows:
+            return 0
+        table = pa.table(
+            {
+                "fact_key": [canonical_hash(list(f.identity())) for f in rows],
+                "cik": [int(f.cik) for f in rows],
+                "taxonomy": [f.taxonomy for f in rows],
+                "concept": [f.concept for f in rows],
+                "unit": [f.unit for f in rows],
+                "period_start": [f.period_start for f in rows],
+                "period_end": [f.period_end for f in rows],
+                "value": [_scaled(f.value, f) for f in rows],
+                "accn": [f.accn.value for f in rows],
+                "form": [f.form for f in rows],
+                "filed_at": [f.filed_at for f in rows],
+                "fy": [f.fy for f in rows],
+                "fp": [f.fp for f in rows],
+                "frame": [f.frame for f in rows],
+                "source_uri": [f.source_uri for f in rows],
+                "retrieved_at": [f.retrieved_at for f in rows],
+                "content_sha256": [f.content_sha256 for f in rows],
+                "ingest_run_id": [f.ingest_run_id for f in rows],
+            },
+            schema=_FACT_SCHEMA,
+        )
+        return self._insert_arrow("facts", table, _FACT_COLUMNS)
+
+    def write_filings(self, filings: Iterable[Filing]) -> int:
+        rows = _dedupe(filings, key=lambda f: f.accn.value)
+        if not rows:
+            return 0
+        return self._insert_rows(
+            "filings",
+            (
+                "accn",
+                "cik",
+                "form",
+                "filed_at",
+                "accepted_at",
+                "period_of_report",
+                "primary_document",
+                "items",
+                "is_xbrl",
+                "source_uri",
+                "retrieved_at",
+                "content_sha256",
+                "ingest_run_id",
+            ),
+            [
+                (
+                    f.accn.value,
+                    int(f.cik),
+                    f.form,
+                    f.filed_at,
+                    f.accepted_at,
+                    f.period_of_report,
+                    f.primary_document,
+                    list(f.items),
+                    f.is_xbrl,
+                    f.source_uri,
+                    f.retrieved_at,
+                    f.content_sha256,
+                    f.ingest_run_id,
+                )
+                for f in rows
+            ],
+        )
+
+    def write_macro(self, observations: Iterable[MacroObservation]) -> int:
+        rows = _dedupe(observations, key=lambda o: (o.series_id, o.obs_date, o.realtime_start))
+        if not rows:
+            return 0
+        return self._insert_rows(
+            "macro_observations",
+            (
+                "series_id",
+                "obs_date",
+                "realtime_start",
+                "realtime_end",
+                "value",
+                "source_uri",
+                "retrieved_at",
+                "content_sha256",
+                "ingest_run_id",
+            ),
+            [
+                (
+                    o.series_id,
+                    o.obs_date,
+                    o.realtime_start,
+                    o.realtime_end,
+                    o.value,
+                    o.source_uri,
+                    o.retrieved_at,
+                    o.content_sha256,
+                    o.ingest_run_id,
+                )
+                for o in rows
+            ],
+        )
+
+    def write_prices(self, bars: Iterable[PriceBar]) -> int:
+        rows = _dedupe(bars, key=lambda b: (b.symbol, b.bar_date, b.source))
+        if not rows:
+            return 0
+        return self._insert_rows(
+            "prices",
+            (
+                "symbol",
+                "bar_date",
+                "open",
+                "high",
+                "low",
+                "close",
+                "adj_close",
+                "volume",
+                "source",
+                "source_uri",
+                "retrieved_at",
+                "content_sha256",
+                "ingest_run_id",
+            ),
+            [
+                (
+                    b.symbol,
+                    b.bar_date,
+                    b.open,
+                    b.high,
+                    b.low,
+                    b.close,
+                    b.adj_close,
+                    b.volume,
+                    b.source,
+                    b.source_uri,
+                    b.retrieved_at,
+                    b.content_sha256,
+                    b.ingest_run_id,
+                )
+                for b in rows
+            ],
+        )
+
+    def execute(self, sql: str, params: Sequence[Any] | None = None) -> duckdb.DuckDBPyConnection:
+        """Escape hatch for ingest-side SQL. Not for research code."""
+        return self._con.execute(sql, list(params) if params else None)
+
+    def count(self, table: str) -> int:
+        if not table.isidentifier():
+            raise ValueError(f"unsafe table name: {table!r}")
+        return self._scalar(f"SELECT count(*) FROM {table}")  # noqa: S608 - validated identifier
+
+    # -------------------------------------------------------------- helpers --
+
+    def _insert_arrow(self, table: str, arrow_table: pa.Table, columns: Sequence[str]) -> int:
+        before = self.count(table)
+        self._con.register("_batch", arrow_table)
+        try:
+            column_list = ", ".join(columns)
+            self._con.execute(
+                f"INSERT INTO {table} ({column_list}) SELECT {column_list} FROM _batch "  # noqa: S608
+                f"ON CONFLICT DO NOTHING"
+            )
+        finally:
+            self._con.unregister("_batch")
+        return self.count(table) - before
+
+    def _insert_rows(
+        self, table: str, columns: Sequence[str], rows: Sequence[tuple[Any, ...]]
+    ) -> int:
+        before = self.count(table)
+        placeholders = ", ".join("?" for _ in columns)
+        column_list = ", ".join(columns)
+        self._con.executemany(
+            f"INSERT INTO {table} ({column_list}) VALUES ({placeholders}) "  # noqa: S608
+            f"ON CONFLICT DO NOTHING",
+            [list(row) for row in rows],
+        )
+        return self.count(table) - before
+
+    def _scalar(self, sql: str, params: Sequence[Any] | None = None) -> int:
+        result = self._con.execute(sql, list(params) if params else None).fetchone()
+        if result is None:  # pragma: no cover - DuckDB always returns a row for aggregates
+            raise StoreError(f"query returned no row: {sql}")
+        return int(result[0])
+
+
+def _discover_migrations() -> list[tuple[int, str, Path]]:
+    found: list[tuple[int, str, Path]] = []
+    for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        match = _MIGRATION_RE.match(path.name)
+        if match is None:
+            raise MigrationError(f"migration filename must be NNN_name.sql: {path.name}")
+        found.append((int(match.group(1)), match.group(2), path))
+    versions = [v for v, _, _ in found]
+    if len(set(versions)) != len(versions):
+        raise MigrationError(f"duplicate migration versions: {versions}")
+    return found
+
+
+def _dedupe[T](items: Iterable[T], *, key: Any) -> list[T]:
+    """Keep the first occurrence of each key, preserving input order.
+
+    Deterministic by construction: the same input sequence always yields the same
+    output, which is what makes a re-run byte-identical.
+    """
+    seen: set[Any] = set()
+    unique: list[T] = []
+    for item in items:
+        identity = key(item)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        unique.append(item)
+    return unique
+
+
+def _scaled(value: Decimal, fact: Fact) -> Decimal:
+    """Fit ``value`` to the stored scale, refusing to lose precision silently."""
+    quantized = value.quantize(Decimal(1).scaleb(-VALUE_SCALE))
+    if quantized != value:
+        raise IntegrityViolation(
+            f"{fact.concept} for CIK {int(fact.cik)} period ending {fact.period_end} "
+            f"has more than {VALUE_SCALE} decimal places ({value}); storing it would "
+            f"silently change the reported number"
+        )
+    return quantized
+
+
+__all__ = ["VALUE_SCALE", "Warehouse"]
