@@ -32,6 +32,15 @@ from aletheia.provenance.payloads import PayloadStore, StoredPayload
 
 SECRET_QUERY_KEYS: Final = frozenset({"apikey", "api_key", "token", "key", "access_token"})
 RETRYABLE_STATUS: Final = frozenset({408, 425, 429, 500, 502, 503, 504})
+
+RATE_LIMIT_MARKERS: Final = ("request rate threshold exceeded", "undeclared automated tool")
+"""Phrases the SEC serves in an HTML **403** when it throttles a client.
+
+EDGAR does not answer with 429. It returns 403 and an HTML page, which lands in
+the permanent bucket and kills a run that would have succeeded after a short
+wait. Matching the page turns it back into what it actually is: a retryable
+throttle. Checked against the body rather than the status alone, because a real
+403 -- an entitlement problem -- must stay permanent."""
 _MAX_BACKOFF_SECONDS: Final = 30.0
 
 
@@ -163,6 +172,17 @@ class Fetcher:
                 continue
 
             if response.status_code >= 400:
+                if _is_rate_limit_page(response):
+                    last_error = TransientSourceError(
+                        f"HTTP {response.status_code}: rate limited by {source} "
+                        f"on attempt {attempt}/{self._max_attempts}",
+                        source=source,
+                        uri=safe_url,
+                    )
+                    if attempt < self._max_attempts:
+                        self._backoff(attempt, retry_after=response.headers.get("Retry-After"))
+                        continue
+                    raise last_error
                 raise PermanentSourceError(
                     f"HTTP {response.status_code}: {response.text[:200]}",
                     source=source,
@@ -212,3 +232,16 @@ class Fetcher:
             except ValueError:
                 pass  # Retry-After may be an HTTP-date; fall through to backoff
         time.sleep(min(2.0**attempt * 0.5, _MAX_BACKOFF_SECONDS))
+
+
+def _is_rate_limit_page(response: httpx.Response) -> bool:
+    """Is this 403 a throttle rather than a refusal?
+
+    Only bodies small enough to be an error page are inspected; a large 403 is not
+    going to be one, and reading a multi-megabyte body to grep it would be its own
+    problem.
+    """
+    if response.status_code != 403 or len(response.content) > 32_768:
+        return False
+    body = response.text.lower()
+    return any(marker in body for marker in RATE_LIMIT_MARKERS)

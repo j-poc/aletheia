@@ -15,7 +15,7 @@ import pytest
 
 from aletheia.core.clock import FrozenClock
 from aletheia.core.config import DEFAULT_SEC_USER_AGENT, Secret, load_settings
-from aletheia.core.errors import ConfigError, PermanentSourceError
+from aletheia.core.errors import ConfigError, PermanentSourceError, TransientSourceError
 from aletheia.provenance.payloads import PayloadStore, StoredPayload
 from aletheia.sources.http import Fetcher
 
@@ -198,3 +198,90 @@ class TestEveryFetchedPayloadIsIndexed:
             with pytest.raises(PermanentSourceError):
                 fetcher.get("https://example.invalid/missing", source="alpha")
         assert seen == []
+
+
+class TestSecRateLimitIsRetryable:
+    """EDGAR throttles with a 403 and an HTML page, not with a 429.
+
+    That lands in the permanent bucket and kills a run which would have succeeded
+    after a short wait -- observed live, mid-demo, after ~2,400 requests in a day.
+    A real 403 must stay permanent, so the body is inspected rather than the status
+    alone.
+    """
+
+    THROTTLE_BODY = (
+        "<html><head><title>SEC.gov | Request Rate Threshold Exceeded</title></head>"
+        "<body>Your request rate has exceeded the SEC's limit.</body></html>"
+    )
+
+    def _fetcher(self, payloads: PayloadStore, clock: FrozenClock, client: httpx.Client) -> Fetcher:
+        return Fetcher(
+            payloads=payloads,
+            clock=clock,
+            user_agent="test",
+            client=client,
+            max_attempts=2,
+            rate_per_second=1000.0,
+        )
+
+    def test_a_throttle_page_is_retried_then_raises_transient(
+        self, payloads: PayloadStore, clock: FrozenClock
+    ) -> None:
+        attempts = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            attempts.append(request.url)
+            return httpx.Response(403, text=self.THROTTLE_BODY)
+
+        with (
+            httpx.Client(transport=httpx.MockTransport(handler)) as client,
+            pytest.raises(TransientSourceError, match="rate limited"),
+        ):
+            self._fetcher(payloads, clock, client).get("https://sec.invalid/x", source="edgar")
+        assert len(attempts) == 2, "a throttle must be retried, not failed on first sight"
+
+    def test_a_throttle_that_clears_succeeds(
+        self, payloads: PayloadStore, clock: FrozenClock
+    ) -> None:
+        """The point of the change: the run continues instead of dying."""
+        calls = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return httpx.Response(403, text=self.THROTTLE_BODY)
+            return httpx.Response(200, json={"ok": True})
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            result = self._fetcher(payloads, clock, client).get(
+                "https://sec.invalid/x", source="edgar"
+            )
+        assert result.status_code == 200
+
+    def test_a_genuine_403_stays_permanent(
+        self, payloads: PayloadStore, clock: FrozenClock
+    ) -> None:
+        """Control. An entitlement refusal must not be retried into a long wait."""
+        attempts = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            attempts.append(request.url)
+            return httpx.Response(403, text="Forbidden: your key is not entitled to this endpoint")
+
+        with (
+            httpx.Client(transport=httpx.MockTransport(handler)) as client,
+            pytest.raises(PermanentSourceError),
+        ):
+            self._fetcher(payloads, clock, client).get("https://api.invalid/x", source="fmp")
+        assert len(attempts) == 1, "a real 403 must fail immediately"
+
+    def test_a_large_403_body_is_not_scanned(
+        self, payloads: PayloadStore, clock: FrozenClock
+    ) -> None:
+        """A multi-megabyte 403 is not an error page; do not grep it."""
+        handler = lambda request: httpx.Response(403, text="x" * 40_000)  # noqa: E731
+        with (
+            httpx.Client(transport=httpx.MockTransport(handler)) as client,
+            pytest.raises(PermanentSourceError),
+        ):
+            self._fetcher(payloads, clock, client).get("https://api.invalid/x", source="fmp")
