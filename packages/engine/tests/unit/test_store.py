@@ -163,3 +163,25 @@ class TestProvenance:
     def test_rejects_unknown_terminal_status(self, warehouse: Warehouse) -> None:
         with pytest.raises(ValueError, match="invalid terminal status"):
             warehouse.finish_run("run-test-0001", status="maybe")
+
+
+class TestReadOnlySchemaGuard:
+    def test_a_stale_warehouse_refuses_to_serve_reads(self, tmp_path: Path) -> None:
+        """A read-only handle cannot migrate, so it must not pretend it is current.
+
+        Answering queries against a schema the code no longer matches produces
+        results that look like data and are not.
+        """
+        path = tmp_path / "stale.duckdb"
+        with Warehouse.open(path) as store:
+            store.execute("DELETE FROM schema_migrations WHERE version = 4")
+        with pytest.raises(MigrationError, match="missing migration"):
+            Warehouse.open(path, read_only=True)
+
+    def test_a_current_warehouse_opens_read_only(self, tmp_path: Path) -> None:
+        """Control: the guard must not block the ordinary case."""
+        path = tmp_path / "current.duckdb"
+        with Warehouse.open(path):
+            pass
+        with Warehouse.open(path, read_only=True) as store:
+            assert store.count("facts") == 0

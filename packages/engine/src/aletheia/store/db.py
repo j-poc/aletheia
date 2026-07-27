@@ -111,8 +111,11 @@ class Warehouse:
         except duckdb.Error as exc:  # pragma: no cover - environment dependent
             raise StoreError(f"cannot open warehouse at {path}: {exc}") from exc
         warehouse = cls(connection, path=path)
-        if migrate and not read_only:
-            warehouse.migrate()
+        if migrate:
+            if read_only:
+                warehouse._assert_schema_current()
+            else:
+                warehouse.migrate()
         return warehouse
 
     @classmethod
@@ -185,6 +188,28 @@ class Warehouse:
                 raise MigrationError(f"migration {version:03d}_{name} failed: {exc}") from exc
             newly_applied.append(version)
         return newly_applied
+
+    def _assert_schema_current(self) -> None:
+        """Refuse to serve reads from a warehouse whose schema is behind the code.
+
+        A read-only handle cannot migrate, so without this check a stale database
+        answers queries against views that no longer mean what the code thinks
+        they mean — the worst kind of wrong, because it looks like data.
+        """
+        try:
+            applied = {
+                int(row[0])
+                for row in self._con.execute("SELECT version FROM schema_migrations").fetchall()
+            }
+        except duckdb.Error:
+            applied = set()
+        pending = sorted({version for version, _, _ in _discover_migrations()} - applied)
+        if pending:
+            raise MigrationError(
+                f"warehouse at {self.path} is missing migration(s) "
+                f"{', '.join(f'{v:03d}' for v in pending)}. "
+                f"Open it for writing once (e.g. `aletheia status`) to migrate."
+            )
 
     # ----------------------------------------------------------- provenance --
 

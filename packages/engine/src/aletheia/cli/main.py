@@ -11,11 +11,13 @@ import argparse
 import sys
 from collections.abc import Sequence
 from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 from aletheia.app import Application
-from aletheia.core.errors import AletheiaError
+from aletheia.core.errors import AletheiaError, InsufficientData
 from aletheia.core.types import Cik
+from aletheia.pit import as_of
 
 # A default macro set chosen for revision behaviour, not for breadth: GDP and
 # payrolls are revised heavily (real vintages to study), CPI barely at all, and
@@ -84,6 +86,27 @@ def _build_parser() -> argparse.ArgumentParser:
     daily = ingest_sub.add_parser("daily", help="every filing disseminated on a date")
     daily.add_argument("--date", type=date.fromisoformat, default=None, help="default: yesterday")
     daily.set_defaults(handler=_cmd_ingest_daily)
+
+    asof = subparsers.add_parser("asof", help="what was knowable about a company on a given date")
+    asof.add_argument("ticker")
+    asof.add_argument("--concept", default="EarningsPerShareDiluted")
+    asof.add_argument("--date", type=date.fromisoformat, required=True, help="knowledge date")
+    asof.add_argument("--period-end", type=date.fromisoformat, default=None)
+    asof.add_argument("--taxonomy", default="us-gaap")
+    asof.add_argument(
+        "--compare-restated",
+        action="store_true",
+        help="also show today's restated figure — the number a vendor panel would have given you",
+    )
+    asof.set_defaults(handler=_cmd_asof)
+
+    revisions = subparsers.add_parser("revisions", help="values that changed after publication")
+    revisions.add_argument("ticker")
+    revisions.add_argument("--date", type=date.fromisoformat, default=None, help="knowledge date")
+    revisions.add_argument("--concept", default=None)
+    revisions.add_argument("--min-change", type=float, default=0.05)
+    revisions.add_argument("--limit", type=int, default=20)
+    revisions.set_defaults(handler=_cmd_revisions)
 
     return parser
 
@@ -197,6 +220,108 @@ def _cmd_ingest_daily(args: argparse.Namespace) -> int:
     with Application.build(data_dir=args.data_dir) as app:
         day = args.date or (app.clock.today() - timedelta(days=1))
         return _report(app.ingestor.ingest_daily_index(day))
+
+
+def _cmd_asof(args: argparse.Namespace) -> int:
+    with Application.build(data_dir=args.data_dir, read_only=True) as app:
+        cik = _resolve_ticker(app, args.ticker)
+        if cik is None:
+            return 1
+        view = as_of(app.warehouse, args.date)
+        try:
+            facts = view.facts(
+                cik,
+                args.concept,
+                period_end=args.period_end,
+                taxonomy=args.taxonomy,
+                limit=None if args.period_end else 8,
+            )
+        except InsufficientData as exc:
+            print(exc)
+            return 1
+        if not facts:
+            print(f"nothing was published for {args.concept} as of {args.date}")
+            return 1
+
+        print(f"{args.ticker.upper()} · {args.concept} · as known on {args.date}\n")
+        header = f"{'period ending':>14}  {'value':>18}  {'published':>10}  {'rpt':>3}  filing"
+        print(header)
+        print("-" * len(header))
+        for fact in facts:
+            marker = "" if fact.is_first_report else "  ← restated"
+            print(
+                f"{fact.period_end!s:>14}  {_fmt(fact.value):>18}  "
+                f"{fact.knowledge_date!s:>10}  {fact.report_seq:>3}  {fact.accn}{marker}"
+            )
+
+        if args.compare_restated and args.period_end:
+            restated = view.unsafe_latest_restated(
+                cik, args.concept, period_end=args.period_end, taxonomy=args.taxonomy
+            )
+            honest = facts[0]
+            print(
+                f"\nas it stands today (LOOKAHEAD — what a vendor panel would give you):"
+                f"\n  {_fmt(restated.value)}  published {restated.knowledge_date}"
+            )
+            if honest.value != restated.value and honest.value != 0:
+                drift = (restated.value - honest.value) / honest.value
+                print(
+                    f"  difference vs. what was knowable on {args.date}: "
+                    f"{drift:+.2%} — the error a conventional backtest would make"
+                )
+    return 0
+
+
+def _cmd_revisions(args: argparse.Namespace) -> int:
+    with Application.build(data_dir=args.data_dir, read_only=True) as app:
+        cik = _resolve_ticker(app, args.ticker)
+        if cik is None:
+            return 1
+        view = as_of(app.warehouse, args.date or app.clock.today())
+        revisions = view.revisions(cik, concept=args.concept, min_relative_change=args.min_change)
+        if not revisions:
+            print(f"no revisions above {args.min_change:.0%} were public as of {view.as_of}")
+            return 0
+        print(f"{args.ticker.upper()} · values revised by more than {args.min_change:.0%}")
+        header = (
+            f"{'period':>12}  {'concept':<38}  {'first':>14}  {'revised':>14}  "
+            f"{'change':>8}  {'lag':>5}"
+        )
+        print(f"\n{header}\n" + "-" * len(header))
+        for revision in revisions[: args.limit]:
+            try:
+                change = f"{revision.relative_change:+.1%}"
+            except ZeroDivisionError:
+                change = "from 0"
+            print(
+                f"{revision.period_end!s:>12}  {revision.concept[:38]:<38}  "
+                f"{_fmt(revision.prior_value):>14}  {_fmt(revision.new_value):>14}  "
+                f"{change:>8}  {revision.days_to_revision:>4}d"
+            )
+        if len(revisions) > args.limit:
+            print(f"\n… {len(revisions) - args.limit:,} more not shown (--limit)")
+    return 0
+
+
+def _resolve_ticker(app: Application, ticker: str) -> Cik | None:
+    row = app.warehouse.execute(
+        "SELECT cik FROM entity_identifiers WHERE ticker = ? ORDER BY observed_at DESC LIMIT 1",
+        [ticker.upper()],
+    ).fetchone()
+    if row is None:
+        print(f"{ticker.upper()} is not in the identifier table; run `aletheia ingest universe`")
+        return None
+    return Cik(row[0])
+
+
+def _fmt(value: Decimal) -> str:
+    """Readable without lying: large magnitudes abbreviated, small ones exact."""
+    magnitude = abs(value)
+    if magnitude >= 1_000_000_000:
+        return f"{value / 1_000_000_000:,.3f}B"
+    if magnitude >= 1_000_000:
+        return f"{value / 1_000_000:,.3f}M"
+    return f"{value.normalize():f}"
 
 
 def _report(outcome: object) -> int:
