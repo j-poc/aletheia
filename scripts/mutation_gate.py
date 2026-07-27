@@ -14,9 +14,10 @@ trusted either.
 
 Scope, stated honestly: these mutants cover the point-in-time correctness surface
 that decisions D11-D15 are about -- what "restated" means, which report came
-first, and what publication order the schema agrees on. That is where every
-observed defect in this system has been. It is not a general mutation-testing
-sweep, and passing it says nothing about code outside the listed files.
+first, and what publication order the schema agrees on -- plus D16, the one
+leak found outside it. That is where every observed defect in this system has
+been. It is not a general mutation-testing sweep, and passing it says nothing
+about code outside the listed files.
 
 Why hand-written mutants rather than `mutmut` or `cosmic-ray`: those generate
 mutants uniformly (flip a comparison, drop a statement) and most are trivially
@@ -40,6 +41,8 @@ ROOT = Path(__file__).resolve().parent.parent
 
 ENGINE = "packages/engine/src/aletheia"
 TESTS = "packages/engine/tests/unit"
+TRIALKEEPER = "packages/trialkeeper/src/trialkeeper"
+TK_TESTS = "packages/trialkeeper/tests"
 
 
 @dataclass(frozen=True)
@@ -132,6 +135,21 @@ MUTANTS: tuple[Mutant, ...] = (
             " period_end ORDER BY filed_at, accn))"
         ),
         tests=(f"{TESTS}/test_store.py", f"{TESTS}/test_pit.py"),
+    ),
+    Mutant(
+        label="purged CV back to backward-only purging (the leak review found)",
+        decision="D16",
+        path=f"{TRIALKEEPER}/cv.py",
+        old=(
+            "        low = max(0, int(position) - label_horizon)\n"
+            "        high = min(indices.size, int(position) + label_horizon + 1)\n"
+            "        purged[low:high] = True"
+        ),
+        new=(
+            "        low = max(0, int(position) - label_horizon)\n"
+            "        purged[low : int(position)] = True"
+        ),
+        tests=(f"{TK_TESTS}/test_pbo_and_cv.py",),
     ),
 )
 

@@ -173,8 +173,8 @@ packages/engine/
   surveillance/  daily index poller, forensic scoring
   book/          live paper book, hash-chained daily marks
 packages/trialkeeper/    standalone MIT library — deflated Sharpe, PBO, purged CV,
-                         Harvey–Liu haircut, pre-registration ledger. Zero
-                         aletheia imports; the boundary is enforced by its tests.
+                         BHY multiple-testing haircut, pre-registration ledger.
+                         Zero aletheia imports; the boundary is its own tests.
 ```
 
 `trialkeeper` is carved out deliberately. `mlfinlab` went commercial and there is

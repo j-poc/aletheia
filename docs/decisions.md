@@ -556,3 +556,70 @@ reversed, because the null means the opposite thing.
 1–4 and stayed green when 005 shipped unpinned — it only guarded what somebody
 remembered to list. It now asserts the pinned set *equals* the set on disk, so an
 unpinned migration fails the suite instead of passing it.
+
+## D16 — Purging is symmetric, because overlap is
+
+Found by adversarial review, not by the test suite, which is the part worth
+recording.
+
+`trialkeeper.cv` purged training observations *backwards* from each test index
+and left the forward direction to `embargo`. Overlap between label windows is a
+symmetric relation — with a label window of `[i, i + h)`, observations `i` and
+`p` overlap whenever `abs(i - p) < h`, and which one came first is irrelevant —
+so half the relation was unenforced. `embargo` defaults to `0` and was never
+tied to `label_horizon`, so the default configuration leaked.
+
+The module docstring promised the symmetric guarantee in the AFML wording
+("whose label window overlaps *any* test observation's label window"). The code
+delivered half of it. That gap is the defect: `trialkeeper` ships as a standalone
+MIT library whose entire value is that an outside user can trust it about leakage.
+
+**Measured.** `purged_kfold(100, n_splits=5, label_horizon=5, embargo=0)`, first
+fold, test block `0..19`:
+
+```
+purged=0  embargoed=0
+train 20 window (20, 25) overlaps test [16, 17, 18, 19]
+train 21 window (21, 26) overlaps test [17, 18, 19]
+train 22 window (22, 27) overlaps test [18, 19]
+train 23 window (23, 28) overlaps test [19]
+```
+
+The first fold is the sharpest illustration: its test block starts at index 0, so
+there is nothing behind it to purge, the backward pass reported `purged=0`, and
+four training rows leaked forward anyway. After the fix the same call reports
+`purged=5` on the first fold, `10` on the interior folds (both sides), `5` on the
+last — a signature that is wrong in an obvious way if either direction breaks.
+
+**Why the tests missed it.** Every existing assertion probed the backward
+boundary only (`first_test - 5 <= index < first_test`). A test that checks one
+side of a symmetric relation passes on an implementation that does one side. The
+replacement recomputes the overlap relation from its definition across every
+fold rather than probing a boundary, so it cannot pass on a one-directional
+implementation. Added as mutant #10.
+
+**The purge window is `[p - h, p + h]`**, one wider each side than the strict
+`abs(i - p) < h` rule. That conservatism is inherited from the original backward
+pass rather than newly introduced, and it is the right reading when the label is
+a return measured from the price at `i` to the price at `i + h`: the label
+touches both endpoints.
+
+**Counting changed with it.** `purged` is now every row the purge removed, and
+`embargoed` counts only rows dropped by the embargo *alone*. An embargo shorter
+than the label horizon therefore reports `0` — honest, because it removed nothing
+the purge had not already taken. Previously the overlap was credited to the
+embargo, which would have made a symmetric purge look like it did less work.
+
+**Blast radius today: zero.** Nothing in `packages/engine` imports
+`purged_kfold` or `combinatorial_purged_splits`; the flagship study (P8) is
+blocked on price entitlement and has not run. This was a latent defect in a
+published library, not a wrong number in a shipped result — but P8 is exactly
+what would have consumed it.
+
+**Related, same review:** the README billed the multiple-testing module as the
+"Harvey–Liu haircut". It implements Bonferroni/Holm/BHY against a trial count the
+caller supplies, which is *motivated* by Harvey, Liu & Zhu (2016) but is not their
+bootstrap over the factor zoo's unpublished tests. Renamed to "BHY multiple-testing
+haircut" and the distinction is now stated in the module docstring. The weaker
+claim is the true one, and for this library the true one is also the more useful:
+it is only as honest as the trial count in your own pre-registration ledger.
