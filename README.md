@@ -57,12 +57,25 @@ XBRL facts over 1,364,574 filings**:
 
 | | |
 |---|---|
-| Distinct (company, concept, unit, fiscal period) combinations | **7,133,051** |
-| …carrying more than one distinct reported value | **357,854** |
+| Distinct reported facts, keyed as the warehouse keys them | **7,133,070** |
+| …carrying more than one distinct reported value | **357,842** |
 | Share | **5.0%** |
 
 One reported number in twenty changed after it was first published. A flat vendor
 panel returns only the final value for every one of them, on every date.
+
+Reproduce with `make stats`. The key is
+`(cik, taxonomy, concept, unit, period_start, period_end)` — the same one
+`v_facts_pit` and `v_fact_revisions` use.
+
+> An earlier version of this README claimed **16.4%**. That query dropped
+> `period_start`, which conflates a fiscal year with its fourth quarter — they
+> share an end date and report different numbers — and counted 667,015 pairs of
+> different periods as one period revised. It survived because no committed code
+> produced it. `make stats` now prints both figures side by side, so the mistake
+> stays visible rather than becoming folklore. The same omission was a real
+> correctness defect in the query layer, not just a documentation error; see
+> `AmbiguousPeriod` in `pit/view.py`.
 
 Not all of those are formal restatements — many are prior-year comparatives
 re-presented under a changed classification in the next annual report, which the

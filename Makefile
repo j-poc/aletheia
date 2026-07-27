@@ -2,7 +2,7 @@
 SHELL := /bin/bash
 UV ?= uv
 
-.PHONY: help setup lint fmt types test test-live determinism verify ingest demo api web web-build study clean
+.PHONY: help setup lint fmt types test test-live determinism verify ingest stats demo api web web-build study clean
 
 help:  ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -34,6 +34,9 @@ verify: lint types test determinism  ## Everything the done-bar requires
 
 ingest:  ## Pull real data into the warehouse
 	$(UV) run aletheia ingest
+
+stats:  ## Recompute every corpus number the README quotes
+	$(UV) run python scripts/corpus_stats.py
 
 demo:  ## Build a small warehouse from scratch (~3 min) and print the proof
 	$(UV) sync

@@ -66,6 +66,52 @@ class TestImportBoundary:
         found = [m for m in _imported_modules(planted) if m.startswith(FORBIDDEN_IMPORTS)]
         assert found == ["aletheia.store.db"]
 
+    def test_a_relative_import_does_not_slip_through(self) -> None:
+        """The hole an adversarial review found.
+
+        The scanner skipped every ``ImportFrom`` with ``level > 0``, so any file
+        under ``research/`` could have reached the warehouse with two dots and this
+        suite would have stayed green. Written against a path inside the real
+        source tree, because resolving ``..`` requires knowing which package the
+        file sits in.
+        """
+        planted = PACKAGE_ROOT / "research" / "_leak_probe.py"
+        planted.write_text("from ..store.db import Warehouse\n", encoding="utf-8")
+        try:
+            modules = list(_imported_modules(planted))
+        finally:
+            planted.unlink()
+        assert "aletheia.store.db" in modules
+        assert any(module.startswith(FORBIDDEN_IMPORTS) for module in modules)
+
+    def test_a_single_dot_relative_import_resolves_to_its_own_package(self) -> None:
+        """Control: ``from .prices import CachedPrices`` is legitimate and common.
+
+        A resolver that mapped every relative import to the forbidden prefix would
+        pass the test above while failing the whole suite for ordinary code.
+        """
+        planted = PACKAGE_ROOT / "research" / "_leak_probe.py"
+        planted.write_text("from .prices import CachedPrices\n", encoding="utf-8")
+        try:
+            modules = list(_imported_modules(planted))
+        finally:
+            planted.unlink()
+        assert modules == ["aletheia.research.prices"]
+        assert not any(module.startswith(FORBIDDEN_IMPORTS) for module in modules)
+
+    def test_a_dynamic_import_with_a_literal_name_is_caught(self) -> None:
+        """The next thing reached for once the static forms are shut."""
+        planted = PACKAGE_ROOT / "research" / "_leak_probe.py"
+        planted.write_text(
+            "import importlib\n\ndb = importlib.import_module('aletheia.store.db')\n",
+            encoding="utf-8",
+        )
+        try:
+            modules = list(_imported_modules(planted))
+        finally:
+            planted.unlink()
+        assert "aletheia.store.db" in modules
+
     def test_the_detector_sees_plain_import_statements_too(self, tmp_path: Path) -> None:
         planted = tmp_path / "leaky2.py"
         planted.write_text("import duckdb\n", encoding="utf-8")
@@ -148,11 +194,72 @@ def _research_modules() -> Iterator[Path]:
 
 
 def _imported_modules(path: Path) -> Iterator[str]:
-    """Every module name a file imports, from both import forms."""
+    """Every module a file imports, by any form that actually reaches the warehouse.
+
+    Three forms, because a boundary that only catches the obvious one is not a
+    boundary:
+
+    * ``import aletheia.store.db``
+    * ``from aletheia.store.db import Warehouse``
+    * ``from ..store.db import Warehouse`` -- **relative**. An earlier version
+      skipped these entirely (``node.level == 0``), so any file under
+      ``research/`` could have reached the warehouse with two dots and the test
+      would have stayed green.
+    * ``importlib.import_module("aletheia.store.db")`` with a literal argument,
+      which is the next thing someone reaches for once the static forms are shut.
+
+    A computed module name still escapes, and always will under static analysis.
+    That is why the import boundary is the third mechanism rather than the only
+    one: the SQL bound and the runtime canary do not care how the module was
+    reached.
+    """
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    package = _package_of(path)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 yield alias.name
-        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-            yield node.module
+        elif isinstance(node, ast.ImportFrom):
+            yield _absolute(node, package)
+        elif isinstance(node, ast.Call):
+            yield from _dynamic_import_target(node)
+
+
+def _package_of(path: Path) -> str:
+    """Dotted package containing ``path``, e.g. ``aletheia.research``.
+
+    Empty for a file outside the source tree -- the planted-leak fixtures live in
+    a temp directory, and a relative import there resolves to nothing rather than
+    raising.
+    """
+    try:
+        relative = path.relative_to(PACKAGE_ROOT.parent)
+    except ValueError:
+        return ""
+    return ".".join(relative.parts[:-1])
+
+
+def _absolute(node: ast.ImportFrom, package: str) -> str:
+    """Resolve a possibly-relative ``from ... import ...`` to a full module path."""
+    if node.level == 0:
+        return node.module or ""
+    parts = package.split(".")
+    base = parts[: len(parts) - (node.level - 1)]
+    return ".".join([*base, node.module]) if node.module else ".".join(base)
+
+
+def _dynamic_import_target(node: ast.Call) -> Iterator[str]:
+    """``importlib.import_module("x")`` / ``__import__("x")`` with a literal name."""
+    func = node.func
+    name = (
+        func.attr
+        if isinstance(func, ast.Attribute)
+        else func.id
+        if isinstance(func, ast.Name)
+        else ""
+    )
+    if name not in {"import_module", "__import__"}:
+        return
+    for argument in node.args:
+        if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+            yield argument.value
