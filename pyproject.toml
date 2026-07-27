@@ -44,6 +44,8 @@ select = [
     "C4",          # comprehensions
     "DTZ",         # naive datetimes — load-bearing here, we are a bitemporal system
     "S",           # bandit: no shell injection, no hardcoded secrets, no bare asserts
+    "SLF",         # no reaching into another object's privates
+    "BLE",         # no blind `except Exception`
     "T20",         # no print() in library code
     "SIM",         # simplify
     "PTH",         # pathlib

@@ -35,6 +35,12 @@ from aletheia.core.errors import IntegrityViolation, MigrationError, StoreError
 from aletheia.core.hashing import canonical_hash, sha256_bytes
 from aletheia.core.types import Fact, Filing, MacroObservation, PriceBar
 from aletheia.core.version import code_version
+from aletheia.store.records import (
+    DelistingRecord,
+    DisseminatedFiling,
+    EntityRecord,
+    IdentifierRecord,
+)
 
 MIGRATIONS_DIR: Final = Path(__file__).parent / "migrations"
 _MIGRATION_RE: Final = re.compile(r"^(\d{3})_(\w+)\.sql$")
@@ -404,6 +410,206 @@ class Warehouse:
                     b.ingest_run_id,
                 )
                 for b in rows
+            ],
+        )
+
+    def record_dissemination(self, entries: Iterable[DisseminatedFiling]) -> int:
+        """Record the date each filing actually appeared in the public feed.
+
+        Inserts a stub row for filings we have not otherwise seen, and back-fills
+        ``disseminated_at`` on ones we have. Keeps the *earliest* dissemination
+        observed: seeing a filing in two days' feeds does not make it public later
+        than the first sighting.
+        """
+        entries = list(entries)
+        self._link_filers(entries)
+        rows = _dedupe(entries, key=lambda e: (e.accn.value, e.disseminated_at))
+        if not rows:
+            return 0
+        before = self.count("filings")
+        self._con.executemany(
+            """
+            INSERT INTO filings (accn, cik, form, filed_at, disseminated_at, source_uri,
+                                 retrieved_at, content_sha256, ingest_run_id, items, is_xbrl)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, [], FALSE)
+            ON CONFLICT (accn) DO UPDATE SET
+                disseminated_at = least(
+                    coalesce(filings.disseminated_at, excluded.disseminated_at),
+                    excluded.disseminated_at
+                )
+            """,
+            [
+                [
+                    e.accn.value,
+                    int(e.cik),
+                    e.form,
+                    e.filed_at,
+                    e.disseminated_at,
+                    e.source_uri,
+                    e.retrieved_at,
+                    e.content_sha256,
+                    e.ingest_run_id,
+                ]
+                for e in rows
+            ],
+        )
+        return self.count("filings") - before
+
+    def _link_filers(self, entries: Sequence[DisseminatedFiling]) -> int:
+        """Record every (filing, company) pair, not just the first company seen.
+
+        801 of one day's 3,168 filings were joint submissions — one of them by
+        eight co-registrants. Keeping only the first would answer "did this
+        company file anything" with a wrong "no".
+        """
+        if not entries:
+            return 0
+        seen: set[tuple[str, int]] = set()
+        rows: list[list[Any]] = []
+        for entry in entries:
+            key = (entry.accn.value, int(entry.cik))
+            if key in seen:
+                continue
+            seen.add(key)
+            is_primary = entry.accn.value.startswith(entry.cik.padded)
+            rows.append(
+                [
+                    entry.accn.value,
+                    int(entry.cik),
+                    is_primary,
+                    entry.source_uri,
+                    entry.retrieved_at,
+                    entry.ingest_run_id,
+                ]
+            )
+        before = self.count("filing_filers")
+        self._con.executemany(
+            """
+            INSERT INTO filing_filers (accn, cik, is_primary, source_uri, retrieved_at, ingest_run_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
+            """,
+            rows,
+        )
+        return self.count("filing_filers") - before
+
+    def write_entity(self, entity: EntityRecord) -> int:
+        """Upsert company metadata, widening the observation window.
+
+        ``first_observed``/``last_observed`` bracket when we have actually seen
+        this company, which is weaker than "when it existed" — and saying so is
+        the point. Claiming coverage we do not have is how a universe silently
+        acquires survivorship bias.
+        """
+        before = self.count("entities")
+        self._con.execute(
+            """
+            INSERT INTO entities (cik, name, entity_type, sic, sic_description, fiscal_year_end,
+                                  state_of_incorp, first_observed, last_observed, source_uri,
+                                  retrieved_at, content_sha256, ingest_run_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (cik) DO UPDATE SET
+                name           = excluded.name,
+                entity_type    = excluded.entity_type,
+                sic            = excluded.sic,
+                sic_description = excluded.sic_description,
+                fiscal_year_end = excluded.fiscal_year_end,
+                state_of_incorp = excluded.state_of_incorp,
+                first_observed = least(entities.first_observed, excluded.first_observed),
+                last_observed  = greatest(entities.last_observed, excluded.last_observed),
+                source_uri     = excluded.source_uri,
+                retrieved_at   = excluded.retrieved_at,
+                content_sha256 = excluded.content_sha256,
+                ingest_run_id  = excluded.ingest_run_id
+            """,
+            [
+                int(entity.cik),
+                entity.name,
+                entity.entity_type,
+                entity.sic,
+                entity.sic_description,
+                entity.fiscal_year_end,
+                entity.state_of_incorp,
+                entity.observed_at,
+                entity.observed_at,
+                entity.source_uri,
+                entity.retrieved_at,
+                entity.content_sha256,
+                entity.ingest_run_id,
+            ],
+        )
+        return self.count("entities") - before
+
+    def write_identifiers(self, identifiers: Iterable[IdentifierRecord]) -> int:
+        rows = _dedupe(identifiers, key=lambda i: (int(i.cik), i.ticker, i.observed_at))
+        if not rows:
+            return 0
+        return self._insert_rows(
+            "entity_identifiers",
+            (
+                "cik",
+                "ticker",
+                "exchange",
+                "observed_at",
+                "source_uri",
+                "retrieved_at",
+                "content_sha256",
+                "ingest_run_id",
+            ),
+            [
+                (
+                    int(i.cik),
+                    i.ticker,
+                    i.exchange,
+                    i.observed_at,
+                    i.source_uri,
+                    i.retrieved_at,
+                    i.content_sha256,
+                    i.ingest_run_id,
+                )
+                for i in rows
+            ],
+        )
+
+    def write_delistings(self, delistings: Iterable[DelistingRecord]) -> int:
+        """Record names that left an exchange.
+
+        These are the companies whose prices this system cannot obtain. Storing
+        them is what turns an invisible hole into a measurable one.
+        """
+        rows = _dedupe(delistings, key=lambda d: (d.symbol, d.observed_at, d.source))
+        if not rows:
+            return 0
+        return self._insert_rows(
+            "delistings",
+            (
+                "symbol",
+                "exchange",
+                "company_name",
+                "ipo_date",
+                "delisted_date",
+                "observed_at",
+                "source",
+                "source_uri",
+                "retrieved_at",
+                "content_sha256",
+                "ingest_run_id",
+            ),
+            [
+                (
+                    d.symbol,
+                    d.exchange,
+                    d.company_name,
+                    d.ipo_date,
+                    d.delisted_date,
+                    d.observed_at,
+                    d.source,
+                    d.source_uri,
+                    d.retrieved_at,
+                    d.content_sha256,
+                    d.ingest_run_id,
+                )
+                for d in rows
             ],
         )
 
