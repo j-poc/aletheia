@@ -23,13 +23,31 @@ Why hand-written mutants rather than `mutmut` or `cosmic-ray`: those generate
 mutants uniformly (flip a comparison, drop a statement) and most are trivially
 caught, so the score is dominated by easy kills and the interesting cases are
 diluted. Each mutant here reproduces a defect that actually shipped, cited by
-decision record. The number that matters is 9/9, not a percentage.
+decision record. The number that matters is 10/10, not a percentage.
+
+**The working tree is never written to.** An earlier version mutated the real
+files and restored them in a `finally`, which made the source of truth wrong for
+the duration of every pytest run -- and this gate runs inside `make verify`,
+which is exactly when something else (an editor, a linter, a reviewer, a parallel
+session) is most likely to read those files. That happened: a background security
+scan read a migration mid-run and reported a defect whose "suggested fix" was
+byte-identical to the code on disk. The finding was noise; the window that
+produced it was not. Every mutation now lands in a throwaway copy, and imports
+are redirected there with ``PYTHONPATH``.
+
+That redirection is itself checked before any mutant runs, because the dangerous
+failure mode is silent: if the sandbox were not on the import path the tests
+would exercise the real, unmutated code, every mutant would survive, and the gate
+would report a suite that catches nothing. :func:`_unredirected_imports` asserts
+``aletheia.__file__`` and ``trialkeeper.__file__`` both resolve inside the copy.
 
 Run: ``make mutants`` (or ``uv run python scripts/mutation_gate.py``).
 """
 
 from __future__ import annotations
 
+import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -43,6 +61,28 @@ ENGINE = "packages/engine/src/aletheia"
 TESTS = "packages/engine/tests/unit"
 TRIALKEEPER = "packages/trialkeeper/src/trialkeeper"
 TK_TESTS = "packages/trialkeeper/tests"
+
+SANDBOX_TREES = (
+    "packages/engine/src",
+    "packages/engine/tests",
+    "packages/trialkeeper/src",
+    "packages/trialkeeper/tests",
+)
+"""Copied wholesale into the sandbox: the code under test and the tests themselves.
+
+Both halves are needed. Copying only the sources would leave pytest collecting the
+real test files, which import their fixtures and helpers by package-relative path
+and would then straddle two trees.
+"""
+
+IMPORT_ROOTS = ("packages/engine/src", "packages/trialkeeper/src")
+"""Prepended to ``PYTHONPATH`` so ``import aletheia`` finds the copy.
+
+The editable installs in ``.venv`` are plain ``.pth`` path entries rather than a
+meta-path finder, so an earlier ``sys.path`` entry shadows them. That is an
+implementation detail of the installer and could change, which is why the
+redirection is verified at runtime rather than assumed.
+"""
 
 
 @dataclass(frozen=True)
@@ -154,24 +194,64 @@ MUTANTS: tuple[Mutant, ...] = (
 )
 
 
-def _tracked_and_dirty(paths: tuple[str, ...]) -> list[str]:
-    """Which of ``paths`` git reports as modified."""
+def _build_sandbox() -> Path:
+    """A throwaway copy of the source and test trees, mutated in place of the real ones."""
+    sandbox = Path(tempfile.mkdtemp(prefix="aletheia-mutants-"))
+    for relative in SANDBOX_TREES:
+        shutil.copytree(
+            ROOT / relative,
+            sandbox / relative,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+    return sandbox
+
+
+def _sandbox_env(sandbox: Path) -> dict[str, str]:
+    """The subprocess environment with imports pointed at ``sandbox``."""
+    env = dict(os.environ)
+    inherited = env.get("PYTHONPATH", "")
+    entries = [str(sandbox / relative) for relative in IMPORT_ROOTS]
+    if inherited:
+        entries.append(inherited)
+    env["PYTHONPATH"] = os.pathsep.join(entries)
+    return env
+
+
+def _unredirected_imports(sandbox: Path, env: dict[str, str]) -> list[str]:
+    """Empty when both packages import from ``sandbox``; otherwise what went wrong.
+
+    The whole gate rests on this. If the redirection fails, pytest exercises the
+    real unmutated code, every mutant survives, and the output is a report that
+    the test suite catches nothing -- alarming but wrong, and the true cause
+    would not be visible anywhere in it.
+    """
+    probe = "import aletheia, trialkeeper; print(aletheia.__file__); print(trialkeeper.__file__)"
     result = subprocess.run(  # noqa: S603
-        ["git", "status", "--porcelain", "--", *paths],  # noqa: S607
+        [sys.executable, "-c", probe],
         cwd=ROOT,
+        env=env,
         capture_output=True,
         text=True,
         check=False,
     )
     if result.returncode != 0:
-        # Not a git checkout (a tarball, say). The finally-block restore still
-        # runs; the caller just loses `git checkout` as a recovery path.
-        return []
-    return [line[3:] for line in result.stdout.splitlines() if line.strip()]
+        tail = result.stderr.strip().splitlines()
+        return [f"import probe failed: {tail[-1] if tail else 'no output'}"]
+    resolved = result.stdout.splitlines()
+    if len(resolved) != 2:
+        return [f"import probe printed {len(resolved)} path(s), expected 2"]
+    return [path for path in resolved if not path.startswith(f"{sandbox}{os.sep}")]
 
 
-def _run(tests: tuple[str, ...]) -> bool:
-    """True when the named tests pass."""
+def _run(tests: tuple[str, ...], sandbox: Path, env: dict[str, str]) -> bool:
+    """True when the named tests -- collected from the sandbox -- pass.
+
+    ``-c`` and ``--rootdir`` are pinned to the real repo because the test paths
+    now live under ``/tmp``: without them pytest would look for its config beside
+    those paths, find none, and silently drop ``--strict-markers``,
+    ``filterwarnings = ["error"]`` and the marker declarations. The tests would
+    still run, under quietly different rules.
+    """
     result = subprocess.run(  # noqa: S603
         [
             sys.executable,
@@ -181,14 +261,24 @@ def _run(tests: tuple[str, ...]) -> bool:
             "--no-header",
             "-p",
             "no:cacheprovider",
-            *tests,
+            "-c",
+            str(ROOT / "pyproject.toml"),
+            "--rootdir",
+            str(ROOT),
+            *[str(sandbox / test) for test in tests],
         ],
         cwd=ROOT,
+        env=env,
         capture_output=True,
         text=True,
         check=False,
     )
     return result.returncode == 0
+
+
+def _digests(paths: tuple[str, ...]) -> dict[str, str]:
+    """sha256 of each path in the real tree."""
+    return {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest() for path in paths}
 
 
 def main() -> int:
@@ -197,81 +287,68 @@ def main() -> int:
         print(f"FAIL  target file does not exist: {missing}")
         return 1
 
-    # This harness rewrites tracked source files in place, so every target is
-    # copied to disk first. In-memory restore in a `finally` handles the normal
-    # path, but "runs in finally" is no guarantee against SIGKILL, and this gate
-    # runs inside `make verify` -- which is exactly when the tree is expected to
-    # be dirty, because verifying is what you do *before* committing. An earlier
-    # version refused on a dirty tree for safety; that made the safety check
-    # block its own gate on the normal mid-work state, which is worse than the
-    # hazard it prevented. The backup is the real protection, and unlike
-    # `git checkout` it also covers a tree that was never committed.
-    backup_dir = Path(tempfile.mkdtemp(prefix="aletheia-mutants-"))
-    for path in targets:
-        copy = backup_dir / path.replace("/", "__")
-        copy.write_text((ROOT / path).read_text(encoding="utf-8"), encoding="utf-8")
+    # Taken from the real tree before anything else happens, and compared again at
+    # the end. Under the sandbox design nothing should ever write to these files,
+    # so this check is expected to be trivially true -- which is the point. It is
+    # cheap, and it is the only thing that would notice if a future edit
+    # reintroduced an in-place write.
+    before = _digests(targets)
 
-    # Printed unconditionally, before any file is touched. If the loop below dies
-    # on something unplanned -- pytest exploding, Ctrl-C, a read error -- the user
-    # is left with mutated files on disk and a traceback, and this line is then the
-    # only record of where the originals are. A path that is only named on the
-    # paths that end cleanly is not a recovery path.
-    print(f"originals -> {backup_dir}")
+    sandbox = _build_sandbox()
+    print(f"sandbox -> {sandbox}   (the working tree is not written to)")
 
-    dirty = _tracked_and_dirty(targets)
-    if dirty:
-        print("NOTE  these target files carry uncommitted changes; the copies above")
-        print("      are the originals for the duration of the run:")
-        for path in dirty:
-            print(f"          {path}")
+    env = _sandbox_env(sandbox)
+    stray = _unredirected_imports(sandbox, env)
+    if stray:
+        print("FAIL  imports do not resolve to the sandbox, so mutants would test nothing:")
+        for line in stray:
+            print(f"          {line}")
+        shutil.rmtree(sandbox, ignore_errors=True)
+        return 1
     print()
 
     survivors: list[Mutant] = []
-    for mutant in MUTANTS:
-        target = ROOT / mutant.path
-        original = target.read_text(encoding="utf-8")
-        if mutant.old not in original:
-            print(f"FAIL  {mutant.label}\n        anchor no longer present in {mutant.path}")
-            print("        The code moved. Update the mutant, or it is silently testing nothing.")
-            survivors.append(mutant)
-            continue
+    try:
+        for mutant in MUTANTS:
+            target = sandbox / mutant.path
+            original = target.read_text(encoding="utf-8")
+            if mutant.old not in original:
+                print(f"FAIL  {mutant.label}\n        anchor no longer present in {mutant.path}")
+                print(
+                    "        The code moved. Update the mutant, or it is silently testing nothing."
+                )
+                survivors.append(mutant)
+                continue
 
-        target.write_text(original.replace(mutant.old, mutant.new, 1), encoding="utf-8")
-        try:
-            caught = not _run(mutant.tests)
-        finally:
-            target.write_text(original, encoding="utf-8")
-        # The restore half is not ceremony: if the suite does not go green again,
-        # the environment is broken and the "caught" result above proves nothing.
-        healed = _run(mutant.tests)
+            target.write_text(original.replace(mutant.old, mutant.new, 1), encoding="utf-8")
+            try:
+                caught = not _run(mutant.tests, sandbox, env)
+            finally:
+                target.write_text(original, encoding="utf-8")
+            # The restore half is not ceremony: if the suite does not go green
+            # again, the environment is broken and the "caught" result above
+            # proves nothing.
+            healed = _run(mutant.tests, sandbox, env)
 
-        ok = caught and healed
-        if not ok:
-            survivors.append(mutant)
-        print(
-            f"{'PASS' if ok else 'FAIL'}  [{mutant.decision}] {mutant.label}\n"
-            f"        mutated -> {'FAILED (caught)' if caught else 'PASSED (SURVIVED)'}"
-            f"   restored -> {'PASSED' if healed else 'FAILED (harness broken)'}"
-        )
+            ok = caught and healed
+            if not ok:
+                survivors.append(mutant)
+            print(
+                f"{'PASS' if ok else 'FAIL'}  [{mutant.decision}] {mutant.label}\n"
+                f"        mutated -> {'FAILED (caught)' if caught else 'PASSED (SURVIVED)'}"
+                f"   restored -> {'PASSED' if healed else 'FAILED (harness broken)'}"
+            )
+    finally:
+        shutil.rmtree(sandbox, ignore_errors=True)
 
-    # Restoration is asserted, not assumed. Every target must match the copy
-    # taken before the first mutation; if one does not, the backup directory is
-    # kept and named rather than cleaned up, because it is now the only surviving
-    # copy of that file.
     print()
-    unrestored = [
-        path
-        for path in targets
-        if (ROOT / path).read_text(encoding="utf-8")
-        != (backup_dir / path.replace("/", "__")).read_text(encoding="utf-8")
-    ]
-    if unrestored:
-        print("FAIL  these files did not come back byte-identical:")
-        for path in unrestored:
+    touched = [path for path, digest in before.items() if _digests((path,))[path] != digest]
+    if touched:
+        print("FAIL  the working tree was modified, which this harness must never do:")
+        for path in touched:
             print(f"          {path}")
-        print(f"      Originals are in {backup_dir} -- restore them from there.")
+        print("      Restore from git; the sandbox has been deleted.")
         return 1
-    shutil.rmtree(backup_dir, ignore_errors=True)
 
     if survivors:
         print(f"{len(survivors)} of {len(MUTANTS)} mutant(s) survived:")

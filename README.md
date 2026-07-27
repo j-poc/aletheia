@@ -194,17 +194,23 @@ without any of the rest of this.
 | Costs are never omitted | Every return is reported gross and net, with turnover and the capital assumed |
 | Survivorship is measured | Names the price vendor will not serve are counted with reasons, not skipped |
 | Trials are counted | Hypotheses are registered in an append-only hash chain *before* they run |
-| The tests would notice | `make mutants` reintroduces nine defects that actually shipped — each reverted to the exact form the bug had — and requires a test to fail on every one, then to pass again once it is restored |
+| The tests would notice | `make mutants` reintroduces ten defects that actually shipped — each reverted to the exact form the bug had — and requires a test to fail on every one, then to pass again once it is restored |
 
 A green suite says the tests pass; it does not say they would have failed. Those
 are different claims and only the second is evidence. `make mutants` measures the
 second one directly, and its own failure paths are checked too: a mutant nothing
-catches is reported as survived, an anchor that no longer matches the source is
-reported rather than silently skipped, and every file it rewrites is copied to a
-temporary directory first and asserted byte-identical afterward. The directory is
-printed before the first file is touched, so an interrupted run still tells you
-where the originals are; if a restore does not match, the run fails rather than
-cleaning that directory up.
+catches is reported as survived, and an anchor that no longer matches the source
+is reported rather than silently skipped.
+
+It never writes to your working tree. Each mutation lands in a throwaway copy of
+the source and test trees, with imports redirected there by `PYTHONPATH` — so
+running the gate while an editor, a linter or another session is reading those
+files changes nothing under them. The redirection is verified before the first
+mutant, because its failure mode is silent: unredirected imports would exercise
+the real code, every mutant would survive, and the gate would report a suite that
+catches nothing. Both halves are checked — break the redirection with the check in
+place and the run fails naming the two paths that escaped; break it with the check
+removed and all ten mutants survive.
 
 That determinism gate immediately earned itself: the backtest kernel sorted on
 signal value alone, and Python's sort is stable, so tied values inherited whatever

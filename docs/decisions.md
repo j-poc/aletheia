@@ -636,3 +636,71 @@ bootstrap over the factor zoo's unpublished tests. Renamed to "BHY multiple-test
 haircut" and the distinction is now stated in the module docstring. The weaker
 claim is the true one, and for this library the true one is also the more useful:
 it is only as honest as the trial count in your own pre-registration ledger.
+
+---
+
+## D17 — The mutation gate never writes to the working tree
+
+**Taken:** 2026-07-27. **Reversal cost:** none — it is one script, and the
+in-place version is in the history.
+
+`scripts/mutation_gate.py` copies the source and test trees into a
+temporary directory, mutates the copy, and redirects imports there with
+`PYTHONPATH`. The real files are read once at the start and never written.
+
+**What was wrong with mutating in place.** The previous design rewrote tracked
+source files and restored them in a `finally`. It was careful about it — the
+originals were copied to a backup directory whose path was printed before the
+first write, and every file was asserted byte-identical afterward — and that
+handled the failure it was designed for: the run dying and leaving mutants on
+disk. It did nothing about the other one. For the duration of every pytest
+invocation the source of truth on disk was deliberately wrong, and this gate runs
+inside `make verify`, which is precisely when something else is most likely to be
+reading those files: an editor, a language server, a linter, a reviewer, a
+parallel session.
+
+That is not hypothetical. A background security scan read
+`005_fact_value_chain.sql` during a gate run and reported a defect whose
+suggested fix was byte-identical to the code on disk — it had seen the mutant.
+The finding was noise and cost only the time to disprove it. The window that
+produced it was real, and the next reader in that window might have been a human
+acting on what they saw, or a tool writing back.
+
+**Why the sandbox is safe from the same class of problem.** The mutated bytes now
+exist only under `/tmp`, so no concurrent reader of the repository can observe
+them. The invariant is checked rather than asserted: sha256 of every target is
+taken before the run and compared after, and sampling the tree continuously
+*during* a run — 267 samples across a full pass — showed no content drift and no
+`git status` output at any point. The sampler was then shown to detect a real
+one-line edit, so the clean result is a measurement and not a blind spot.
+
+**The failure mode this introduces, and its control.** `PYTHONPATH` redirection
+can fail silently. The editable installs in `.venv` are plain `.pth` path entries
+rather than a meta-path finder, so an earlier `sys.path` entry shadows them —
+true today, an implementation detail of the installer, and not something to rely
+on unverified. If it stopped being true, pytest would import the real unmutated
+code, every mutant would survive, and the gate would print an alarming and
+completely wrong report: that the test suite catches nothing.
+
+So `_unredirected_imports` runs before the first mutant and requires
+`aletheia.__file__` and `trialkeeper.__file__` to resolve inside the sandbox.
+Verified in both directions:
+
+| Run | Result |
+|---|---|
+| Redirection broken, check in place | exit 1, `FAIL imports do not resolve to the sandbox`, naming both real paths |
+| Redirection broken, check removed | exit 1 with all 10 mutants reported SURVIVED — the wrong diagnosis the check exists to prevent |
+| Unmodified | all 10 caught, exit 0 |
+
+**One consequence worth naming.** Because the tests are collected from `/tmp`,
+pytest would otherwise look for its configuration beside them, find none, and
+drop `--strict-markers`, `filterwarnings = ["error"]` and the marker
+declarations without saying so — the tests would still run, under quietly
+different rules. `-c` and `--rootdir` are pinned to the real repository to keep
+the sandbox run governed by the same configuration as `make test`.
+
+**What went away.** The backup directory, the byte-identical restore assertion
+over the real tree, and the dirty-tree note are all gone, because nothing writes
+to the real tree for them to protect. The before/after digest comparison is kept
+even though it is now trivially true: it is cheap, and it is the only thing that
+would notice if a future edit reintroduced an in-place write.
