@@ -269,8 +269,26 @@ def asof(
         "as_first_reported": _fact(first),
         "as_it_stands_today": _fact(restated),
         "relative_drift": drift,
+        # Three booleans, because "restated" is two questions and answering them
+        # as one overstates the common case. A later filing supersedes an earlier
+        # one (`is_restated`) far more often than it changes the number
+        # (`value_changed`): most refilings re-present the prior year's
+        # comparative column unchanged -- 57.9% of AAPL's value-change candidates
+        # sat in that annual window before the filter, per D6.
         "is_restated": restated.accn.value != known.accn.value,
-        "already_restated_by_then": known.accn.value != first.accn.value,
+        # The discriminator, compared as Decimal rather than through `drift`.
+        # Drift is None whenever the first report was 0, so `drift == 0` reads
+        # false for a 0 -> 0 re-presentation and reports it as a restatement,
+        # and reads the same for a genuine 0 -> nonzero revision. The values
+        # themselves have neither blind spot, and Decimal equality ignores the
+        # storage scale, so 22100000 and 22100000.00 compare equal.
+        "value_changed": restated.value != first.value,
+        # Value-based too, and for the same reason: this drives a caption that
+        # says the restatement had already been published by the knowledge date.
+        # Accession-based, it fired on any period whose next annual report had
+        # landed -- which after a year is nearly all of them -- and claimed a
+        # restatement on figures that never moved.
+        "already_restated_by_then": known.value != first.value,
     }
 
 

@@ -56,8 +56,16 @@ export type AsOf = {
   as_known: Fact;
   as_first_reported: Fact;
   as_it_stands_today: Fact;
+  /** Null when the first report was 0 — there is no denominator. */
   relative_drift: number | null;
+  /** A later filing supersedes the one this date would have had. Says nothing
+   * about whether the number moved: 90.6% of refilings carry it forward. */
   is_restated: boolean;
+  /** The number itself moved. Compared as Decimal server-side, so it answers on
+   * the periods where `relative_drift` is null and cannot. */
+  value_changed: boolean;
+  /** The value had already been revised by the knowledge date, so the left
+   * column is showing a restated figure rather than the original. */
   already_restated_by_then: boolean;
 };
 

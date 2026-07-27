@@ -107,7 +107,7 @@ export default async function Page({ searchParams }: Params) {
               heading={`As known on ${data.knowledge_date}`}
               caption={
                 data.already_restated_by_then
-                  ? "The restatement had already been published by this date, so this is it."
+                  ? "The value had already been revised by this date, so this column shows the revised one. Move the date earlier to see what came before."
                   : "The most recent figure filed by this date. What a practitioner actually had."
               }
               fact={data.as_known}
@@ -121,27 +121,23 @@ export default async function Page({ searchParams }: Params) {
               cik={data.cik}
               // Only a changed *value* earns the warning colour. A new accession
               // carrying the same figure is a re-presentation, and colouring it
-              // like a restatement would cry wolf on the common case.
-              tone={data.is_restated && data.relative_drift !== 0 ? "restated" : "known"}
+              // like a restatement would cry wolf on the common case -- 90.6% of
+              // refilings in the warehouse carry the number forward unchanged.
+              // `value_changed`, not a drift comparison: drift is null whenever
+              // the first report was 0, and 123,177 refilings are 0 -> 0.
+              tone={data.value_changed ? "restated" : "known"}
             />
           </div>
 
           <section className="rounded-lg border border-[var(--color-edge)] bg-[var(--color-panel)] p-5">
-            {data.is_restated && data.relative_drift === 0 ? (
-              <p className="text-sm leading-relaxed">
-                {/* A later filing repeated the same number under a new accession.
-                    Calling that a restatement would overstate it -- nothing about
-                    the figure changed, only which document is now its source. The
-                    distinction is the README's, and the card has to keep it. */}
-                <span className="font-medium">This period was re-presented, not revised.</span>{" "}
-                {data.company} reported{" "}
-                <strong className="tabular">{data.as_first_reported.value}</strong> on{" "}
-                {data.as_first_reported.knowledge_date}, and a later filing on{" "}
-                {data.as_it_stands_today.knowledge_date} carried the same figure forward
-                under a different accession. The value never moved; only its source
-                document did. A vendor panel would cite the later one.
-              </p>
-            ) : data.is_restated ? (
+            {/* Branch on whether the *value* moved, not on whether a later
+                document exists. Keying the first branch off `is_restated` put
+                "this period was never restated" on Apple's FY2008 EPS at any
+                date after January 2010: by then the restated filing is also the
+                latest one a reader would have had, so the accessions match and
+                the accession-based flag goes false on the very case the system
+                was built to show. */}
+            {data.value_changed ? (
               <p className="text-sm leading-relaxed">
                 <span className="font-medium text-[var(--color-restated)]">
                   This period was restated.
@@ -166,10 +162,25 @@ export default async function Page({ searchParams }: Params) {
                       data.as_it_stands_today.knowledge_date,
                     )} months into the future.`}
               </p>
+            ) : data.is_restated ? (
+              <p className="text-sm leading-relaxed">
+                {/* A later filing repeated the same number under a new accession.
+                    Calling that a restatement would overstate it -- nothing about
+                    the figure changed, only which document is now its source. The
+                    distinction is the README's, and the card has to keep it. */}
+                <span className="font-medium">This period was re-presented, not revised.</span>{" "}
+                {data.company} reported{" "}
+                <strong className="tabular">{data.as_first_reported.value}</strong> on{" "}
+                {data.as_first_reported.knowledge_date}, and a later filing on{" "}
+                {data.as_it_stands_today.knowledge_date} carried the same figure forward
+                under a different accession. The value never moved; only its source
+                document did. A vendor panel would cite the later one.
+              </p>
             ) : (
               <p className="text-sm leading-relaxed text-[var(--color-muted)]">
-                This period was never restated, so both columns agree. That is the
-                common case — and the reason the difference is easy to miss until it
+                This period&rsquo;s value was never revised, so both columns agree. That
+                is the common case — 90.6% of refilings carry the figure forward
+                unchanged — and the reason the difference is easy to miss until it
                 matters.
               </p>
             )}

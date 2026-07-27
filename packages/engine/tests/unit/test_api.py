@@ -17,8 +17,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from aletheia.api import app as api
+from aletheia.core.types import Fact
 from aletheia.store.db import Warehouse
 from tests._factories import (
+    FIRST_REPORT_ACCN,
     FIRST_REPORT_FILED,
     FY2008_END,
     RESTATEMENT_FILED,
@@ -495,3 +497,220 @@ class TestRevisionCoverageCountsPeriodsNotEndDates:
         )
         payload = year_and_quarter.get("/api/quality").json()["revision_coverage"]
         assert payload["periods_with_a_changed_value"] == 2
+
+
+class TestARefilingIsNotAutomaticallyARestatement:
+    """Whether a later filing supersedes the earlier one, and whether the number
+    moved, are two questions. Over the whole warehouse they have very different
+    answers: of 3,956,913 (first report, later report) pairs, 3,586,802 -- 90.6%
+    -- carry the value forward unchanged. Answering them as one would put a
+    restatement warning on nine periods out of ten that never had one.
+
+    The fixture is real. AAR Corp (CIK 1750) reported profit of $22.1M for the
+    six months ending 2018-11-30 in the 10-Q filed 2018-12-19, and the 10-Q filed
+    2019-12-20 carried the identical figure forward under a new accession as the
+    prior-year comparative column. Nothing was restated; the number simply has a
+    second source document now.
+    """
+
+    AIR_CIK = 1750
+    HALF_YEAR_START = date(2018, 6, 1)
+    HALF_YEAR_END = date(2018, 11, 30)
+    ORIGINAL_ACCN = "0001104659-18-073842"
+    ORIGINAL_FILED = date(2018, 12, 19)
+    REPRESENTED_ACCN = "0001104659-19-074491"
+    REPRESENTED_FILED = date(2019, 12, 20)
+    PROFIT = "22100000"
+
+    @pytest.fixture
+    def air(self, client: TestClient, warehouse: Warehouse) -> TestClient:
+        warehouse.write_entity(make_entity(cik=self.AIR_CIK, name="AAR CORP", sic="3720"))
+        warehouse.write_identifiers([make_identifier(cik=self.AIR_CIK, ticker="AIR")])
+        warehouse.write_filings(
+            [
+                make_filing(
+                    accn=self.ORIGINAL_ACCN,
+                    filed_at=self.ORIGINAL_FILED,
+                    form="10-Q",
+                    cik=self.AIR_CIK,
+                    period_of_report=self.HALF_YEAR_END,
+                ),
+                make_filing(
+                    accn=self.REPRESENTED_ACCN,
+                    filed_at=self.REPRESENTED_FILED,
+                    form="10-Q",
+                    cik=self.AIR_CIK,
+                    period_of_report=date(2019, 11, 30),
+                ),
+            ]
+        )
+        warehouse.write_facts(
+            [
+                self._profit(accn=self.ORIGINAL_ACCN, filed_at=self.ORIGINAL_FILED),
+                self._profit(accn=self.REPRESENTED_ACCN, filed_at=self.REPRESENTED_FILED),
+            ]
+        )
+        return client
+
+    def _profit(self, *, accn: str, filed_at: date) -> Fact:
+        return make_fact(
+            value=self.PROFIT,
+            filed_at=filed_at,
+            accn=accn,
+            concept="ProfitLoss",
+            unit="USD",
+            cik=self.AIR_CIK,
+            form="10-Q",
+            period_start=self.HALF_YEAR_START,
+            period_end=self.HALF_YEAR_END,
+        )
+
+    def _ask(self, air: TestClient, day: str) -> dict[str, object]:
+        response = air.get(
+            "/api/asof/AIR",
+            params={
+                "knowledge_date": day,
+                "concept": "ProfitLoss",
+                "period_end": self.HALF_YEAR_END.isoformat(),
+            },
+        )
+        assert response.status_code == 200, response.text
+        return dict(response.json())
+
+    def test_the_refiling_is_reported_as_a_refiling(self, air: TestClient) -> None:
+        payload = self._ask(air, "2018-12-31")
+        assert payload["is_restated"] is True, (
+            "a later accession does supersede the one a reader would have had, and "
+            "the viewer still has to say so -- a vendor panel cites the later one"
+        )
+
+    def test_but_the_value_did_not_change(self, air: TestClient) -> None:
+        """The discriminator. This is what earns the restatement warning."""
+        payload = self._ask(air, "2018-12-31")
+        assert payload["value_changed"] is False
+        assert payload["as_first_reported"]["value"] == self.PROFIT
+        assert payload["as_it_stands_today"]["value"] == self.PROFIT
+
+    def test_a_re_presentation_never_reads_as_already_restated(self, air: TestClient) -> None:
+        """Including *after* the second filing has landed, which is the whole point.
+
+        Accession-based, this flag fired on every period whose next annual report
+        had been filed -- nearly all of them, a year on -- and the card then told
+        the reader a restatement had already been published on a figure that never
+        moved.
+        """
+        for day in ("2018-12-31", "2020-06-01"):
+            payload = self._ask(air, day)
+            assert payload["already_restated_by_then"] is False, day
+
+    def test_the_genuine_restatement_still_reads_as_one(self, client: TestClient) -> None:
+        """Two-sided: the Apple fixture must keep both flags true."""
+        payload = client.get(
+            "/api/asof/AAPL",
+            params={"knowledge_date": "2010-06-01", "period_end": FY2008_END.isoformat()},
+        ).json()
+        assert payload["value_changed"] is True
+        assert payload["already_restated_by_then"] is True
+
+
+class TestAZeroFirstReportStillAnswersTheQuestion:
+    """`relative_drift` is None whenever the first report was 0 -- there is no
+    denominator -- so a card that decides "did this change" from the drift is
+    blind on exactly those periods. It is not a rare corner: 123,177 refilings in
+    the warehouse are 0 -> 0, and 2,924 first reports of 0 later moved to a
+    non-zero figure. Arconic first reported $0 of discontinued-operations income
+    for FY2018 on 2019-02-21 and restated it to $333M on 2021-02-16.
+
+    `value_changed` compares the values, so it answers on both.
+    """
+
+    CONCEPT = "IncomeLossFromDiscontinuedOperationsNetOfTaxAttributableToReportingEntity"
+    LATER_ACCN = "0001193125-10-012091"
+
+    @pytest.fixture
+    def zeroed(self, client: TestClient, warehouse: Warehouse) -> TestClient:
+        """First report of 0, refiled unchanged. The blind spot in its pure form."""
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value="0",
+                    filed_at=FIRST_REPORT_FILED,
+                    accn=FIRST_REPORT_ACCN,
+                    concept=self.CONCEPT,
+                    unit="USD",
+                ),
+                make_fact(
+                    value="0",
+                    filed_at=RESTATEMENT_FILED,
+                    accn=self.LATER_ACCN,
+                    concept=self.CONCEPT,
+                    unit="USD",
+                ),
+            ]
+        )
+        return client
+
+    def _ask(self, client: TestClient, day: str) -> dict[str, object]:
+        response = client.get(
+            "/api/asof/AAPL",
+            params={
+                "knowledge_date": day,
+                "concept": self.CONCEPT,
+                "period_end": FY2008_END.isoformat(),
+            },
+        )
+        assert response.status_code == 200, response.text
+        return dict(response.json())
+
+    def test_the_drift_is_undefined(self, zeroed: TestClient) -> None:
+        """Stated first, because it is the premise of the next two tests."""
+        for day in ("2009-12-01", "2010-06-01"):
+            assert self._ask(zeroed, day)["relative_drift"] is None, day
+
+    def test_and_the_value_is_still_known_not_to_have_changed(self, zeroed: TestClient) -> None:
+        """Asked before the second filing, so a later document does supersede the
+        one a reader had -- which is precisely when the card decides whether to
+        show a restatement warning."""
+        payload = self._ask(zeroed, "2009-12-01")
+        assert payload["is_restated"] is True
+        assert payload["value_changed"] is False, (
+            "0 -> 0 under a new accession is a re-presentation; deciding from a "
+            "null drift reports it as a restatement"
+        )
+
+    def test_and_it_never_reads_as_already_restated(self, zeroed: TestClient) -> None:
+        for day in ("2009-12-01", "2010-06-01"):
+            assert self._ask(zeroed, day)["already_restated_by_then"] is False, day
+
+    def test_a_real_move_off_zero_is_reported_as_one(
+        self, client: TestClient, warehouse: Warehouse
+    ) -> None:
+        """The other side, and the reason drift alone cannot be the discriminator:
+        both cases carry a null drift and they are opposites."""
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value="0",
+                    filed_at=FIRST_REPORT_FILED,
+                    accn=FIRST_REPORT_ACCN,
+                    concept=self.CONCEPT,
+                    unit="USD",
+                ),
+                make_fact(
+                    value="333000000",
+                    filed_at=RESTATEMENT_FILED,
+                    accn=self.LATER_ACCN,
+                    concept=self.CONCEPT,
+                    unit="USD",
+                ),
+            ]
+        )
+        before = self._ask(client, "2009-12-01")
+        assert before["relative_drift"] is None
+        assert before["is_restated"] is True
+        assert before["value_changed"] is True
+
+        after = self._ask(client, "2010-06-01")
+        assert after["relative_drift"] is None
+        assert after["value_changed"] is True
+        assert after["already_restated_by_then"] is True
