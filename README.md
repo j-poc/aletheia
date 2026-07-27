@@ -122,6 +122,21 @@ never have produced, because both required contact with the real feed:
   that should have matched did not; the cause was a filing counted once per filer.
   Migration `003`.
 
+Three more surfaced only by running the finished application against the real
+warehouse rather than against fixtures:
+
+- **Every filing was invisible to research.** `v_company_filings_pit` inner-joins a
+  filer relation that only the daily-index path populated, so all 1.36M filings
+  pulled from the submissions endpoint were stored and never linked. The
+  surveillance layer would have reported a quiet day, forever.
+- **Concurrent requests returned each other's rows.** A DuckDB connection carries one
+  result set; FastAPI runs sync endpoints in a threadpool. A browser opening two
+  pages was enough for a row-count query to come back holding an accession number.
+- **The provenance ledger held one row against 2,281 payload files.** Indexing was
+  wired per call site and only one of six did it. Row-level provenance was never
+  affected — every fact's content hash resolves to a real file — but the index that
+  answers "what did this system fetch" was empty and nothing said so.
+
 And one in the cost model, caught by a negative control rather than by review:
 Corwin–Schultz produces negative per-pair spread estimates constantly, since it
 infers a spread from a range that is mostly volatility. Discarding them truncates
@@ -200,6 +215,21 @@ both migrations above, so they are not optional before trusting a change to a so
   without touching research code.
 - **Not a claim that the signals here make money.** The evidence engine is the
   point. A signal that dies once its trial count is honest is published as dying.
+
+### The flagship study has not run
+
+It is built, tested and blocked on data, and that is stated rather than papered
+over. The fundamentals landed — 800 filers, 13.4M facts — and symbol resolution
+produced 226 tradable names. The price vendor's **daily quota** ran out after 8 of
+them, and the two free alternatives are unusable (Yahoo's chart API now demands a
+cookie-and-crumb handshake and rate-limits the crumb endpoint itself; Stooq puts a
+JavaScript proof-of-work wall in front of its CSV).
+
+Eight symbols cannot populate five quantiles. Running it anyway would produce
+noise dressed as a finding, so it was not run. `docs/decisions.md` D9 records what
+unblocks it. The failure did earn a fix: batch ingest now trips a circuit breaker
+after five consecutive failures instead of spending twenty-two minutes retrying an
+exhausted quota and exiting `0`.
 
 ---
 
