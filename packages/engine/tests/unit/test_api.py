@@ -164,6 +164,142 @@ class TestTheCoreGuaranteeOverHttp:
         assert "had not been published" in response.json()["detail"]
 
 
+class TestTheFutureCannotUnanswerAPastQuestion:
+    """A filing made later must not turn a 200 into a 400.
+
+    ``/api/asof`` reads the restated figure from the FULL data vintage, by design
+    -- the gap between the first report and today's value is the number the page
+    exists to show. That read therefore sees filings made after the knowledge date
+    being asked about, and an end date that named one period then can name two now.
+
+    Real case behind this: AAR Corp (CIK 1750) ProfitLoss ending 2018-11-30 was a
+    single 182-day period on 2018-12-19; the 2019-03-20 10-Q added a 90-day period
+    ending the same day. Unpinned, the endpoint answered the knowledge-date part
+    fine and then raised on the restated part, so the request 400'd on account of
+    data from its own future -- in the system whose one claim is that this cannot
+    happen.
+    """
+
+    SHARED_END = date(2018, 11, 30)
+    KNOWN_ON = "2018-12-19"
+
+    @pytest.fixture
+    def with_a_later_second_period(self, client: TestClient, warehouse: Warehouse) -> TestClient:
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value="22100000",
+                    filed_at=date(2018, 12, 19),
+                    accn="0001104659-18-073842",
+                    concept="ProfitLoss",
+                    unit="USD",
+                    period_start=date(2018, 6, 1),
+                    period_end=self.SHARED_END,
+                )
+            ]
+        )
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value="7000000",
+                    filed_at=date(2019, 3, 20),
+                    accn="0001104659-19-016320",
+                    concept="ProfitLoss",
+                    unit="USD",
+                    period_start=date(2018, 9, 1),
+                    period_end=self.SHARED_END,
+                )
+            ]
+        )
+        return client
+
+    def test_the_request_still_answers(self, with_a_later_second_period: TestClient) -> None:
+        response = with_a_later_second_period.get(
+            "/api/asof/AAPL",
+            params={
+                "knowledge_date": self.KNOWN_ON,
+                "concept": "ProfitLoss",
+                "period_end": self.SHARED_END.isoformat(),
+            },
+        )
+        assert response.status_code == 200, response.json()
+        payload = response.json()
+        assert payload["as_known"]["value"] == "22100000"
+        # Every figure on the card describes the same period, not three periods
+        # that happen to share an end date.
+        assert payload["as_it_stands_today"]["period_start"] == "2018-06-01"
+        assert payload["as_first_reported"]["period_start"] == "2018-06-01"
+
+
+class TestNamingAPeriodOverHttp:
+    """The 400 tells the caller to pass ``period_start``; it has to be sendable.
+
+    Including for a period that has no start date. The ambiguity is often between
+    a balance-sheet instant and a duration sharing its end date, and a date-typed
+    parameter can name only one of the two candidates the error just listed.
+    """
+
+    SHARED_END = date(2015, 9, 26)
+
+    @pytest.fixture
+    def instant_and_duration(self, client: TestClient, warehouse: Warehouse) -> TestClient:
+        for start, value in ((None, "1400000"), (date(2015, 6, 28), "900000")):
+            warehouse.write_facts(
+                [
+                    make_fact(
+                        value=value,
+                        filed_at=date(2015, 10, 28),
+                        accn="0001193125-15-356351",
+                        concept="AntidilutiveSecurities",
+                        unit="shares",
+                        period_start=start,
+                        period_end=self.SHARED_END,
+                    )
+                ]
+            )
+        return client
+
+    def _ask(self, client: TestClient, **extra: str) -> object:
+        return client.get(
+            "/api/asof/AAPL",
+            params={
+                "knowledge_date": "2016-01-01",
+                "concept": "AntidilutiveSecurities",
+                "period_end": self.SHARED_END.isoformat(),
+                **extra,
+            },
+        )
+
+    def test_the_collision_is_a_400_naming_both_candidates(
+        self, instant_and_duration: TestClient
+    ) -> None:
+        response = self._ask(instant_and_duration)
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert "instant" in detail
+        assert "2015-06-28..2015-09-26" in detail
+
+    def test_the_literal_instant_resolves_it(self, instant_and_duration: TestClient) -> None:
+        response = self._ask(instant_and_duration, period_start="instant")
+        assert response.status_code == 200, response.json()
+        payload = response.json()
+        assert payload["as_known"]["value"] == "1400000"
+        assert payload["as_known"]["period_start"] is None
+
+    def test_a_date_resolves_it_to_the_duration(self, instant_and_duration: TestClient) -> None:
+        """Control: 'instant' is not the only branch that works."""
+        response = self._ask(instant_and_duration, period_start="2015-06-28")
+        assert response.status_code == 200, response.json()
+        assert response.json()["as_known"]["value"] == "900000"
+
+    def test_a_malformed_period_start_says_what_is_accepted(
+        self, instant_and_duration: TestClient
+    ) -> None:
+        response = self._ask(instant_and_duration, period_start="last quarter")
+        assert response.status_code == 400
+        assert "YYYY-MM-DD or the literal 'instant'" in response.json()["detail"]
+
+
 class TestLookups:
     def test_an_unknown_ticker_is_a_404(self, client: TestClient) -> None:
         response = client.get("/api/asof/NOTREAL", params={"knowledge_date": "2010-06-01"})

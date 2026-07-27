@@ -36,6 +36,8 @@ export async function api<T>(path: string): Promise<T> {
 export type Fact = {
   value: string;
   unit: string;
+  /** Null for a balance-sheet instant, which is measured at a moment and has no start. */
+  period_start: string | null;
   period_end: string;
   filed_at: string;
   knowledge_date: string;

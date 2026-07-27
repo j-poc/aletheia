@@ -30,7 +30,7 @@ from aletheia.core.config import load_settings
 from aletheia.core.errors import AmbiguousPeriod, InsufficientData
 from aletheia.core.formatting import plain
 from aletheia.core.types import Cik
-from aletheia.pit import PitFiling, PitView, as_of
+from aletheia.pit import INSTANT, PeriodStart, PitFiling, PitView, as_of
 from aletheia.store.db import Warehouse
 from aletheia.surveillance.forensics import PERIODIC_FORMS, assess, rank
 
@@ -124,6 +124,28 @@ def _view(warehouse: Warehouse, knowledge_date: date | None) -> PitView:
     return as_of(warehouse, knowledge_date or _data_vintage(warehouse))
 
 
+def _parse_period_start(raw: str | None) -> PeriodStart:
+    """Read the ``period_start`` query parameter into the engine's three states.
+
+    Taken as a string rather than a ``date`` so that ``instant`` is expressible.
+    A balance-sheet item has no start date, and the ambiguity this parameter
+    resolves is often precisely between an instant and a duration sharing an end
+    date -- so a ``date``-typed parameter can name only one of the two candidates
+    the error message just listed.
+    """
+    if raw is None or raw == "":
+        return None
+    if raw.strip().lower() == "instant":
+        return INSTANT
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"period_start must be YYYY-MM-DD or the literal 'instant', not {raw!r}",
+        ) from exc
+
+
 # ------------------------------------------------------------------- routes --
 
 
@@ -168,6 +190,10 @@ def asof(
     knowledge_date: date = Query(description="see the world as it was on this date"),
     concept: str = Query(default=DEFAULT_CONCEPT),
     period_end: date | None = Query(default=None),
+    period_start: str | None = Query(
+        default=None,
+        description="YYYY-MM-DD, or the literal 'instant' for a period with no start date",
+    ),
     warehouse: Warehouse = Depends(get_warehouse),
 ) -> dict[str, Any]:
     """What was knowable, and what a vendor panel would have told you instead.
@@ -182,10 +208,16 @@ def asof(
     different numbers. The response names both spans so the caller can re-ask with
     ``period_start``. Returning one of them instead would be the silent guess this
     system exists to prevent -- a 400 here is the guarantee working, not a fault.
+
+    ``period_start`` accepts the literal ``instant`` as well as a date, because a
+    balance-sheet item has no start date and the ambiguity can be between an
+    instant and a duration. Without it the error told callers to re-ask using a
+    value they had no way to send.
     """
     cik, name = _resolve(warehouse, ticker)
     view = _view(warehouse, knowledge_date)
     full = as_of(warehouse, _data_vintage(warehouse))
+    pin = _parse_period_start(period_start)
 
     try:
         # The latest report public on or before the knowledge date -- NOT the first
@@ -194,8 +226,12 @@ def asof(
         # diluted EPS is 5.36, ask on 2010-06-01 and it is 6.78, because the
         # restatement was published in between. Pinning this to first_reported would
         # return 5.36 on both dates and quietly remove the thing being shown.
-        known = view.fact(cik, concept, period_end=period_end)
-        first = view.first_reported(cik, concept, period_end=known.period_end)
+        known = view.fact(cik, concept, period_end=period_end, period_start=pin)
+        # Pinned to the period `known` resolved to, not merely to its end date.
+        # Re-asking by end date alone re-opens the ambiguity that was just settled.
+        first = view.first_reported(
+            cik, concept, period_end=known.period_end, period_start=known.pin, unit=known.unit
+        )
     except InsufficientData as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AmbiguousPeriod as exc:
@@ -205,7 +241,16 @@ def asof(
         # a 500 says the server broke, which it did not.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    restated = full.unsafe_latest_restated(cik, concept, period_end=known.period_end)
+    # Pinned for a second reason as well as the first. This one reads the FULL
+    # vintage, so an end date that was unambiguous on the knowledge date can have
+    # acquired a second period from a filing made years later -- AAR Corp's
+    # ProfitLoss ending 2018-11-30 was one period on 2018-12-19 and two after the
+    # 2019-03-20 10-Q. Unpinned, that turned a question answerable at the time into
+    # a 400 caused by data from the future, on the endpoint whose whole purpose is
+    # that the future cannot reach back. `known` already names the one period meant.
+    restated = full.unsafe_latest_restated(
+        cik, concept, period_end=known.period_end, period_start=known.pin, unit=known.unit
+    )
     # Drift is measured from the FIRST report, not from whatever was current on the
     # knowledge date. Measuring from `known` reports +0.00% for any date after the
     # restatement landed, while the accompanying text still describes the move from
@@ -440,6 +485,9 @@ def _fact(fact: Any) -> dict[str, Any]:
     return {
         "value": _number(fact.value),
         "unit": fact.unit,
+        # Both dates, because the end date alone does not say which period this is.
+        # Null means an instant: a balance-sheet item measured at a moment.
+        "period_start": fact.period_start.isoformat() if fact.period_start else None,
         "period_end": fact.period_end.isoformat(),
         "filed_at": fact.filed_at.isoformat(),
         "knowledge_date": fact.knowledge_date.isoformat(),

@@ -18,6 +18,7 @@ type Params = {
     date?: string;
     concept?: string;
     period_end?: string;
+    period_start?: string;
   }>;
 };
 
@@ -26,6 +27,11 @@ const DEFAULTS = {
   date: "2009-12-01",
   concept: "EarningsPerShareDiluted",
   period_end: "2008-09-27",
+  // An end date does not identify a period -- a fiscal year and its fourth
+  // quarter share one. Blank asks the API to decide, which it refuses to do
+  // when the date is genuinely shared, returning a 400 that names the
+  // candidates. This field is how the caller answers it.
+  period_start: "",
 };
 
 export default async function Page({ searchParams }: Params) {
@@ -34,6 +40,7 @@ export default async function Page({ searchParams }: Params) {
     knowledge_date: params.date,
     concept: params.concept,
     ...(params.period_end ? { period_end: params.period_end } : {}),
+    ...(params.period_start ? { period_start: params.period_start } : {}),
   });
 
   let data: AsOf | null = null;
@@ -68,6 +75,13 @@ export default async function Page({ searchParams }: Params) {
           defaultValue={params.period_end}
           type="date"
           width="w-44"
+        />
+        <Field
+          label="Period start"
+          name="period_start"
+          defaultValue={params.period_start}
+          placeholder="blank, a date, or instant"
+          width="w-52"
         />
         <Field
           label="Knowledge date"
@@ -149,6 +163,20 @@ export default async function Page({ searchParams }: Params) {
   );
 }
 
+/**
+ * Both dates, because the end date alone does not say which period this is.
+ * A fiscal year and its fourth quarter end on the same day and report different
+ * numbers, so a card labelled only "period ending 2015-09-26" is ambiguous about
+ * the very thing the number means.
+ */
+function periodLabel(fact: AsOf["as_known"]): string {
+  if (!fact.period_start) return `instant, ${fact.period_end}`;
+  const days = Math.round(
+    (Date.parse(fact.period_end) - Date.parse(fact.period_start)) / 86_400_000,
+  );
+  return `${fact.period_start} to ${fact.period_end} (${days}d)`;
+}
+
 function monthsBetween(from: string, to: string): number {
   const days = (Date.parse(to) - Date.parse(from)) / 86_400_000;
   return Math.max(1, Math.round(days / 30.44));
@@ -159,12 +187,14 @@ function Field({
   name,
   defaultValue,
   type = "text",
+  placeholder,
   width,
 }: {
   label: string;
   name: string;
   defaultValue: string;
   type?: string;
+  placeholder?: string;
   width: string;
 }) {
   return (
@@ -174,6 +204,7 @@ function Field({
         name={name}
         type={type}
         defaultValue={defaultValue}
+        placeholder={placeholder}
         className={`mt-1 block ${width} rounded-md border border-[var(--color-edge)] bg-[var(--color-ink)] px-3 py-2 text-sm text-white outline-none focus:border-white/40`}
       />
     </label>
@@ -207,7 +238,7 @@ function ValueCard({
       <p className="mt-1 text-xs text-[var(--color-muted)]">{fact.unit}</p>
       <p className="mt-3 text-xs text-[var(--color-muted)]">{caption}</p>
       <dl className="mt-4 space-y-1 border-t border-[var(--color-edge)] pt-3 text-xs">
-        <Row label="Period ending" value={fact.period_end} />
+        <Row label="Period" value={periodLabel(fact)} />
         <Row label="Became public" value={fact.knowledge_date} />
         <Row label="Form" value={fact.form} />
         <Row
