@@ -16,6 +16,7 @@ from pathlib import Path
 
 from aletheia.app import Application
 from aletheia.core.errors import AletheiaError, InsufficientData
+from aletheia.core.formatting import abbreviate
 from aletheia.core.types import Cik
 from aletheia.pit import as_of
 
@@ -316,12 +317,7 @@ def _resolve_ticker(app: Application, ticker: str) -> Cik | None:
 
 def _fmt(value: Decimal) -> str:
     """Readable without lying: large magnitudes abbreviated, small ones exact."""
-    magnitude = abs(value)
-    if magnitude >= 1_000_000_000:
-        return f"{value / 1_000_000_000:,.3f}B"
-    if magnitude >= 1_000_000:
-        return f"{value / 1_000_000:,.3f}M"
-    return f"{value.normalize():f}"
+    return abbreviate(value)
 
 
 def _report(outcome: object) -> int:

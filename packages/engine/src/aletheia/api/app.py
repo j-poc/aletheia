@@ -28,6 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from aletheia.core.config import load_settings
 from aletheia.core.errors import InsufficientData
+from aletheia.core.formatting import plain
 from aletheia.core.types import Cik
 from aletheia.pit import PitFiling, PitView, as_of
 from aletheia.store.db import Warehouse
@@ -108,17 +109,8 @@ def _number(value: Decimal) -> str:
     JSON numbers are IEEE doubles in every browser, so a Decimal serialised as a
     number stops being exact the moment it is parsed. The string keeps what was
     filed.
-
-    Trailing zeros from the stored scale are stripped -- 5.3600000000 reads as an
-    absurd claim of precision on an EPS figure -- but never at the cost of the
-    value. ``normalize()`` alone would turn 100 into ``1E+2``, so a positive
-    exponent is quantised back to an integer.
     """
-    normalized = value.normalize()
-    _, _, exponent = normalized.as_tuple()
-    if isinstance(exponent, int) and exponent > 0:
-        normalized = normalized.quantize(Decimal(1))
-    return format(normalized, "f")
+    return plain(value)
 
 
 def _data_vintage(warehouse: Warehouse) -> date:

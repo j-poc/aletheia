@@ -22,6 +22,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from aletheia.app import Application
+from aletheia.core.formatting import plain
 from aletheia.core.types import Cik
 from aletheia.pit import as_of
 
@@ -161,7 +162,7 @@ def _print_proof(app: Application) -> bool:
     for label, fact in ((f"as known on {BEFORE}", before), (f"as known on {AFTER}", after)):
         marker = "  <- restated" if fact.report_seq > 1 else ""
         print(
-            f"       {label}   {fact.value!s:>6}   "
+            f"       {label}   {plain(fact.value):>6}   "
             f"filed {fact.knowledge_date}   {fact.accn.value}{marker}"
         )
 
@@ -174,7 +175,7 @@ def _print_proof(app: Application) -> bool:
     change = (after.value - before.value) / abs(before.value)
     print(
         f"\n     Two dates, two answers: {change:+.2%}. On 2009-12-01 nobody could have"
-        f"\n     known {after.value} — it was published on {after.knowledge_date}. Every vendor"
+        f"\n     known {plain(after.value)} — it was published on {after.knowledge_date}. Every vendor"
         "\n     panel returns it for both dates anyway."
     )
     return True
