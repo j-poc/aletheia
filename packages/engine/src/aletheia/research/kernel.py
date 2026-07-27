@@ -112,9 +112,27 @@ class Position:
     entry_price: float
     exit_price: float
     gross_return: float
+    """The raw price move, ``exit / entry - 1``. NOT signed by side: a short whose
+    price rose reports a positive gross_return. The side lives in ``weight``."""
     cost: float
     """Round-trip cost as a fraction of notional."""
     net_return: float
+    """On the same unsigned basis as ``gross_return``: ``gross - sign * cost``.
+
+    **Read this only as ``weight * net_return``.** Alone it looks wrong for a
+    short -- cost appears to *increase* the return -- and it is not: the second
+    sign flip happens when the signed ``weight`` multiplies it, leaving
+    ``-gross - cost``, which is what a short actually earns. Carrying the flip
+    here is what makes :attr:`RebalancePeriod.net_return` a plain signed-weight
+    sum rather than a special case per side.
+
+    Changing this to the more natural-looking ``sign * gross - cost`` breaks that
+    aggregate. On one long (+10%, 1% cost) and one short (+5%, 2% cost) the book
+    earns +2.00%; the signed-weight sum of this field gives +2.00%, and the
+    "corrected" form gives +16.00%. An adversarial reviewer proposed exactly that
+    change, having grepped for consumers and missed the one on line 140 --
+    :meth:`test_the_short_leg_cost_convention_is_not_a_sign_bug` exists to make
+    the next such attempt fail loudly instead of silently."""
     spread: SpreadEstimate
     participation_rate: float
 

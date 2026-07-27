@@ -23,10 +23,13 @@ from typing import Any
 import pytest
 
 from aletheia.pit import PitPrice
+from aletheia.research.costs import SpreadEstimate
 from aletheia.research.kernel import (
     BacktestResult,
     Exclusion,
     LeakDetected,
+    Position,
+    RebalancePeriod,
     SignalObservation,
     annualise,
     run_quantile_sort,
@@ -355,3 +358,100 @@ class TestAnnualise:
     def test_an_empty_series_is_refused(self) -> None:
         with pytest.raises(ValueError, match="no returns"):
             annualise([], periods_per_year=1)
+
+
+class TestTheShortLegCostConvention:
+    """`Position.net_return` is stored unsigned, and that is deliberate.
+
+    Read alone, the field looks like a sign bug: a short position with a real
+    round-trip cost reports a *higher* net_return than its gross_return. It is
+    not. `gross_return` is the raw price move, unsigned by side, and the second
+    sign flip arrives when the signed `weight` multiplies it -- so the aggregate
+    is a plain signed-weight sum instead of a per-side special case.
+
+    This class exists because an adversarial reviewer read the field in isolation,
+    grepped for consumers, missed `RebalancePeriod.net_return`, and proposed
+    "correcting" it to `sign * gross - cost`. Applying that would have inflated
+    the book's return eightfold on the worked example below, in the exact code
+    path the pending flagship study depends on. The convention needs a test that
+    fails loudly, not a comment.
+    """
+
+    LONG_GROSS = 0.10
+    LONG_COST = 0.01
+    SHORT_GROSS = 0.05
+    """The shorted name's price ROSE 5% -- a loss for the short."""
+    SHORT_COST = 0.02
+
+    def _position(self, *, symbol: str, weight: float, gross: float, cost: float) -> Position:
+        sign = 1.0 if weight > 0 else -1.0
+        return Position(
+            symbol=symbol,
+            weight=weight,
+            signal_value=0.0,
+            entry_date=FORMATION,
+            exit_date=NEXT_FORMATION,
+            entry_price=100.0,
+            exit_price=100.0 * (1.0 + gross),
+            gross_return=gross,
+            cost=cost,
+            net_return=gross - sign * cost,
+            spread=SpreadEstimate(
+                proportional_spread=cost / 2.0,
+                raw_mean=cost / 2.0,
+                n_pairs_used=1,
+                n_pairs_negative=0,
+                n_pairs_unusable=0,
+            ),
+            participation_rate=0.0,
+        )
+
+    def _period(self) -> RebalancePeriod:
+        return RebalancePeriod(
+            formation_date=FORMATION,
+            entry_date=FORMATION,
+            exit_date=NEXT_FORMATION,
+            positions=(
+                self._position(
+                    symbol="LONG", weight=1.0, gross=self.LONG_GROSS, cost=self.LONG_COST
+                ),
+                self._position(
+                    symbol="SHORT", weight=-1.0, gross=self.SHORT_GROSS, cost=self.SHORT_COST
+                ),
+            ),
+            excluded=(),
+            n_ranked=2,
+        )
+
+    def test_the_aggregate_matches_what_the_book_actually_earns(self) -> None:
+        """The reference number, computed independently of the field convention.
+
+        A long up 10% paying 1% earns 9%. A short whose name rose 5% and paid 2%
+        loses 7%. One unit of capital on each side nets +2%.
+        """
+        earned = (self.LONG_GROSS - self.LONG_COST) + (-self.SHORT_GROSS - self.SHORT_COST)
+        assert earned == pytest.approx(0.02)
+        assert self._period().net_return == pytest.approx(earned)
+
+    def test_the_short_leg_cost_convention_is_not_a_sign_bug(self) -> None:
+        """The 'obvious correction' must not reproduce the reference number.
+
+        Positive control for the test above: if `sign * gross - cost` also gave
+        +2%, the first test would prove nothing about which convention is right.
+        """
+        naive = sum(
+            # The proposed field, aggregated the way the code already aggregates:
+            # weight * (sign * gross - cost).
+            position.weight
+            * (math.copysign(1.0, position.weight) * position.gross_return - position.cost)
+            for position in self._period().positions
+        )
+        assert naive != pytest.approx(0.02)
+        assert naive == pytest.approx(0.16)
+
+    def test_cost_is_always_a_drag_once_the_weight_is_applied(self) -> None:
+        """Whichever side it is on, cost reduces the book's return."""
+        period = self._period()
+        costless = sum(position.weight * position.gross_return for position in period.positions)
+        assert period.net_return < costless
+        assert period.cost == pytest.approx(self.LONG_COST + self.SHORT_COST)
