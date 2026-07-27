@@ -17,6 +17,16 @@ make verify                # ruff + mypy strict + full suite + determinism gate
 takes a couple of minutes and includes the determinism gate's positive control,
 so a pass means the gate itself was proven able to fail.
 
+**Set `ALETHEIA_SEC_USER_AGENT` before any substantial EDGAR run.** The SEC
+throttles undeclared automated clients, and it signals that with a **403** and an
+HTML "Request Rate Threshold Exceeded" page rather than a 429. The fetcher now
+recognises that page and backs off, but a sustained pull without a declared
+contact will still get the address throttled — observed live after roughly 2,400
+requests in a day, and it did not clear within the hour.
+
+If it happens: stop, wait, and resume. Every ingest path is idempotent and keyed
+on what actually landed, so nothing is lost and nothing is double-counted.
+
 Credentials live in `~/.claude/.env` and are read through `aletheia.core.config`.
 Nothing is required for an EDGAR-only run — the SEC needs only a contact address
 in the `User-Agent`, set via `SEC_USER_AGENT`. `FRED_API_KEY` and `FMP_API_KEY`

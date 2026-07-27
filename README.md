@@ -194,8 +194,27 @@ set. Verified two-sided: tie-break removed → four distinct hashes; restored �
 ```bash
 make setup                # uv sync
 make verify               # ruff + mypy strict + full suite + determinism gate
-make ingest               # real EDGAR / ALFRED / price pull into data/warehouse.duckdb
-make study                # the flagship data-vintage study, end to end
+make demo                 # ~3 min: builds a 25-filer warehouse and prints the proof
+make api                  # read-only HTTP API on :8000
+make web                  # the five pages, on localhost:3000
+```
+
+**Set a contact address first.** The SEC asks automated clients to identify
+themselves and throttles those that do not — a 403 with an HTML page, not a 429:
+
+```bash
+export ALETHEIA_SEC_USER_AGENT="Your Name your@email"
+```
+
+Nothing else is required. `FRED_API_KEY` and `FMP_API_KEY` unlock macro vintages
+and prices; both sources return `None` when unconfigured rather than failing at
+startup, because an EDGAR-only run is legitimate and is what `make demo` does.
+
+For the full 800-filer universe and the study:
+
+```bash
+make ingest               # ~80 min, resumable
+make study                # needs a price entitlement — see "the flagship study" below
 ```
 
 `make test-live` runs the contract tests against the real APIs. They cost quota and
