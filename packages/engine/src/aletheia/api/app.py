@@ -16,6 +16,7 @@ to ask for it by the name that says so.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from datetime import date
@@ -348,6 +349,42 @@ def quality(warehouse: Warehouse = Depends(get_warehouse)) -> dict[str, Any]:
             {"source": row[0], "runs": int(row[1]), "last_started": str(row[2])} for row in runs
         ],
     }
+
+
+@app.get("/api/evidence")
+def evidence_index() -> dict[str, Any]:
+    """Every evidence card written to disk, newest first.
+
+    An empty list means no study has been run yet, which is reported as such
+    rather than as an error -- a fresh checkout legitimately has no results.
+    """
+    directory = load_settings().data_dir / "evidence"
+    if not directory.exists():
+        return {"cards": [], "note": "no study has been run in this warehouse yet"}
+    cards = []
+    for path in sorted(directory.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        cards.append(
+            {
+                "study_id": payload.get("study_id"),
+                "hypothesis": payload.get("hypothesis"),
+                "verdict": payload.get("verdict"),
+                "trial_count": payload.get("trial_count"),
+                "trial_family": payload.get("trial_family"),
+                "repro_hash": payload.get("repro_hash"),
+                "generated_at": payload.get("generated_at"),
+                "provenance": payload.get("provenance"),
+                "arms": payload.get("arms", []),
+                "comparisons": payload.get("comparisons", []),
+                "caveats": payload.get("caveats", []),
+                "statistics": payload.get("statistics", {}),
+            }
+        )
+    cards.sort(key=lambda card: str(card.get("generated_at")), reverse=True)
+    return {"cards": cards}
 
 
 def _fact(fact: Any) -> dict[str, Any]:

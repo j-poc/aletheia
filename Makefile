@@ -2,7 +2,7 @@
 SHELL := /bin/bash
 UV ?= uv
 
-.PHONY: help setup lint fmt types test test-live determinism verify ingest study clean
+.PHONY: help setup lint fmt types test test-live determinism verify ingest api web web-build study clean
 
 help:  ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -34,6 +34,15 @@ verify: lint types test determinism  ## Everything the done-bar requires
 
 ingest:  ## Pull real data into the warehouse
 	$(UV) run aletheia ingest
+
+api:  ## Serve the read-only HTTP API on :8000
+	$(UV) run uvicorn aletheia.api.app:app --host 127.0.0.1 --port 8000 --reload
+
+web:  ## Run the Next.js frontend on :3000 (needs `make api` in another shell)
+	cd apps/web && pnpm install && pnpm dev
+
+web-build:  ## Type-check and build the frontend
+	cd apps/web && pnpm install && pnpm build
 
 study:  ## Run the flagship data-vintage study end to end
 	$(UV) run python scripts/run_bias_study.py --stage symbols
