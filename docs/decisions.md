@@ -828,3 +828,43 @@ proof comes from a one-off control rather than from the standing gate, and
 nobody should read `all 10 mutants caught` as covering these. Naming that here
 is the same discipline the decision is about: a gate's blind spot reported as
 coverage is an unearned skip one level up.
+
+## D19 — Positive controls run against a copy of the tree, never the live checkout
+
+**Taken:** 2026-07-28. **Reversal cost:** none.
+
+Most of the evidence in D14–D18 comes from the same move: break something on
+purpose, observe the test fail, restore, observe it pass. Every one of those
+controls was run by editing a tracked file in the working tree and writing it
+back — including the depth mutation in D18, and including the reviewer's
+independent reproduction of it.
+
+That is a real hazard, and it nearly bit. Two sessions ran mutations against
+this one checkout within minutes of each other. Had a restore landed while the
+other's `make verify` was mid-run, the result would have been a confident wrong
+answer in *either* direction — a green run that silently covered a live mutant,
+or a red run someone would have chased as a regression that did not exist — and
+neither party could have told which from the output. Nothing was corrupted, but
+only because the windows did not overlap. That is luck, not isolation.
+
+The failure mode deserves naming because it is this project's own thesis
+pointed inward. ALETHEIA exists to make a number's provenance checkable; a
+control run on a shared mutable checkout produces a measurement whose
+provenance is exactly what cannot be checked afterward. `git status` came back
+clean, so the file was restored — but a clean tree at the end says nothing
+about what the tree was *during* the run.
+
+The convention, from here:
+
+- A control that writes to tracked files works on a copy — `git worktree add`,
+  or the same `shutil.copytree`-into-a-tempdir the mutation gate already does
+  for exactly this reason. `scripts/mutation_gate.py` is the model, not the
+  exception.
+- The one-off controls in `scratchpad/` predate this and mutate in place. They
+  are kept as the record of what was measured, not as a pattern to copy.
+- Two agents never hold this checkout at once. Where that cannot be arranged,
+  the second one takes a worktree.
+
+Not mechanically enforced here: this repo has no hook that can see another
+session's writes. It is a convention, and it is written down because the last
+time it held, it held by accident.
