@@ -201,8 +201,10 @@ are different claims and only the second is evidence. `make mutants` measures th
 second one directly, and its own failure paths are checked too: a mutant nothing
 catches is reported as survived, an anchor that no longer matches the source is
 reported rather than silently skipped, and every file it rewrites is copied to a
-temporary directory first and asserted byte-identical afterward — if a restore
-does not match, the run fails and names the directory holding the original.
+temporary directory first and asserted byte-identical afterward. The directory is
+printed before the first file is touched, so an interrupted run still tells you
+where the originals are; if a restore does not match, the run fails rather than
+cleaning that directory up.
 
 That determinism gate immediately earned itself: the backtest kernel sorted on
 signal value alone, and Python's sort is stable, so tied values inherited whatever

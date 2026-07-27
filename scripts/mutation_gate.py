@@ -193,13 +193,20 @@ def main() -> int:
         copy = backup_dir / path.replace("/", "__")
         copy.write_text((ROOT / path).read_text(encoding="utf-8"), encoding="utf-8")
 
+    # Printed unconditionally, before any file is touched. If the loop below dies
+    # on something unplanned -- pytest exploding, Ctrl-C, a read error -- the user
+    # is left with mutated files on disk and a traceback, and this line is then the
+    # only record of where the originals are. A path that is only named on the
+    # paths that end cleanly is not a recovery path.
+    print(f"originals -> {backup_dir}")
+
     dirty = _tracked_and_dirty(targets)
     if dirty:
-        print("NOTE  these target files carry uncommitted changes:")
+        print("NOTE  these target files carry uncommitted changes; the copies above")
+        print("      are the originals for the duration of the run:")
         for path in dirty:
             print(f"          {path}")
-        print(f"      Originals copied to {backup_dir} for the duration of the run.")
-        print()
+    print()
 
     survivors: list[Mutant] = []
     for mutant in MUTANTS:
