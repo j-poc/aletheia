@@ -194,6 +194,14 @@ without any of the rest of this.
 | Costs are never omitted | Every return is reported gross and net, with turnover and the capital assumed |
 | Survivorship is measured | Names the price vendor will not serve are counted with reasons, not skipped |
 | Trials are counted | Hypotheses are registered in an append-only hash chain *before* they run |
+| The tests would notice | `make mutants` reintroduces nine defects that actually shipped — each reverted to the exact form the bug had — and requires a test to fail on every one, then to pass again once it is restored |
+
+A green suite says the tests pass; it does not say they would have failed. Those
+are different claims and only the second is evidence. `make mutants` measures the
+second one directly, and its own failure paths are checked too: a mutant nothing
+catches is reported as survived, an anchor that no longer matches the source is
+reported rather than silently skipped, and the harness refuses to run at all if a
+file it rewrites already carries uncommitted changes.
 
 That determinism gate immediately earned itself: the backtest kernel sorted on
 signal value alone, and Python's sort is stable, so tied values inherited whatever
@@ -206,7 +214,7 @@ set. Verified two-sided: tie-break removed → four distinct hashes; restored �
 
 ```bash
 make setup                # uv sync
-make verify               # ruff + mypy strict + full suite + determinism gate
+make verify               # ruff + mypy strict + full suite + determinism + mutants
 make demo                 # ~3 min: builds a 25-filer warehouse and prints the proof
 make api                  # read-only HTTP API on :8000
 make web                  # the five pages, on localhost:3000

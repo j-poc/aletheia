@@ -30,7 +30,10 @@ test-live:  ## Contract tests against the real APIs. Costs quota; run deliberate
 determinism:  ## Prove a re-run reproduces byte-identical results
 	$(UV) run python scripts/check_determinism.py --self-test
 
-verify: lint types test determinism  ## Everything the done-bar requires
+mutants:  ## Break each shipped fix on purpose; a test must catch every one
+	$(UV) run python scripts/mutation_gate.py
+
+verify: lint types test determinism mutants  ## Everything the done-bar requires
 
 ingest:  ## Pull real data into the warehouse
 	$(UV) run aletheia ingest
