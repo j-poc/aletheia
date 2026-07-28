@@ -28,6 +28,8 @@ from aletheia.corpus.contamination import (
     QUANTILES,
     THRESHOLDS,
     Contamination,
+    UnitClass,
+    contamination_by_unit_class,
     cross_grain_spread,
     measure_contamination,
 )
@@ -97,8 +99,9 @@ def main(argv: list[str] | None = None) -> int:
 
         population = measure_contamination(app.warehouse)
         spread = cross_grain_spread(app.warehouse)
+        by_unit_class = contamination_by_unit_class(app.warehouse)
 
-    _print_summary(population, spread)
+    _print_summary(population, spread, by_unit_class)
 
     ledger = TrialLedger(LEDGER)
     config_hash = canonical_hash(CONFIG)
@@ -112,6 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     card = _build_card(
         population=population,
         spread=spread,
+        by_unit_class=by_unit_class,
         control=control,
         vintage=vintage,
         config_hash=config_hash,
@@ -131,7 +135,9 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def _print_summary(population: Contamination, spread: Any) -> None:
+def _print_summary(
+    population: Contamination, spread: Any, by_unit_class: tuple[UnitClass, ...]
+) -> None:
     print(f"facts (grain)           {population.facts:>12,}")
     print(f"  restated              {population.restated_facts:>12,}   {population.fact_share:.4%}")
     print(f"  published once        {population.facts_reported_once:>12,}")
@@ -144,6 +150,13 @@ def _print_summary(population: Contamination, spread: Any) -> None:
     print()
     print(f"revised up              {population.revised_up:>12,}")
     print(f"revised down            {population.revised_down:>12,}")
+    print(f"returned to first       {population.returned_to_first_value:>12,}")
+    directions = (
+        population.revised_up + population.revised_down + population.returned_to_first_value
+    )
+    print(
+        f"  sum of the three      {directions:>12,}   (= restated: {directions == population.restated_facts})"
+    )
     print(f"sign flips              {population.sign_flips:>12,}")
     print(f"zero <-> non-zero       {population.restated_from_or_to_zero:>12,}")
     print(f"undefined rel. change   {population.undefined_relative_change:>12,}")
@@ -155,9 +168,22 @@ def _print_summary(population: Contamination, spread: Any) -> None:
     print("restated facts exceeding")
     for threshold, count in sorted(population.threshold_counts.items()):
         share = count / population.restated_facts if population.restated_facts else 0
-        without = population.threshold_counts_excluding_sign_flips[threshold]
+        # Distinct name from the quantile loop's ``without`` above: that one holds a
+        # Decimal and this one a count, and reusing the name made mypy read the
+        # second as the first's type.
+        without_flips = population.threshold_counts_excluding_sign_flips[threshold]
         print(
-            f"  {threshold:>5}               {count:>12,}   {share:.2%} of restated  {without:>12,}"
+            f"  {threshold:>5}               {count:>12,}   {share:.2%} of restated  "
+            f"{without_flips:>12,}"
+        )
+    print()
+    print("post-hoc: could a stock split have caused it?")
+    print(f"  {'class':<12}{'facts':>12}{'restated':>10}{'rate':>8}{'down':>8}{'median':>10}")
+    for row in by_unit_class:
+        print(
+            f"  {row.unit_class:<12}{row.facts:>12,}{row.restated_facts:>10,}"
+            f"{row.fact_share:>7.2%}{row.downward_share:>8.1%}"
+            f"{row.median_relative_change:>10}"
         )
     print()
     print(f"cross-grain (cik, concept, period) triples   {spread.triples:>12,}")
@@ -169,6 +195,7 @@ def _build_card(
     *,
     population: Contamination,
     spread: Any,
+    by_unit_class: tuple[UnitClass, ...],
     control: Contamination,
     vintage: date,
     config_hash: str,
@@ -179,7 +206,7 @@ def _build_card(
     return EvidenceCard(
         study_id=STUDY_ID,
         hypothesis=HYPOTHESIS,
-        verdict=_verdict(population),
+        verdict=_verdict(population, by_unit_class),
         provenance=Provenance(
             code_commit=commit,
             code_dirty=dirty,
@@ -225,14 +252,24 @@ def _build_card(
             "That panel was added AFTER the first population run, on seeing the "
             "saturation -- it is post-hoc and is not part of the D20 registration, "
             "which is why the headline is still the pre-registered figure.",
+            _split_caveat(by_unit_class),
             f"Control: the same aggregate, narrowed to AAPL "
             f"{CONFIG['control']['concept']}, returns {control.facts} facts and "
             f"{control.restated_facts} restated -- the figures measured independently on "
-            f"2026-07-27 and registered in D20 before this aggregate was written.",
+            f"2026-07-27 and registered in D20 before this aggregate was written. Read "
+            f"its MAGNITUDES with the split caveat above in hand: the control's median "
+            f"relative change is {control.quantiles['p50']}, which is exactly 3/4, the "
+            f"arithmetic of Apple's 4:1 split in 2020, and its upper quantiles sit at "
+            f"6/7, the 7:1 split of 2014. The control's COUNT is a valid gate on the "
+            f"query -- those facts really were restated in the point-in-time sense -- but "
+            f"most of the size in it is corporate action rather than accounting revision. "
+            f"The FY2008 5.36 -> 6.78 case the README opens with is not: at 20.9% it sits "
+            f"on no split ratio.",
         ),
         generated_at=datetime.now(UTC),
         statistics={
             "population": population.as_dict(),
+            "post_hoc_by_unit_class": {row.unit_class: row.as_dict() for row in by_unit_class},
             "cross_grain_spread": spread.as_dict(),
             "control_aapl_eps_diluted": control.as_dict(),
             "kill_threshold": (
@@ -243,7 +280,39 @@ def _build_card(
     )
 
 
-def _verdict(population: Contamination) -> str:
+def _by_class(by_unit_class: tuple[UnitClass, ...], name: str) -> UnitClass:
+    """One row of the split panel, by name rather than by position."""
+    for row in by_unit_class:
+        if row.unit_class == name:
+            return row
+    raise SystemExit(f"unit class {name!r} missing from the panel; the classification changed")
+
+
+def _split_caveat(by_unit_class: tuple[UnitClass, ...]) -> str:
+    """Size the corporate-action share of the headline, from the panel rather than by hand."""
+    other = _by_class(by_unit_class, "other")
+    total_facts = sum(row.facts for row in by_unit_class)
+    total_restated = sum(row.restated_facts for row in by_unit_class)
+    exposed_facts = total_facts - other.facts
+    exposed_restated = total_restated - other.restated_facts
+    return (
+        "A stock split retroactively rewrites every per-share figure in the archive. That "
+        "is a genuine point-in-time restatement -- the split-adjusted number did not exist "
+        "on the earlier date -- but it is a corporate action, not an accounting revision, "
+        "and the two should not share one headline unexamined. Facts in units a split can "
+        f"mechanically touch (per-share values and share counts) are {exposed_facts:,} of "
+        f"{total_facts:,} ({exposed_facts / total_facts:.1%}) and account for "
+        f"{exposed_restated:,} of {total_restated:,} restatements "
+        f"({exposed_restated / total_restated:.1%}). The remaining units restate at "
+        f"{other.fact_share:.2%}, against a headline of "
+        f"{Decimal(total_restated) / Decimal(total_facts):.2%} -- so splits cannot be "
+        "driving the headline. This decomposition was written AFTER the first population "
+        "run, on noticing that the control's quantiles were exactly the split ratios; it "
+        "is post-hoc and is not part of the D20 registration."
+    )
+
+
+def _verdict(population: Contamination, by_unit_class: tuple[UnitClass, ...]) -> str:
     """State what the numbers show, in whichever direction they fell."""
     share = population.fact_share
     headline = (
@@ -261,13 +330,34 @@ def _verdict(population: Contamination) -> str:
             f"by it. The AAPL example remains true and is not representative."
         )
     direction = "down" if population.revised_down > population.revised_up else "up"
+    # The direction claim is the most exposed sentence here: a split pushes
+    # per-share values down and share counts up, so a skew measured over the
+    # whole corpus could be a corporate-action artefact wearing the costume of a
+    # finding. It is therefore re-stated on the units a split cannot touch, and
+    # if it does not survive there it is not claimed.
+    other = _by_class(by_unit_class, "other")
+    other_direction = "down" if other.revised_down > other.revised_up else "up"
+    if other_direction == direction:
+        defence = (
+            f"That skew is not a corporate-action artefact: among facts in units a stock "
+            f"split cannot touch it holds at {other.downward_share:.1%} {direction} "
+            f"({other.revised_up:,} up, {other.revised_down:,} down)."
+        )
+    else:
+        defence = (
+            f"That skew does NOT survive restriction to units a stock split cannot touch, "
+            f"where revisions run {other_direction} ({other.revised_up:,} up, "
+            f"{other.revised_down:,} down) -- so the population direction is a corporate-"
+            f"action artefact and is not claimed as a finding."
+        )
     return (
         f"{headline} Among restated facts, "
         f"{population.threshold_counts['0.10']:,} moved by more than 10% of the larger "
         f"of the two values, and revisions run {direction} more often than not "
-        f"({population.revised_up:,} up, {population.revised_down:,} down). A backtest "
-        f"reading a current vendor panel is reading these values on dates when the "
-        f"first-published ones were the only ones available."
+        f"({population.revised_up:,} up, {population.revised_down:,} down, "
+        f"{population.returned_to_first_value:,} changed and returned to where they "
+        f"started). {defence} A backtest reading a current vendor panel is reading these "
+        f"values on dates when the first-published ones were the only ones available."
     )
 
 

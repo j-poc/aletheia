@@ -28,6 +28,7 @@ import pytest
 
 from aletheia.corpus.contamination import (
     THRESHOLDS,
+    contamination_by_unit_class,
     cross_grain_spread,
     measure_contamination,
 )
@@ -172,6 +173,33 @@ class TestDirection:
     almost identically and is wrong -- would leave the rest of this file green.
     These two tests are what makes the ordering load-bearing.
     """
+
+    def test_the_three_directions_account_for_every_restated_fact(self, warehouse: Any) -> None:
+        """Up, down and back-to-where-it-started must sum to the restated count.
+
+        The third arm is easy to omit -- ``>`` and ``<`` leave equality
+        uncounted -- and omitting it is silent: the two figures simply fail to
+        reconcile with the headline, which is what happened on the first
+        population run (156,058 + 191,687 against 357,842 restated).
+
+        A fact that changes and changes back is genuinely restated. Its report
+        sequence holds two distinct values, so a backtest reading the middle
+        vintage saw 110 on a date the archive now shows as 100.
+        """
+        for accn, value in (("a", "100"), ("b", "110"), ("c", "100")):
+            _fact(warehouse, accn=accn, value=value)
+        _fact(warehouse, accn="d", value="50", concept="Up")
+        _fact(warehouse, accn="e", value="70", concept="Up")
+        _fact(warehouse, accn="f", value="90", concept="Down")
+        _fact(warehouse, accn="g", value="20", concept="Down")
+
+        result = measure_contamination(warehouse)
+
+        assert result.restated_facts == 3
+        assert (result.revised_up, result.revised_down) == (1, 1)
+        assert result.returned_to_first_value == 1
+        total = result.revised_up + result.revised_down + result.returned_to_first_value
+        assert total == result.restated_facts
 
     def test_a_downward_revision_is_counted_as_downward(self, warehouse: Any) -> None:
         _fact(warehouse, accn="a", value="100")
@@ -390,6 +418,111 @@ class TestTheSignFlipExcludedPanel:
         assert result.restated_facts == 1
         assert result.sign_flips == 0
         assert result.threshold_counts_excluding_sign_flips["0.10"] == 1
+
+
+class TestTheSplitDecomposition:
+    """Which restatements a stock split could have caused.
+
+    Post-hoc, and written because the AAPL control's quantiles turned out to be
+    ``3/4`` and ``6/7`` exactly -- the arithmetic of Apple's 4:1 and 7:1 splits.
+    A split is a real point-in-time restatement and not an accounting revision,
+    so the two need separating before either is quoted.
+    """
+
+    def test_a_per_share_unit_is_classified_as_per_share(self, warehouse: Any) -> None:
+        _fact(warehouse, accn="a", value="4.00", unit="USD/shares")
+
+        panel = {row.unit_class: row for row in contamination_by_unit_class(warehouse)}
+
+        assert set(panel) == {"per-share"}
+        assert panel["per-share"].facts == 1
+
+    def test_the_underscore_suffixed_per_share_unit_is_not_missed(self, warehouse: Any) -> None:
+        """The regression for a predicate that was a guess.
+
+        The first draft matched ``LIKE '%/shares'``, anchored at the end. The
+        corpus also carries ``USD/shares_unit`` -- 103 facts, found by
+        enumerating the 518 distinct units rather than by reasoning about what
+        XBRL ought to contain -- and those were silently filed under ``other``,
+        which is the one bucket the decomposition claims splits cannot touch.
+        """
+        _fact(warehouse, accn="a", value="4.00", unit="USD/shares_unit")
+
+        panel = {row.unit_class: row for row in contamination_by_unit_class(warehouse)}
+
+        assert set(panel) == {"per-share"}, "an anchored pattern files this under 'other'"
+
+    def test_an_inverse_unit_is_not_a_per_share_quantity(self, warehouse: Any) -> None:
+        """``shares/USD`` is shares *per dollar* -- the reciprocal, not a per-share value.
+
+        The widened pattern has to stay narrow enough to exclude it, or the
+        decomposition drifts toward classifying anything mentioning shares as
+        split-exposed.
+        """
+        _fact(warehouse, accn="a", value="4.00", unit="shares/USD")
+
+        panel = {row.unit_class: row for row in contamination_by_unit_class(warehouse)}
+
+        assert set(panel) == {"other"}
+
+    def test_share_counts_are_their_own_class(self, warehouse: Any) -> None:
+        """Separate from per-share because a split moves them the opposite way."""
+        _fact(warehouse, accn="a", value="1000", unit="shares")
+        _fact(warehouse, accn="b", value="500", unit="USD")
+
+        panel = {row.unit_class: row for row in contamination_by_unit_class(warehouse)}
+
+        assert panel["share count"].facts == 1
+        assert panel["other"].facts == 1
+
+    def test_a_split_shaped_restatement_lands_on_the_split_ratio(self, warehouse: Any) -> None:
+        """A 4:1 split puts every affected fact at exactly 0.75.
+
+        ``|1 - 4| / max(4, 1)`` is ``3/4``. That is why the split is visible in
+        the magnitude before it is visible in the rate, and why the median is
+        reported per class.
+        """
+        _fact(warehouse, accn="a", value="4.00", unit="USD/shares")
+        _fact(warehouse, accn="b", value="1.00", unit="USD/shares")
+
+        panel = {row.unit_class: row for row in contamination_by_unit_class(warehouse)}
+
+        assert panel["per-share"].restated_facts == 1
+        assert panel["per-share"].median_relative_change == Decimal("0.75")
+        assert panel["per-share"].downward_share == Decimal("1")
+
+    def test_the_downward_share_excludes_facts_that_returned(self, warehouse: Any) -> None:
+        """A fact that changed and changed back has no direction.
+
+        Counting it in the denominator would drag every class's downward share
+        toward one half, which is exactly the value the memo reads as "no skew".
+        """
+        for accn, value in (("a", "100"), ("b", "110"), ("c", "100")):
+            _fact(warehouse, accn=accn, value=value)
+        _fact(warehouse, accn="d", value="50", concept="Up")
+        _fact(warehouse, accn="e", value="70", concept="Up")
+        _fact(warehouse, accn="f", value="90", concept="Down")
+        _fact(warehouse, accn="g", value="20", concept="Down")
+
+        panel = {row.unit_class: row for row in contamination_by_unit_class(warehouse)}
+
+        assert panel["other"].returned_to_first_value == 1
+        assert panel["other"].downward_share == Decimal("0.5"), "1 of 2 directional, not 1 of 3"
+
+    def test_the_classes_come_back_in_a_fixed_order(self, warehouse: Any) -> None:
+        """Ordered by meaning, not by count.
+
+        ``ORDER BY facts DESC`` would reorder the panel on a corpus where one
+        class overtook another, which makes two runs of the same study look like
+        a change in the result.
+        """
+        _fact(warehouse, accn="a", value="1", unit="USD")
+        _fact(warehouse, accn="b", value="1", unit="USD/shares")
+        _fact(warehouse, accn="c", value="1", unit="shares")
+
+        order = [row.unit_class for row in contamination_by_unit_class(warehouse)]
+
+        assert order == ["per-share", "share count", "other"]
 
 
 class TestCrossGrainSpread:

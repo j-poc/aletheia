@@ -275,6 +275,53 @@ MUTANTS: tuple[Mutant, ...] = (
         new='f"count(*) FILTER (WHERE {restated}"',
         tests=(f"{TESTS}/test_contamination.py",),
     ),
+    Mutant(
+        label="the per-share pattern is anchored, so USD/shares_unit falls into 'other'",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="            WHEN unit LIKE '%/shares%' THEN 'per-share'",
+        new="            WHEN unit LIKE '%/shares' THEN 'per-share'",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="the per-share pattern widens to any unit mentioning shares, catching inverses",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="            WHEN unit LIKE '%/shares%' THEN 'per-share'",
+        new="            WHEN unit LIKE '%shares%' THEN 'per-share'",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="the split panel orders by size, so two runs can disagree on row order",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old=" ORDER BY CASE unit_class\n"
+        "              WHEN 'per-share'   THEN 1\n"
+        "              WHEN 'share count' THEN 2\n"
+        "              ELSE 3\n"
+        "          END",
+        new=" ORDER BY facts DESC",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="the downward share counts returned-to-first facts as a direction",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="        return _share(self.revised_down, self.revised_up + self.revised_down)",
+        new="        return _share(\n"
+        "            self.revised_down,\n"
+        "            self.revised_up + self.revised_down + self.returned_to_first_value,\n"
+        "        )",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="the third direction is dropped, so up + down no longer reconciles with restated",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="    count(*) FILTER (WHERE distinct_values >= 2 AND latest_value = first_value) AS returned,",
+        new="    count(*) FILTER (WHERE distinct_values >= 2 AND latest_value <> first_value) AS returned,",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
 )
 
 

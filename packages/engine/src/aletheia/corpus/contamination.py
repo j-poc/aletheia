@@ -45,6 +45,18 @@ reported a second time with sign flips excluded. This was decided *after* seeing
 the distribution and is not part of the D20 pre-registration -- which is why it
 is a supplementary panel and not the headline, and why it is said here rather
 than quietly folded into the pre-registered numbers.
+
+**Also post-hoc: the split decomposition.** Reading the finished card, the AAPL
+control's quantiles were 0.75 and ~0.857 -- which are exactly ``3/4`` and
+``6/7``, the arithmetic of Apple's 4:1 (2020) and 7:1 (2014) stock splits. A
+split retroactively rewrites every per-share figure in the archive, so it is a
+genuine point-in-time restatement -- the split-adjusted number did not exist on
+the earlier date -- but it is not an accounting revision, and letting the two
+share one headline would overstate what the headline means.
+:func:`contamination_by_unit_class` sizes it by splitting the corpus into the
+units a split can mechanically touch (per-share, share counts) and the units it
+cannot. It was written after the first population run, so it is labelled
+post-hoc for the same reason the sign-flip panel is.
 """
 
 from __future__ import annotations
@@ -96,6 +108,21 @@ class Contamination:
     than *smallest*. Every other figure is symmetric in the two values, so
     without this pair, replacing ``arg_min(value, report_seq)`` with
     ``min(value)`` would leave the whole suite green."""
+    returned_to_first_value: int
+    """Restated facts whose latest value equals the first-published one.
+
+    The third direction, and the one that is easy to forget exists: a fact can
+    change and change back. ``distinct_values`` reads the whole report sequence
+    while ``first`` and ``latest`` read only its ends, so these are genuinely
+    restated -- a backtest reading a middle vintage saw a different number --
+    while being invisible to any comparison of the two endpoints.
+
+    Added post-hoc, and it changes no pre-registered figure. It exists because
+    ``revised_up + revised_down`` came to 347,745 against 357,842 restated facts
+    on the first population run, and an unexplained 10,097 is the first thing a
+    reader subtracts. With this field the three directions sum to
+    :attr:`restated_facts` exactly, which
+    ``test_the_three_directions_account_for_every_restated_fact`` asserts."""
     quantiles: dict[str, Decimal]
     """Relative change among restated facts, at :data:`QUANTILES`."""
     threshold_counts: dict[str, int]
@@ -157,6 +184,7 @@ class Contamination:
             "restated_from_or_to_zero": self.restated_from_or_to_zero,
             "revised_up": self.revised_up,
             "revised_down": self.revised_down,
+            "returned_to_first_value": self.returned_to_first_value,
             "undefined_relative_change": self.undefined_relative_change,
             "relative_change_quantiles": dict(sorted(self.quantiles.items())),
             "restated_facts_above": dict(sorted(self.threshold_counts.items())),
@@ -168,6 +196,53 @@ class Contamination:
                     sorted(self.threshold_counts_excluding_sign_flips.items())
                 ),
             },
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class UnitClass:
+    """One row of the split decomposition: how a unit family restates."""
+
+    unit_class: str
+    """``per-share``, ``share count``, or ``other`` -- see :data:`_UNIT_CLASS_SQL`."""
+    facts: int
+    restated_facts: int
+    revised_up: int
+    revised_down: int
+    returned_to_first_value: int
+    median_relative_change: Decimal
+    """Median relative change among this class's restated facts. Reported because
+    the split shows up in magnitude before it shows up in rate: a 4:1 split lands
+    every affected fact at exactly 0.75."""
+
+    @property
+    def fact_share(self) -> Decimal:
+        """Restatement rate within this class."""
+        return _share(self.restated_facts, self.facts)
+
+    @property
+    def downward_share(self) -> Decimal:
+        """Share of directional revisions that went down.
+
+        The denominator excludes :attr:`returned_to_first_value`, which has no
+        direction. This is the figure that tests whether the population's
+        downward skew is a split artefact: splits divide per-share values, so
+        they push this number up for ``per-share`` and down for ``share count``.
+        If the skew survives in ``other``, it is not the splits.
+        """
+        return _share(self.revised_down, self.revised_up + self.revised_down)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "unit_class": self.unit_class,
+            "facts": self.facts,
+            "restated_facts": self.restated_facts,
+            "fact_share": self.fact_share,
+            "revised_up": self.revised_up,
+            "revised_down": self.revised_down,
+            "returned_to_first_value": self.returned_to_first_value,
+            "downward_share": self.downward_share,
+            "median_relative_change": self.median_relative_change,
         }
 
 
@@ -192,6 +267,66 @@ class CrossGrainSpread:
             "multi_taxonomy_share": _share(self.multi_taxonomy, self.triples),
         }
 
+
+_UNIT_CLASS_SQL = """
+        CASE
+            WHEN unit LIKE '%/shares%' THEN 'per-share'
+            WHEN unit = 'shares'       THEN 'share count'
+            ELSE 'other'
+        END
+"""
+"""Which units a stock split can mechanically rewrite.
+
+The corpus carries 518 distinct units; these predicates were written against an
+enumeration of them, not guessed. ``LIKE '%/shares%'`` rather than
+``'%/shares'`` because ``USD/shares_unit`` (103 facts) sits alongside
+``USD/shares`` (612,164) -- an earlier draft ended the pattern at ``shares`` and
+silently filed those into ``other``. The wildcard on both sides still excludes
+``shares/USD``, which is an inverse (shares *per* dollar) and is correctly not a
+per-share quantity.
+"""
+
+# S608: the only interpolation is _UNIT_CLASS_SQL, a module constant written
+# directly above. This query takes no parameters and no caller input reaches it.
+# It is interpolated rather than pasted so the classification exists once, and a
+# mutation of it cannot leave a second copy disagreeing.
+_BY_UNIT_CLASS = f"""
+WITH per_fact AS (
+    SELECT
+        {_UNIT_CLASS_SQL}                           AS unit_class,
+        max(period_distinct_values)                 AS distinct_values,
+        arg_min("value", report_seq)                AS first_value,
+        arg_max("value", report_seq)                AS latest_value
+      FROM v_facts_pit
+     GROUP BY cik, taxonomy, concept, unit, period_start, period_end
+)
+SELECT
+    unit_class,
+    count(*)                                                            AS facts,
+    count(*) FILTER (WHERE distinct_values >= 2)                        AS restated,
+    count(*) FILTER (WHERE distinct_values >= 2
+                       AND latest_value > first_value)                  AS revised_up,
+    count(*) FILTER (WHERE distinct_values >= 2
+                       AND latest_value < first_value)                  AS revised_down,
+    count(*) FILTER (WHERE distinct_values >= 2
+                       AND latest_value = first_value)                  AS returned,
+    quantile_cont(
+        CASE
+            WHEN greatest(abs(first_value), abs(latest_value)) = 0 THEN NULL
+            ELSE abs(CAST(latest_value - first_value AS DOUBLE))
+                 / CAST(greatest(abs(first_value), abs(latest_value)) AS DOUBLE)
+        END, 0.5
+    ) FILTER (WHERE distinct_values >= 2)                               AS median_change
+  FROM per_fact
+ GROUP BY unit_class
+ -- Fixed order, not by count: the panel is read as a comparison and a corpus
+ -- where one class overtook another would otherwise reorder the rows.
+ ORDER BY CASE unit_class
+              WHEN 'per-share'   THEN 1
+              WHEN 'share count' THEN 2
+              ELSE 3
+          END
+"""  # noqa: S608
 
 _PER_FACT = """
     SELECT
@@ -245,6 +380,9 @@ SELECT
     )                                                               AS undefined_change,
     count(*) FILTER (WHERE distinct_values >= 2 AND latest_value > first_value) AS revised_up,
     count(*) FILTER (WHERE distinct_values >= 2 AND latest_value < first_value) AS revised_down,
+    -- The third arm. Strict > and < above leave equality uncounted, so without
+    -- this the direction figures silently fail to sum to restated_facts.
+    count(*) FILTER (WHERE distinct_values >= 2 AND latest_value = first_value) AS returned,
     {extras}
   FROM scored
 """
@@ -338,6 +476,7 @@ def measure_contamination(
         undefined_relative_change=int(tally["undefined_change"]),
         revised_up=int(tally["revised_up"]),
         revised_down=int(tally["revised_down"]),
+        returned_to_first_value=int(tally["returned"]),
     )
 
 
@@ -362,6 +501,34 @@ def cross_grain_spread(warehouse: Warehouse) -> CrossGrainSpread:
     if row is None:  # pragma: no cover - an aggregate without GROUP BY always returns a row
         raise RuntimeError("aggregate returned no row")
     return CrossGrainSpread(triples=int(row[0]), multi_unit=int(row[1]), multi_taxonomy=int(row[2]))
+
+
+def contamination_by_unit_class(warehouse: Warehouse) -> tuple[UnitClass, ...]:
+    """Split the corpus by whether a stock split could have caused the restatement.
+
+    Post-hoc -- see the module docstring. It answers one question the headline
+    cannot answer for itself: a split rewrites every per-share figure in the
+    archive at once, so if per-share facts dominated the corpus, the headline
+    would be measuring corporate actions rather than accounting revisions.
+
+    Reading this panel means reading the split into the numbers. A split divides
+    per-share values and multiplies share counts, so it should push ``per-share``
+    *down* and ``share count`` *up* -- and if that asymmetry is not in the output,
+    the classification is not finding what it claims to find.
+    """
+    rows = warehouse.execute(_BY_UNIT_CLASS).fetchall()
+    return tuple(
+        UnitClass(
+            unit_class=str(row[0]),
+            facts=int(row[1]),
+            restated_facts=int(row[2]),
+            revised_up=int(row[3]),
+            revised_down=int(row[4]),
+            returned_to_first_value=int(row[5]),
+            median_relative_change=_round(row[6]),
+        )
+        for row in rows
+    )
 
 
 def _predicate(*, cik: int | None, concept: str | None) -> tuple[str, list[Any]]:

@@ -26,6 +26,8 @@ from aletheia.corpus.contamination import (
     THRESHOLDS,
     Contamination,
     CrossGrainSpread,
+    UnitClass,
+    contamination_by_unit_class,
     cross_grain_spread,
     measure_contamination,
 )
@@ -35,6 +37,8 @@ __all__ = [
     "THRESHOLDS",
     "Contamination",
     "CrossGrainSpread",
+    "UnitClass",
+    "contamination_by_unit_class",
     "cross_grain_spread",
     "measure_contamination",
 ]
