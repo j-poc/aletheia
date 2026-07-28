@@ -27,6 +27,7 @@ from typing import Any
 import pytest
 
 from aletheia.corpus.contamination import (
+    MIN_CONDITIONAL_DENOMINATOR,
     PERIOD_BANDS,
     SURVIVAL_CUTOFFS,
     THRESHOLDS,
@@ -793,6 +794,77 @@ class TestTheOpportunityConfound:
         for _, split in survival_by_period_band(warehouse):
             assert split.active_restated <= split.active_restatable <= split.active_facts
             assert split.dormant_restated <= split.dormant_restatable <= split.dormant_facts
+
+    def test_a_thin_cell_serialises_as_null_and_not_as_a_rate(self, warehouse: Any) -> None:
+        """The guard has to live in the data, not only in the console formatter.
+
+        It once lived only in the printer. The evidence card -- the one artifact
+        meant to be read without any surrounding prose -- got the unguarded rate
+        anyway, which is the single place where a misleading number does the most
+        damage. Both cohorts are checked: only the dormant side is thin on the
+        real corpus, so a one-sided guard would be correct by accident.
+        """
+        _fact(warehouse, accn="aaaaaaa1", value="100", cik=1, concept="A")
+        _fact(warehouse, accn="aaaaaaa2", value="150", cik=1, concept="A")
+        _fact(warehouse, accn="a", value="100", cik=2, concept="A")
+
+        row = contamination_by_survival(warehouse)[0].as_dict()
+
+        assert row["dormant_conditional_share"] is None
+        assert row["active_conditional_share"] is None
+        assert row["conditional_gap"] is None
+        assert "censoring artefact" in row["conditional_suppressed_reason"]
+        assert "conditional_caveat" not in row, "no caveat on a row with nothing to caveat"
+        # The counts themselves are never suppressed -- only rates over them.
+        assert row["dormant_restatable"] == 0
+        assert row["active_restatable"] == 1
+
+    def test_one_fat_cohort_does_not_license_a_rate_on_a_thin_one(self, warehouse: Any) -> None:
+        """The shape the real corpus actually has, which the test above does not.
+
+        In the 2023-onward band the active cohort holds 444,629 republished facts
+        and the dormant one holds 67. A guard that asks whether *either* cohort is
+        large enough passes that cell and reports a rate built on 67 facts. The
+        previous test has both cohorts thin, so it cannot tell ``min`` from
+        ``max`` -- and the mutation gate caught exactly that: the one-sided-guard
+        mutant survived it. This is the fixture that kills it.
+        """
+        for i in range(MIN_CONDITIONAL_DENOMINATOR):
+            _fact(warehouse, accn=f"{i:07d}x", value="100", cik=1, concept=f"C{i}")
+            _fact(warehouse, accn=f"{i:07d}y", value="150", cik=1, concept=f"C{i}")
+        _fact(warehouse, accn="000000x", value="100", cik=2, concept="A")
+        _fact(warehouse, accn="000000y", value="150", cik=2, concept="A")
+
+        split = contamination_by_survival(warehouse)[0]
+
+        assert split.active_restatable >= MIN_CONDITIONAL_DENOMINATOR
+        assert split.dormant_restatable == 1
+        assert not split.conditional_is_reportable, "one fat cohort cannot license the thin one"
+        assert split.as_dict()["conditional_gap"] is None
+
+    def test_a_reportable_row_carries_its_disclaimer_into_the_card(self, warehouse: Any) -> None:
+        """A shipped number travels with the sentence that says what it is not.
+
+        The pooled conditional gap is the largest and most stable directional
+        figure the study computes, and it is the least identified: pooled across
+        periods *and* conditioned on republication, so it carries both confounds.
+        It was persisted to the card with no caveat while the prose disclaimed it
+        elsewhere -- a reader of the card alone got a clean positive finding.
+        """
+        # ``_fact`` derives the filing year from ``len(accn) % 9``, so the active
+        # cohort needs 8-character accessions (2018, after the first cutoff) and
+        # the dormant one 7 (2017, before it). Both cohorts must clear the
+        # threshold or the guard suppresses the row and the test proves nothing.
+        for i in range(MIN_CONDITIONAL_DENOMINATOR):
+            for cik, stem in ((1, f"{i:07d}"), (2, f"{i:06d}")):
+                _fact(warehouse, accn=f"{stem}x", value="100", cik=cik, concept=f"C{i}")
+                _fact(warehouse, accn=f"{stem}y", value="150", cik=cik, concept=f"C{i}")
+
+        row = contamination_by_survival(warehouse)[0].as_dict()
+
+        assert row["conditional_gap"] is not None
+        assert "NOT A FINDING" in row["conditional_caveat"]
+        assert "conditional_suppressed_reason" not in row
 
     def test_the_band_table_carries_the_same_counts(self, warehouse: Any) -> None:
         """Every fixture fact sits in a 2008 period, so one band holds them all."""

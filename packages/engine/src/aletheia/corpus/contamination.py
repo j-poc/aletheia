@@ -102,6 +102,20 @@ Nor is the banded view the fix; it is a second confounded view. See
 :attr:`SurvivalSplit.conditional_gap`.
 """
 
+MIN_CONDITIONAL_DENOMINATOR = 1_000
+"""Below this many republished facts in either cohort, a conditional rate is suppressed.
+
+Not a statistical test and not tuned. A round number chosen so the one cell that
+is empty by construction -- dormant filers in the 2023-onward band, who had
+already stopped filing before those periods existed -- cannot report a percentage
+that reads like a measurement. It holds 67 republished facts.
+
+The next smallest cell holds 62,359, so the threshold could sit anywhere between
+about 100 and 50,000 and suppress exactly the same single cell. That insensitivity
+is what makes it a guard rather than a choice: there is no value in the plausible
+range at which it changes any reported number.
+"""
+
 
 @dataclass(frozen=True, slots=True)
 class Contamination:
@@ -381,7 +395,59 @@ class SurvivalSplit:
         """
         return self.pooled_share - self.active_share
 
+    @property
+    def conditional_is_reportable(self) -> bool:
+        """Whether both cohorts have enough republished facts to carry a rate.
+
+        Checked on **both** cohorts, not just the dormant one. Only the dormant
+        side is thin on today's corpus, so a one-sided guard would work by
+        accident -- and a guard that is correct by accident is the same class of
+        thing as a gate that passes by luck, which this study has already had to
+        fix once.
+        """
+        return min(self.active_restatable, self.dormant_restatable) >= MIN_CONDITIONAL_DENOMINATOR
+
     def as_dict(self) -> dict[str, Any]:
+        """The row as it is persisted. Thin conditional cells serialise as null.
+
+        The guard lives here rather than only in the console formatter, and that
+        placement is the point. An earlier version suppressed the unreportable
+        rate when printing while writing it to the evidence card anyway -- so the
+        one artifact meant to be read on its own, by a future run or a reader with
+        no access to this prose, was the only place the misleading number
+        survived. A caveat that exists solely in a terminal scrollback is not a
+        caveat.
+        """
+        conditional: dict[str, Any] = {
+            "active_conditional_share": None,
+            "dormant_conditional_share": None,
+            "conditional_gap": None,
+            "conditional_suppressed_reason": (
+                f"fewer than {MIN_CONDITIONAL_DENOMINATOR:,} republished facts in a "
+                f"cohort (active {self.active_restatable:,}, dormant "
+                f"{self.dormant_restatable:,}); a rate over that few facts is a "
+                f"censoring artefact, not a measurement"
+            ),
+        }
+        if self.conditional_is_reportable:
+            conditional = {
+                "active_conditional_share": self.active_conditional_share,
+                "dormant_conditional_share": self.dormant_conditional_share,
+                "conditional_gap": self.conditional_gap,
+                # Carried on every reportable row, not appended to prose
+                # elsewhere, because this dataclass is serialised into the
+                # evidence card and read without any of the surrounding text.
+                "conditional_caveat": (
+                    "NOT A FINDING. Conditioning on a second report replaces the "
+                    "vintage confound with a selection one -- which facts get "
+                    "republished is itself a function of how long the filer kept "
+                    "filing. On the five-cutoff rows this quantity is ALSO still "
+                    "pooled across accounting periods, so it carries both "
+                    "confounds at once and is the least identified number on this "
+                    "card. Its sign is stable across cutoffs; that stability is "
+                    "not evidence, for the same reason the raw gap's was not."
+                ),
+            }
         return {
             "cutoff": self.cutoff,
             "active_facts": self.active_facts,
@@ -389,17 +455,15 @@ class SurvivalSplit:
             "active_restated": self.active_restated,
             "active_share": self.active_share,
             "active_restatable_share": self.active_restatable_share,
-            "active_conditional_share": self.active_conditional_share,
             "dormant_facts": self.dormant_facts,
             "dormant_restatable": self.dormant_restatable,
             "dormant_restated": self.dormant_restated,
             "dormant_share": self.dormant_share,
             "dormant_restatable_share": self.dormant_restatable_share,
-            "dormant_conditional_share": self.dormant_conditional_share,
             "gap": self.gap,
-            "conditional_gap": self.conditional_gap,
             "pooled_share": self.pooled_share,
             "active_only_bias": self.active_only_bias,
+            **conditional,
         }
 
 
@@ -799,9 +863,11 @@ def survival_by_period_band(
     was read as the answer, and both were written by the fix to the round before.
 
     The consequence for the study is a retraction, not a smaller number: cohort
-    is entangled with both period vintage and republication opportunity, no
-    stratification this corpus supports breaks both at once, and so it cannot
-    identify a dormancy effect in either direction. What it *can* answer is the
+    is entangled with both period vintage and republication opportunity, and none
+    of the three views computed here -- pooled, banded, or conditioned on a second
+    report -- breaks both at once, so none of them identifies a dormancy effect in
+    either direction. That is a claim about what was tried; a matched or
+    regression-adjusted design was not attempted and is not ruled out. What it *can* answer is the
     narrower question that actually motivated the caveat -- how much a universe
     restricted to still-active filers would differ from this one -- and that is
     the pooled-minus-active-only difference, which is small.

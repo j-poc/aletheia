@@ -22,6 +22,7 @@ number.
 """
 
 from aletheia.corpus.contamination import (
+    MIN_CONDITIONAL_DENOMINATOR,
     PERIOD_BANDS,
     QUANTILES,
     SURVIVAL_CUTOFFS,
@@ -38,6 +39,7 @@ from aletheia.corpus.contamination import (
 )
 
 __all__ = [
+    "MIN_CONDITIONAL_DENOMINATOR",
     "PERIOD_BANDS",
     "QUANTILES",
     "SURVIVAL_CUTOFFS",

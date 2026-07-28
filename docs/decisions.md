@@ -1026,8 +1026,10 @@ filer stopped filing at all, so inside a band its facts were mostly published
 once, and a fact published once cannot be restated. Republication rates are
 1.47% dormant against 44.77% active in the 2023-onward band; conditioning on a
 second report moves the sign a third time. Cohort is entangled with both period
-vintage and republication opportunity, and no stratification this corpus supports
-breaks both at once.
+vintage and republication opportunity, and none of the three views computed here
+-- pooled, period-banded, conditioned on a second report -- breaks both at once. A
+matched or regression-adjusted design was not attempted and is not ruled out; the
+claim is about these numbers, not about what is measurable in principle.
 
 **Conclusion: no dormancy effect is asserted in either direction.** What survives
 is the counterfactual, which needs no causal attribution — an active-only
@@ -1035,10 +1037,23 @@ universe would have measured 0.05–0.17pp less contamination than this one. The
 headline (5.02%) is untouched throughout; every correction here is to the
 survivorship caveat, which was always a caveat and never the result.
 
+**c. The fix for (b) put its guard in the wrong layer.** The thin-cell
+suppression was written into the console formatter only, so the evidence card —
+the artifact meant to be read without surrounding prose — kept the unreportable
+rate. And the same round persisted a **pooled** conditional gap of +2.47pp to
++3.76pp, positive at all five cutoffs and four to eight times the figure
+retracted in this very appendix, discussed nowhere. The prose disclaimed it; the
+shipped JSON did not, which is the worse way round, because the JSON is what the
+next run reads. The guard now lives on `SurvivalSplit`, suppressed cells
+serialise as `null` with a stated reason, reportable ones carry their disclaimer
+in the card, and the pooled panel is printed and argued with rather than hidden.
+
 **How it was found.** (a) and the paradox came from a second fresh-context
 review, run after the first round's fix had been committed and believed final.
 (b) came from reading the study's own printed output afterwards: a cell reporting
 0.02% on 4,573 facts is one restated fact, which is censoring rather than
-measurement. Each defect was introduced by the fix to the one before it — the
-pattern worth carrying forward is that corrections are written with more
-confidence and less scrutiny than the code they replace.
+measurement. (c) came from a fourth fresh-context review of the commit that fixed
+(b). Each defect was introduced by the fix to the one before it — the pattern
+worth carrying forward is that corrections are written with more confidence and
+less scrutiny than the code they replace, and that a claim can be correct in the
+prose and wrong in the artifact.

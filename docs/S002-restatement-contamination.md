@@ -262,14 +262,33 @@ to −2.36pp exactly where it is most unequal. And once you condition on a fact
 having had a second report at all, the sign moves a **third** time: dormant
 filers restate *more* in the two bands holding most of their mass. The
 2023-onward dormant cell has 67 republished facts against 444,629 active ones —
-it is empty by construction, not low.
+it is empty by construction, not low, so its rate is suppressed everywhere it
+would otherwise be printed, including in the evidence card.
+
+**And the largest number in this whole section is the one least worth believing.**
+Conditioning the *pooled* five-cutoff table — without stratifying by period at
+all — gives a dormant-minus-active gap of **+2.47pp to +3.76pp, positive at every
+cutoff**: four to eight times the +0.42/+0.88pp figure retracted above. It is
+stated here rather than left in the data because it ships in the evidence card,
+and a number that ships must be arguable. **It is not a finding, and it is the
+worst-identified quantity in the study**: still pooled across accounting periods,
+so it carries the vintage confound, *and* conditioned on republication, so it
+carries the selection one. Both at once. Its stability across five cutoffs is
+worth exactly as much as the raw gap's was — which is nothing, and for the same
+reason. This memo has now had to retract a claim resting on that same "stable
+across cutoffs" tell twice; the third time it is disclaimed before anyone asks.
 
 **So no dormancy effect is claimed in either direction.** Cohort is entangled
 with *two* things — period vintage and republication opportunity — and they push
 opposite ways. Stratifying by period removes the first and maximises the second;
 conditioning on a second report trades one for the other, since which facts get
-republished is itself a function of how long the filer kept filing. **No
-stratification this corpus supports breaks both at once.** The counterfactual in
+republished is itself a function of how long the filer kept filing. **None of the
+three views computed here — pooled, period-banded, or conditioned on a second
+report — breaks both at once.** That is a statement about what was tried, not a
+proof of impossibility: a matched design (comparing filers with similar lifetime
+filing counts) or a regression adjustment might identify it, and neither was
+attempted. What is claimed is that the numbers in this memo do not support a
+dormancy effect — not that none could ever be measured. The counterfactual in
 the first table survives all of this, because it does not require attributing the
 difference to anything — it asks only what an active-only universe would have
 measured, which is a fact about composition rather than a causal claim.
@@ -287,7 +306,7 @@ entirely; firms that first listed after 2011 are absent; and the $500M floor
 excludes micro-caps, whose restatement behaviour may well differ. Those are
 stated, not estimated -- the corpus cannot measure companies it does not contain.
 
-> **Three corrections, each one catching the fix to the last, all recorded
+> **Four corrections, each one catching the fix to the last, all recorded
 > rather than quietly deleted** — a project whose subject is unverified claims
 > should show its own.
 >
@@ -313,6 +332,13 @@ stated, not estimated -- the corpus cannot measure companies it does not contain
 > to the round before. Caught by reading the study's own output table — the
 > 2023-onward dormant cell, 4,573 facts at 0.02%, is one restated fact, and a
 > cell that thin is a censoring artefact rather than a measurement.
+>
+> And the fix for *that* suppressed the unreportable rate on screen while writing
+> it into the evidence card unchanged, and quietly persisted a pooled conditional
+> gap four to eight times larger than the figure already retracted twice, with no
+> caveat attached. The prose was right and the artifact was wrong — which is the
+> worse way round, since the artifact is what a later run reads. Caught by a
+> fourth review. Both are now enforced by mutants rather than by prose.
 
 **Unit and taxonomy changes are invisible by construction.** Both are inside the
 grain, so a fact that migrates between them becomes two facts rather than one
@@ -348,16 +374,18 @@ same treatment `aletheia.store` gets, enforced by a test. That guard is what
 moved this module: it was written in `research/` and the guard failed the build.
 The boundary was tightened rather than bent.
 
-**The claims above are machine-checked against mutants.** The gate carries 33
-deliberate defects, of which **23 target this study's code** -- counting rows
+**The claims above are machine-checked against mutants.** The gate carries 36
+deliberate defects, of which **26 target this study's code** -- counting rows
 instead of facts, dropping `unit` from the grain, taking the smallest value
 instead of the first-published one, dividing by the first value instead of the
 larger magnitude, keeping sign flips in the panel that exists to remove them,
 anchoring the per-share pattern so `USD/shares_unit` escapes it, inverting the
 sign of the survivorship gap, quoting the cohort gap in place of the
-counterfactual bias, and measuring republication *opportunity* as though it were
-restatement -- the last two being the errors corrected above, now mutants so they
-cannot recur. Each is injected into a copy of the tree and must make a named test
+counterfactual bias, measuring republication *opportunity* as though it were
+restatement, suppressing an unreportable rate on screen while writing it to the
+card anyway, and stripping the "NOT A FINDING" sentence off the pooled
+conditional gap -- the last four being errors this memo actually shipped, now
+mutants so they cannot recur. Each is injected into a copy of the tree and must make a named test
 fail. The other 10 belong to earlier decisions.
 
 One of them was, for a time, *intermittently* caught. The mutant that reorders
@@ -450,11 +478,35 @@ Found by fresh-context adversarial review, in two rounds:
    mutant targeted. Third time a fixture rather than the code was the weak link.
    Both cohorts now carry facts republished with an unchanged value.
 
-Items 5 through 10 all arrived *after* the study was believed finished and
-committed — twice over, since (9) and (10) followed a second round that had
-itself been declared done. That is the argument for fresh-context review being
+11. **The fix for (9) hid the number it was meant to expose.** The thin-cell
+   guard was written into the console formatter only. `as_dict()` — which is what
+   gets serialised into the evidence card — had no equivalent gate, so the one
+   artifact designed to be read *without* any surrounding prose was the only
+   place the unreportable rate survived. Worse, the same round computed a
+   **pooled** conditional gap of +2.47pp to +3.76pp, positive at all five cutoffs
+   and four to eight times the figure retracted in (6), and persisted it to the
+   card while discussing only the banded version. A reader of the card alone got
+   a clean positive finding that every piece of prose disclaims. Found by
+   fresh-context adversarial review of the round-3 commit. The guard now lives on
+   the dataclass, suppressed cells serialise as `null` with a reason, reportable
+   ones carry a "NOT A FINDING" caveat in the card itself, and the pooled panel
+   is printed and discussed rather than left in the JSON.
+12. **A weak fixture caught by the gate — the fourth time.** The mutant for (11)
+   that flips the two-sided guard to one-sided survived, because the new test had
+   *both* cohorts thin, which cannot distinguish `min` from `max`. The real
+   corpus shape is one fat cohort and one empty one (444,629 against 67), and
+   that is now the fixture. A second mutant in the same batch also survived for a
+   different reason: `ruff format` collapsed the guard onto one line after the
+   mutant was written, so its anchor no longer matched. The runner reported
+   "anchor no longer present" rather than passing it silently, which is the
+   behaviour that made it visible.
+
+Items 5 through 12 all arrived *after* the study was believed finished and
+committed — three times over, since (11) and (12) followed a third round that had
+itself been declared done and green. That is the argument for fresh-context review being
 mandatory rather than discretionary: none of them was visible from inside the
 work, and each was found in the fix to the one before. The pattern worth naming
-is that every one of items 5, 6, 8, 9 and 10 was introduced *by a correction*.
+is that every one of items 5, 6, 8, 9, 10, 11 and 12 was introduced *by a
+correction*.
 Fixes are written with more confidence and less scrutiny than the code they
 replace, and they are the least reviewed thing in any codebase.

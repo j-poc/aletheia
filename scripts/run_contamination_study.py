@@ -25,6 +25,7 @@ from typing import Any
 from aletheia.app import Application
 from aletheia.core.hashing import canonical_hash
 from aletheia.corpus.contamination import (
+    MIN_CONDITIONAL_DENOMINATOR,
     QUANTILES,
     THRESHOLDS,
     Contamination,
@@ -61,16 +62,6 @@ CONFIG: dict[str, Any] = {
 
 KILL_THRESHOLD = Decimal(CONFIG["kill_threshold"])
 """Registered in D20: below this, the premise is overstated and the memo says so."""
-
-_MIN_CONDITIONAL_DENOMINATOR = 1_000
-"""Below this many republished facts, a cohort-band cell prints its count, not a rate.
-
-Not a statistical test and not tuned: a round number chosen so the one cell that
-is genuinely empty -- dormant filers in the 2023-onward band, who by construction
-had stopped filing before those periods existed -- cannot print a percentage that
-reads like a measurement. Every other cell in the table clears it by two orders
-of magnitude, so where the threshold sits between 100 and 50,000 changes nothing.
-"""
 
 DATA = Path("data")
 CARD_JSON = DATA / "evidence" / f"{STUDY_ID}.json"
@@ -226,6 +217,29 @@ def _print_summary(
         )
     print("  'gap' contrasts the cohorts; 'bias' is what an active-only universe would miss.")
     print()
+    # Printed because it is written to the evidence card, and a number that ships
+    # in the artifact must be visible where it can be argued with. An earlier
+    # version computed this panel, persisted it, and discussed only the banded
+    # one -- so the largest and most stable directional number in the study lived
+    # exclusively in the JSON, which is precisely where an unhedged claim does
+    # the most damage: read by the next run, with none of this prose attached.
+    print("  The same five rows conditioned on the fact having had a second report.")
+    print("  THIS IS THE LEAST IDENTIFIED NUMBER HERE and is NOT a finding: it is")
+    print("  still pooled across accounting periods, so it carries the vintage")
+    print("  confound AND a selection one. Its sign is stable across all five")
+    print("  cutoffs; that stability is not evidence, for exactly the reason the")
+    print("  raw gap's stability was not. It is shown so it cannot be quoted from")
+    print("  the card without this sentence attached:")
+    print(f"  {'dormant if last filed before':<32}{'active':>9}{'dormant':>9}{'cond gap':>10}")
+    for split in by_survival:
+        if not split.conditional_is_reportable:
+            print(f"  {split.cutoff:<32}{'suppressed (too few republished facts)':>29}")
+            continue
+        print(
+            f"  {split.cutoff:<32}{split.active_conditional_share:>9.2%}"
+            f"{split.dormant_conditional_share:>9.2%}{split.conditional_gap:>+10.2%}"
+        )
+    print()
     print("  ...stratified by accounting period the sign reverses in every band,")
     print("  so the pooled gap is period mix, not dormancy (Simpson's paradox).")
     print("  But the banded view is confounded too, in the other direction: a filer")
@@ -239,9 +253,11 @@ def _print_summary(
     )
     for label, split in by_band:
         # A conditional share over a handful of facts reads as a measurement when
-        # it is noise: the 2023-onward dormant cell is a single-digit denominator
+        # it is noise: the 2023-onward dormant cell holds 67 republished facts
         # because those filers had already stopped. Print the n instead of a rate.
-        thin = split.dormant_restatable < _MIN_CONDITIONAL_DENOMINATOR
+        # The predicate lives on the dataclass so the console and the card
+        # suppress the same cells -- when it lived here, the card did not.
+        thin = not split.conditional_is_reportable
         dormant_cond = (
             f"n={split.dormant_restatable}" if thin else f"{split.dormant_conditional_share:.2%}"
         )
@@ -252,7 +268,7 @@ def _print_summary(
             f"{split.dormant_restatable_share:>9.2%}"
             f"{split.active_conditional_share:>8.2%}{dormant_cond:>8}{cond_gap}"
         )
-    print(f"  (a cohort-band cell with fewer than {_MIN_CONDITIONAL_DENOMINATOR:,} republished")
+    print(f"  (a cohort-band cell with fewer than {MIN_CONDITIONAL_DENOMINATOR:,} republished")
     print("   facts prints its count rather than a rate -- there is nothing to rate.)")
     print()
     print(f"cross-grain (cik, concept, period) triples   {spread.triples:>12,}")
@@ -423,12 +439,16 @@ def _universe_caveat(
         "the banded view the correction: it carries its own confound, running the other "
         "way. A filer that went dark stopped filing, so inside a band its facts were "
         "mostly published once and could not be restated at all -- the share of facts "
-        f"getting a second report differs between the cohorts by up to "
-        f"{_widest_opportunity_gap(by_band):.2%} within a single band. Condition on that "
+        f"getting a second report differs between the cohorts by "
+        f"{_widest_opportunity_gap(by_band):.2%} in the widest of the four bands (the "
+        "most recent one, which is also the emptiest for dormant filers and so is the "
+        "extreme rather than the typical case). Condition on that "
         "second report and the sign moves again. Cohort is entangled with BOTH period "
         "vintage and republication opportunity; stratifying by period removes the first "
-        "and maximises the second, and no stratification this corpus supports breaks both "
-        "at once. No dormancy effect is asserted in either direction. Selection effects that remain "
+        "and maximises the second. NONE OF THE THREE VIEWS COMPUTED HERE -- pooled, "
+        "period-banded, or conditioned on a second report -- breaks both at once; a "
+        "matched or regression-adjusted design was not attempted and is not ruled out. "
+        "No dormancy effect is asserted in either direction. Selection effects that remain "
         "unmeasured: firms already dead before 2011Q4 are absent entirely, firms that "
         "first listed after 2011 are absent, and the $500M floor excludes micro-caps. "
         "Stated, not estimated -- the corpus cannot see companies it does not contain."
