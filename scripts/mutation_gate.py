@@ -323,6 +323,55 @@ MUTANTS: tuple[Mutant, ...] = (
         tests=(f"{TESTS}/test_contamination.py",),
     ),
     Mutant(
+        label="republication opportunity is measured as restatement, erasing the confound",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="    count(*) FILTER (WHERE NOT dormant AND reports >= 2)         AS active_restatable,",
+        new="    count(*) FILTER (WHERE NOT dormant AND distinct_values >= 2) AS active_restatable,",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="the dormant cohort's opportunity is silently the active cohort's",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="    count(*) FILTER (WHERE dormant AND reports >= 2)             AS dormant_restatable,",
+        new="    count(*) FILTER (WHERE reports >= 2)                         AS dormant_restatable,",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        # The two queries carry byte-identical column lines and the runner
+        # replaces only the first occurrence, so this one is anchored on the
+        # period filter -- text that exists solely in the banded query.
+        label="the banded table measures opportunity as restatement (band query only)",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old=(
+            "    count(*) FILTER (WHERE dormant AND reports >= 2)             "
+            "AS dormant_restatable,\n"
+            "    count(*) FILTER (WHERE dormant AND distinct_values >= 2)     "
+            "AS dormant_restated\n"
+            "  FROM joined\n"
+            " WHERE period_end"
+        ),
+        new=(
+            "    count(*) FILTER (WHERE dormant AND distinct_values >= 2)     "
+            "AS dormant_restatable,\n"
+            "    count(*) FILTER (WHERE dormant AND distinct_values >= 2)     "
+            "AS dormant_restated\n"
+            "  FROM joined\n"
+            " WHERE period_end"
+        ),
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="the conditional share is taken over all facts, not the republished ones",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="        return _share(self.dormant_restated, self.dormant_restatable)",
+        new="        return _share(self.dormant_restated, self.dormant_facts)",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
         label="the period bands share a lower bound, so facts are counted in several bands",
         decision="D20",
         path=f"{ENGINE}/corpus/contamination.py",

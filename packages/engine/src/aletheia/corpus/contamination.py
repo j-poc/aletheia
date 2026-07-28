@@ -97,6 +97,9 @@ about the one that actually decides the answer. See
 :func:`survival_by_period_band` -- stratifying by accounting period reverses the
 sign in every band. The pooled comparison is Simpson's paradox, and reporting
 five cutoffs of it is thorough about the wrong axis.
+
+Nor is the banded view the fix; it is a second confounded view. See
+:attr:`SurvivalSplit.conditional_gap`.
 """
 
 
@@ -285,8 +288,14 @@ class SurvivalSplit:
     cutoff: str
     """A filer whose last filing predates this date is counted dormant."""
     active_facts: int
+    active_restatable: int
+    """Active facts reported more than once -- the ones that *could* have been
+    restated. Carried because the cohorts differ in it enormously, and a fact
+    published once is a guaranteed non-restatement that says nothing about
+    whether its filer revises."""
     active_restated: int
     dormant_facts: int
+    dormant_restatable: int
     dormant_restated: int
 
     @property
@@ -296,6 +305,43 @@ class SurvivalSplit:
     @property
     def dormant_share(self) -> Decimal:
         return _share(self.dormant_restated, self.dormant_facts)
+
+    @property
+    def active_restatable_share(self) -> Decimal:
+        """Share of active facts that were published more than once."""
+        return _share(self.active_restatable, self.active_facts)
+
+    @property
+    def dormant_restatable_share(self) -> Decimal:
+        """Share of dormant facts that were published more than once."""
+        return _share(self.dormant_restatable, self.dormant_facts)
+
+    @property
+    def active_conditional_share(self) -> Decimal:
+        """Restated share of active facts *that had a second report*."""
+        return _share(self.active_restated, self.active_restatable)
+
+    @property
+    def dormant_conditional_share(self) -> Decimal:
+        """Restated share of dormant facts *that had a second report*."""
+        return _share(self.dormant_restated, self.dormant_restatable)
+
+    @property
+    def conditional_gap(self) -> Decimal:
+        """:attr:`gap`, recomputed on facts that had the opportunity to change.
+
+        The second confound, and the reason the period-band table is not the
+        correction it was written to be. Stratifying by accounting period removes
+        the vintage entanglement and *maximises* this one: a filer that went dark
+        stopped filing, so inside a recent band its facts were mostly published
+        once and could not be restated for a reason unrelated to restating.
+
+        Conditioning here does not rescue the comparison either -- it trades one
+        confound for another, since which facts get a second report is itself a
+        function of how long the filer kept filing. It is computed so the
+        instability is visible rather than asserted.
+        """
+        return self.dormant_conditional_share - self.active_conditional_share
 
     @property
     def gap(self) -> Decimal:
@@ -339,12 +385,19 @@ class SurvivalSplit:
         return {
             "cutoff": self.cutoff,
             "active_facts": self.active_facts,
+            "active_restatable": self.active_restatable,
             "active_restated": self.active_restated,
             "active_share": self.active_share,
+            "active_restatable_share": self.active_restatable_share,
+            "active_conditional_share": self.active_conditional_share,
             "dormant_facts": self.dormant_facts,
+            "dormant_restatable": self.dormant_restatable,
             "dormant_restated": self.dormant_restated,
             "dormant_share": self.dormant_share,
+            "dormant_restatable_share": self.dormant_restatable_share,
+            "dormant_conditional_share": self.dormant_conditional_share,
             "gap": self.gap,
+            "conditional_gap": self.conditional_gap,
             "pooled_share": self.pooled_share,
             "active_only_bias": self.active_only_bias,
         }
@@ -625,18 +678,24 @@ WITH last_filing AS (
     -- can be decided without leaving the table and nothing can fall out.
     SELECT cik, max(filed_at) AS last_filed_at FROM v_facts_pit GROUP BY cik
 ), per_fact AS (
-    SELECT cik, max(period_distinct_values) AS distinct_values
+    SELECT cik,
+           max(period_distinct_values) AS distinct_values,
+           -- How many times the fact was reported at all. A fact published once
+           -- cannot be restated, so this is the denominator of opportunity.
+           max(report_seq)             AS reports
       FROM v_facts_pit
      GROUP BY cik, taxonomy, concept, unit, period_start, period_end
 ), joined AS (
-    SELECT p.distinct_values, l.last_filed_at < CAST(? AS DATE) AS dormant
+    SELECT p.distinct_values, p.reports, l.last_filed_at < CAST(? AS DATE) AS dormant
       FROM per_fact p JOIN last_filing l USING (cik)
 )
 SELECT
-    count(*) FILTER (WHERE NOT dormant)                         AS active_facts,
+    count(*) FILTER (WHERE NOT dormant)                          AS active_facts,
+    count(*) FILTER (WHERE NOT dormant AND reports >= 2)         AS active_restatable,
     count(*) FILTER (WHERE NOT dormant AND distinct_values >= 2) AS active_restated,
-    count(*) FILTER (WHERE dormant)                             AS dormant_facts,
-    count(*) FILTER (WHERE dormant AND distinct_values >= 2)    AS dormant_restated
+    count(*) FILTER (WHERE dormant)                              AS dormant_facts,
+    count(*) FILTER (WHERE dormant AND reports >= 2)             AS dormant_restatable,
+    count(*) FILTER (WHERE dormant AND distinct_values >= 2)     AS dormant_restated
   FROM joined
 """
 
@@ -664,9 +723,11 @@ def contamination_by_survival(warehouse: Warehouse) -> tuple[SurvivalSplit, ...]
             SurvivalSplit(
                 cutoff=cutoff,
                 active_facts=int(row[0]),
-                active_restated=int(row[1]),
-                dormant_facts=int(row[2]),
-                dormant_restated=int(row[3]),
+                active_restatable=int(row[1]),
+                active_restated=int(row[2]),
+                dormant_facts=int(row[3]),
+                dormant_restatable=int(row[4]),
+                dormant_restated=int(row[5]),
             )
         )
     return tuple(splits)
@@ -684,17 +745,22 @@ _BY_PERIOD_BAND = """
 WITH last_filing AS (
     SELECT cik, max(filed_at) AS last_filed_at FROM v_facts_pit GROUP BY cik
 ), per_fact AS (
-    SELECT cik, period_end, max(period_distinct_values) AS distinct_values
+    SELECT cik, period_end,
+           max(period_distinct_values) AS distinct_values,
+           max(report_seq)             AS reports
       FROM v_facts_pit
      GROUP BY cik, taxonomy, concept, unit, period_start, period_end
 ), joined AS (
-    SELECT p.distinct_values, p.period_end, l.last_filed_at < CAST(? AS DATE) AS dormant
+    SELECT p.distinct_values, p.reports, p.period_end,
+           l.last_filed_at < CAST(? AS DATE) AS dormant
       FROM per_fact p JOIN last_filing l USING (cik)
 )
 SELECT
     count(*) FILTER (WHERE NOT dormant)                          AS active_facts,
+    count(*) FILTER (WHERE NOT dormant AND reports >= 2)         AS active_restatable,
     count(*) FILTER (WHERE NOT dormant AND distinct_values >= 2) AS active_restated,
     count(*) FILTER (WHERE dormant)                              AS dormant_facts,
+    count(*) FILTER (WHERE dormant AND reports >= 2)             AS dormant_restatable,
     count(*) FILTER (WHERE dormant AND distinct_values >= 2)     AS dormant_restated
   FROM joined
  WHERE period_end > CAST(? AS DATE) AND period_end <= CAST(? AS DATE)
@@ -718,12 +784,27 @@ def survival_by_period_band(
     pooled comparison reads the period mix and reports it as a property of
     dormancy.
 
+    **This table is not the correction, and an earlier version of this docstring
+    presented it as one.** It removes the vintage confound and maximises a second
+    one: a filer that went dark stopped filing altogether, so inside a band its
+    facts were mostly published once and could not be restated for a reason that
+    has nothing to do with restating. Read
+    :attr:`SurvivalSplit.dormant_restatable_share` against
+    :attr:`SurvivalSplit.active_restatable_share` in the recent bands -- the two
+    cohorts are not comparable there in the first place, and conditioning on a
+    second report (:attr:`SurvivalSplit.conditional_gap`) moves the sign again.
+
+    That is the same error as the one in :data:`SURVIVAL_CUTOFFS`, in the
+    opposite direction: a stable sign was read as evidence, then a reversed sign
+    was read as the answer, and both were written by the fix to the round before.
+
     The consequence for the study is a retraction, not a smaller number: cohort
-    and period vintage are entangled here, so this corpus cannot identify a
-    dormancy effect in either direction. What it *can* answer is the narrower
-    question that actually motivated the caveat -- how much a universe restricted
-    to still-active filers would differ from this one -- and that is the
-    pooled-minus-active-only difference, which is small.
+    is entangled with both period vintage and republication opportunity, no
+    stratification this corpus supports breaks both at once, and so it cannot
+    identify a dormancy effect in either direction. What it *can* answer is the
+    narrower question that actually motivated the caveat -- how much a universe
+    restricted to still-active filers would differ from this one -- and that is
+    the pooled-minus-active-only difference, which is small.
     """
     bands: list[tuple[str, SurvivalSplit]] = []
     lower = "0001-01-01"
@@ -737,9 +818,11 @@ def survival_by_period_band(
                 SurvivalSplit(
                     cutoff=cutoff,
                     active_facts=int(row[0]),
-                    active_restated=int(row[1]),
-                    dormant_facts=int(row[2]),
-                    dormant_restated=int(row[3]),
+                    active_restatable=int(row[1]),
+                    active_restated=int(row[2]),
+                    dormant_facts=int(row[3]),
+                    dormant_restatable=int(row[4]),
+                    dormant_restated=int(row[5]),
                 ),
             )
         )

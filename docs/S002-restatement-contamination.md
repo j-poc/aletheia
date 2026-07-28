@@ -242,26 +242,54 @@ in which to be revised, so they restate more for a reason that has nothing to do
 with dormancy. The pooled comparison reads that period mix and reports it as a
 property of the cohort.
 
-**So no dormancy effect is claimed in either direction.** Cohort and period
-vintage are entangled in this corpus and it cannot separate them. The
-counterfactual in the first table survives this, because it does not require
-attributing the difference to anything — it asks only what an active-only
-universe would have measured, which is a fact about composition rather than a
-causal claim.
+**But the banded table is not the correction either, and an earlier version of
+this memo presented it as one.** It removes the vintage confound and maximises a
+second one running the opposite way. A filer that went dark did not merely stop
+producing *new* periods — it stopped filing at all, so inside any band its facts
+were mostly published once, and **a fact published once cannot be restated**
+regardless of what its filer would have done. The signature is unmistakable once
+measured:
+
+| period band | share of facts republished — active | — dormant | restated among republished — active | — dormant |
+|---|---:|---:|---:|---:|
+| through 2014 | 54.76% | 48.86% | 11.55% | **12.77%** |
+| 2015–2018 | 60.78% | 48.99% | 9.78% | **10.12%** |
+| 2019–2022 | 60.90% | 39.04% | 6.29% | 4.25% |
+| 2023 onward | 44.77% | **1.47%** | 5.32% | *n = 67* |
+
+The banded gap is ≈0 where republication opportunity is nearly equal and widens
+to −2.36pp exactly where it is most unequal. And once you condition on a fact
+having had a second report at all, the sign moves a **third** time: dormant
+filers restate *more* in the two bands holding most of their mass. The
+2023-onward dormant cell has 67 republished facts against 444,629 active ones —
+it is empty by construction, not low.
+
+**So no dormancy effect is claimed in either direction.** Cohort is entangled
+with *two* things — period vintage and republication opportunity — and they push
+opposite ways. Stratifying by period removes the first and maximises the second;
+conditioning on a second report trades one for the other, since which facts get
+republished is itself a function of how long the filer kept filing. **No
+stratification this corpus supports breaks both at once.** The counterfactual in
+the first table survives all of this, because it does not require attributing the
+difference to anything — it asks only what an active-only universe would have
+measured, which is a fact about composition rather than a causal claim.
 
 A cautionary note about the method, not just the result: reporting five cutoffs
 looked like rigour and was rigour on the wrong axis. Varying the cutoff date
 controls for one arbitrary choice while leaving untouched the confound that
-decides the answer. Robustness across a parameter is not robustness.
+decides the answer. Robustness across a parameter is not robustness. The sequel
+is worth stating plainly, because it is the same error twice: the fix then read a
+*reversed* sign as the answer, having checked only the confound it had just gone
+looking for. Finding one confound is not evidence that you have found them all.
 
 **What the sample still cannot see.** Firms already dead before 2011Q4 are absent
 entirely; firms that first listed after 2011 are absent; and the $500M floor
 excludes micro-caps, whose restatement behaviour may well differ. Those are
 stated, not estimated -- the corpus cannot measure companies it does not contain.
 
-> **Two corrections, both from adversarial review, both recorded rather than
-> quietly deleted** — a project whose subject is unverified claims should show
-> its own.
+> **Three corrections, each one catching the fix to the last, all recorded
+> rather than quietly deleted** — a project whose subject is unverified claims
+> should show its own.
 >
 > The first version of this section said the universe came from a *current*
 > ticker map and was "alive-today by construction", and argued from that to the
@@ -277,6 +305,14 @@ stated, not estimated -- the corpus cannot measure companies it does not contain
 > contrast as a finding without checking whether cohort was confounded with
 > period vintage. It is, and controlling for it reverses the sign. The second
 > review caught both.
+>
+> And *that* fix over-claimed in turn, in the mirror image of the error it was
+> correcting: it presented the banded table as the answer, when the banded table
+> carries its own confound. A stable sign had been read as evidence; then a
+> reversed sign was read as the correction; both readings were written by the fix
+> to the round before. Caught by reading the study's own output table — the
+> 2023-onward dormant cell, 4,573 facts at 0.02%, is one restated fact, and a
+> cell that thin is a censoring artefact rather than a measurement.
 
 **Unit and taxonomy changes are invisible by construction.** Both are inside the
 grain, so a fact that migrates between them becomes two facts rather than one
@@ -312,16 +348,17 @@ same treatment `aletheia.store` gets, enforced by a test. That guard is what
 moved this module: it was written in `research/` and the guard failed the build.
 The boundary was tightened rather than bent.
 
-**The claims above are machine-checked against mutants.** The gate carries 29
-deliberate defects, of which **19 target this study's code** -- counting rows
+**The claims above are machine-checked against mutants.** The gate carries 33
+deliberate defects, of which **23 target this study's code** -- counting rows
 instead of facts, dropping `unit` from the grain, taking the smallest value
 instead of the first-published one, dividing by the first value instead of the
 larger magnitude, keeping sign flips in the panel that exists to remove them,
 anchoring the per-share pattern so `USD/shares_unit` escapes it, inverting the
 sign of the survivorship gap, quoting the cohort gap in place of the
-counterfactual bias (the error corrected above, now a mutant so it cannot recur).
-Each is injected into a copy of the tree and must make a named test fail. The
-other 10 belong to earlier decisions.
+counterfactual bias, and measuring republication *opportunity* as though it were
+restatement -- the last two being the errors corrected above, now mutants so they
+cannot recur. Each is injected into a copy of the tree and must make a named test
+fail. The other 10 belong to earlier decisions.
 
 One of them was, for a time, *intermittently* caught. The mutant that reorders
 the unit-class panel by size was killed by a test whose three classes each held
@@ -329,7 +366,10 @@ one fact -- so the mutated `ORDER BY facts DESC` had a three-way tie and no
 defined order, and returned the correct sequence by luck on some runs. The gate
 passed four times here and failed three times under review, which is the worst
 possible failure mode: a verification whose own verdict is not reproducible. The
-test now uses strictly unequal class sizes, so the two orderings always differ.
+test now uses strictly unequal class sizes (3 / 2 / 1), so the mutated ordering is
+the exact reverse of the required one and the tie no longer exists — which is
+stronger than a run count, since the reason it was flaky has been removed rather
+than not observed. It has since been green on eight consecutive runs.
 
 **Reproducible.** Two runs of identical code at a clean tree produce the same
 reproducibility hash. The exact commit and hash are not transcribed here on
@@ -393,7 +433,28 @@ Found by fresh-context adversarial review, in two rounds:
    because the new test's fixture had an empty active cohort — and with no active
    facts the two quantities coincide, so the mutation was invisible. The fixture
    now populates both cohorts at different rates.
+9. **The fix for (6) over-claimed in the mirror image of (6) itself.** It
+   presented the period-banded table as *the* correction. That table removes the
+   vintage confound and maximises a second one: a dormant filer stopped filing
+   altogether, so inside a band its facts were mostly published once and could not
+   be restated at all — the republication rate is 1.47% dormant against 44.77%
+   active in the 2023-onward band, and conditioning on a second report moves the
+   sign a third time. Found by reading the study's own output: a cell reporting
+   0.02% on 4,573 facts is one restated fact, and that is a censoring artefact
+   rather than a measurement. The retraction stands and is now two-sided; the
+   opportunity counts ship in `SurvivalSplit` with three mutants enforcing them,
+   and cells below 1,000 republished facts print their count instead of a rate.
+10. **A weak fixture caught by the gate, again.** The banded mutant written for
+   (9) survived: the new fixture gave the *dormant* cohort equal restatable and
+   restated counts, so the substitution was invisible on exactly the cohort the
+   mutant targeted. Third time a fixture rather than the code was the weak link.
+   Both cohorts now carry facts republished with an unchanged value.
 
-Items 5 through 8 all arrived *after* the study was believed finished and
-committed. That is the argument for the fresh-context review being mandatory
-rather than discretionary: none of them was visible from inside the work.
+Items 5 through 10 all arrived *after* the study was believed finished and
+committed — twice over, since (9) and (10) followed a second round that had
+itself been declared done. That is the argument for fresh-context review being
+mandatory rather than discretionary: none of them was visible from inside the
+work, and each was found in the fix to the one before. The pattern worth naming
+is that every one of items 5, 6, 8, 9 and 10 was introduced *by a correction*.
+Fixes are written with more confidence and less scrutiny than the code they
+replace, and they are the least reviewed thing in any codebase.

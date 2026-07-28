@@ -999,3 +999,46 @@ Also minor: "37 ad-hoc batches" does not reconcile with `ingest_universe.py
 study, run before the memo shipped. Neither was reachable by reading the code:
 the code was right, the prose describing it was wrong. That is the failure mode
 this project exists to catch, and it caught it in its own flagship.
+
+### D20 — second correction, 2026-07-28 (appended; both texts above left intact)
+
+**The correction above needs a correction, and it is the interesting one.** Point
+1 concluded that "the gap runs +0.42pp to +0.88pp, same sign throughout — dormant
+filers restate somewhat more". **That is withdrawn.** It is Simpson's paradox: a
+filer that goes dark stops producing new accounting periods, so its facts
+concentrate in older ones, and older periods have had more calendar time in which
+to be revised. Hold the period fixed and the sign reverses in every band
+(−0.08pp, −0.99pp, −2.17pp, −2.36pp). `survival_by_period_band` computes it.
+
+Two further things, both of which change what should be concluded rather than
+just the number:
+
+**a. The gap is not the bias.** The reasoning above treated the cohort gap as the
+error an active-only universe would carry. It is not. That bias is the gap
+weighted by the dormant cohort's share of the corpus: **+0.05pp to +0.17pp**,
+three to ten times smaller. `SurvivalSplit.active_only_bias` computes it and a
+mutant enforces the distinction. The sizeable claim in point 1 — that the bias
+"can be sized, and now is" — stands; the figure it quoted did not.
+
+**b. The banded table is not the fix either.** Stratifying by period removes the
+vintage confound and maximises a second one running the other way: a dormant
+filer stopped filing at all, so inside a band its facts were mostly published
+once, and a fact published once cannot be restated. Republication rates are
+1.47% dormant against 44.77% active in the 2023-onward band; conditioning on a
+second report moves the sign a third time. Cohort is entangled with both period
+vintage and republication opportunity, and no stratification this corpus supports
+breaks both at once.
+
+**Conclusion: no dormancy effect is asserted in either direction.** What survives
+is the counterfactual, which needs no causal attribution — an active-only
+universe would have measured 0.05–0.17pp less contamination than this one. The
+headline (5.02%) is untouched throughout; every correction here is to the
+survivorship caveat, which was always a caveat and never the result.
+
+**How it was found.** (a) and the paradox came from a second fresh-context
+review, run after the first round's fix had been committed and believed final.
+(b) came from reading the study's own printed output afterwards: a cell reporting
+0.02% on 4,573 facts is one restated fact, which is censoring rather than
+measurement. Each defect was introduced by the fix to the one before it — the
+pattern worth carrying forward is that corrections are written with more
+confidence and less scrutiny than the code they replace.

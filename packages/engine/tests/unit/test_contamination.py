@@ -683,6 +683,128 @@ class TestTheVintageConfound:
         assert abs(split.active_only_bias) < abs(split.gap)
 
 
+class TestTheOpportunityConfound:
+    """The confound the *fix* introduced, found by reading the shipped output.
+
+    Stratifying by accounting period removes the vintage entanglement. It also
+    maximises a second one, which the banded table then reports as a finding: a
+    filer that went dark stopped filing, so inside a band its facts were mostly
+    published once -- and a fact published once cannot be restated, whatever its
+    filer would have done. On the real corpus the 2023-onward dormant cell has 67
+    republished facts against 444,629 active ones.
+
+    The fixture is built so the two confounds point opposite ways, which is the
+    situation the real data is in. Raw, the dormant cohort restates LESS
+    (1/4 against 1/3). Conditioned on having had a second report, it restates
+    MORE (1/1 against 1/2). Nothing about the fixture changed between those two
+    sentences except the denominator.
+    """
+
+    @staticmethod
+    def _opposing_cohorts(warehouse: Any) -> None:
+        """Active cik=1 (files 2018), dormant cik=2 (files 2011).
+
+        The load-bearing rows are the ones published twice with the SAME value --
+        ``cik=1`` concepts C and D, and ``cik=2`` concept C. Without them
+        ``reports >= 2`` and ``distinct_values >= 2`` select identically and the
+        mutation that swaps one for the other survives. The first version of this
+        fixture had such a row for the active cohort but not the dormant one, and
+        the gate caught it: the banded mutant lived. **Both** cohorts need
+        ``restatable > restated``, which is the whole distinction being tested.
+        This is the third round in which a fixture rather than the code was the
+        weak link, so it is asserted directly rather than assumed.
+
+        Active:  6 facts, 4 republished, 2 restated -> 33.33% raw, 50.00% cond.
+        Dormant: 7 facts, 3 republished, 2 restated -> 28.57% raw, 66.67% cond.
+        Raw says dormant restate less; conditional says they restate more.
+        """
+        # Active: A and B genuinely restated, C and D republished unchanged,
+        # E and F filed once and therefore incapable of showing a restatement.
+        for accn, value, concept in (
+            ("aaaaaa01", "100", "A"),
+            ("aaaaaa02", "150", "A"),
+            ("aaaaaa03", "100", "B"),
+            ("aaaaaa04", "150", "B"),
+            ("aaaaaa05", "100", "C"),
+            ("aaaaaa06", "100", "C"),
+            ("aaaaaa07", "100", "D"),
+            ("aaaaaa08", "100", "D"),
+            ("aaaaaa09", "100", "E"),
+            ("aaaaaa10", "100", "F"),
+        ):
+            _fact(warehouse, accn=accn, value=value, cik=1, concept=concept)
+        # Dormant: A and B restated, C republished unchanged, D-G filed once.
+        for accn, value, concept in (
+            ("a", "100", "A"),
+            ("b", "150", "A"),
+            ("c", "100", "B"),
+            ("d", "150", "B"),
+            ("e", "100", "C"),
+            ("f", "100", "C"),
+            ("g", "100", "D"),
+            ("h", "100", "E"),
+            ("i", "100", "F"),
+            ("j", "100", "G"),
+        ):
+            _fact(warehouse, accn=accn, value=value, cik=2, concept=concept)
+
+    def test_republication_is_counted_apart_from_restatement(self, warehouse: Any) -> None:
+        """A fact republished with an unchanged value is restatable, not restated."""
+        self._opposing_cohorts(warehouse)
+
+        split = contamination_by_survival(warehouse)[0]
+
+        assert (split.active_facts, split.active_restatable, split.active_restated) == (6, 4, 2)
+        assert (split.dormant_facts, split.dormant_restatable, split.dormant_restated) == (7, 3, 2)
+
+    def test_conditioning_on_a_second_report_moves_the_sign(self, warehouse: Any) -> None:
+        """The whole reason these columns exist.
+
+        The raw gap says the dormant cohort restates less. The conditional gap,
+        on the same rows, says it restates more. Neither is a dormancy effect --
+        the point is that the answer is a function of which confound is left in.
+        """
+        self._opposing_cohorts(warehouse)
+
+        split = contamination_by_survival(warehouse)[0]
+
+        assert split.active_share == Decimal("0.33333333")
+        assert split.dormant_share == Decimal("0.28571429")
+        assert split.gap < 0, "raw: dormant appear to restate less"
+
+        assert split.active_conditional_share == Decimal("0.5")
+        assert split.dormant_conditional_share == Decimal("0.66666667")
+        assert split.conditional_gap > 0, "conditioned: they appear to restate more"
+
+    def test_the_cohorts_differ_in_opportunity_itself(self, warehouse: Any) -> None:
+        """The measurement that makes the banded comparison unsafe to read."""
+        self._opposing_cohorts(warehouse)
+
+        split = contamination_by_survival(warehouse)[0]
+
+        assert split.active_restatable_share == Decimal("0.66666667")
+        assert split.dormant_restatable_share == Decimal("0.42857143")
+        assert split.active_restatable_share > split.dormant_restatable_share
+
+    def test_restated_never_exceeds_restatable_never_exceeds_facts(self, warehouse: Any) -> None:
+        """A fact must be republished before its value can differ. Holds per band."""
+        self._opposing_cohorts(warehouse)
+
+        for _, split in survival_by_period_band(warehouse):
+            assert split.active_restated <= split.active_restatable <= split.active_facts
+            assert split.dormant_restated <= split.dormant_restatable <= split.dormant_facts
+
+    def test_the_band_table_carries_the_same_counts(self, warehouse: Any) -> None:
+        """Every fixture fact sits in a 2008 period, so one band holds them all."""
+        self._opposing_cohorts(warehouse)
+
+        bands = dict(survival_by_period_band(warehouse, cutoff="2018-01-01"))
+        held = bands["through 2014"]
+
+        assert (held.active_restatable, held.dormant_restatable) == (4, 3)
+        assert sum(s.active_restatable + s.dormant_restatable for s in bands.values()) == 7
+
+
 class TestCrossGrainSpread:
     def test_it_counts_what_the_grain_absorbs(self, warehouse: Any) -> None:
         _fact(warehouse, accn="a", value="100", unit="USD")

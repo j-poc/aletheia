@@ -62,6 +62,16 @@ CONFIG: dict[str, Any] = {
 KILL_THRESHOLD = Decimal(CONFIG["kill_threshold"])
 """Registered in D20: below this, the premise is overstated and the memo says so."""
 
+_MIN_CONDITIONAL_DENOMINATOR = 1_000
+"""Below this many republished facts, a cohort-band cell prints its count, not a rate.
+
+Not a statistical test and not tuned: a round number chosen so the one cell that
+is genuinely empty -- dormant filers in the 2023-onward band, who by construction
+had stopped filing before those periods existed -- cannot print a percentage that
+reads like a measurement. Every other cell in the table clears it by two orders
+of magnitude, so where the threshold sits between 100 and 50,000 changes nothing.
+"""
+
 DATA = Path("data")
 CARD_JSON = DATA / "evidence" / f"{STUDY_ID}.json"
 CARD_MD = DATA / "evidence" / f"{STUDY_ID}.md"
@@ -216,13 +226,34 @@ def _print_summary(
         )
     print("  'gap' contrasts the cohorts; 'bias' is what an active-only universe would miss.")
     print()
-    print("  ...but stratified by accounting period the sign reverses in every band,")
-    print("  so the pooled gap is period mix, not dormancy (Simpson's paradox):")
-    print(f"  {'period band':<32}{'active':>9}{'dormant':>9}{'gap':>9}")
+    print("  ...stratified by accounting period the sign reverses in every band,")
+    print("  so the pooled gap is period mix, not dormancy (Simpson's paradox).")
+    print("  But the banded view is confounded too, in the other direction: a filer")
+    print("  that went dark stopped filing, so its facts inside a band were mostly")
+    print("  published once and could not be restated at all. 'reptbl' is the share")
+    print("  of each cohort's facts that got a second report; 'cond' is the restated")
+    print("  share among only those. Neither view identifies a dormancy effect:")
+    print(
+        f"  {'period band':<22}{'active':>8}{'dormant':>8}{'gap':>8}"
+        f"{'a.reptbl':>9}{'d.reptbl':>9}{'a.cond':>8}{'d.cond':>8}{'c.gap':>8}"
+    )
     for label, split in by_band:
-        print(
-            f"  {label:<32}{split.active_share:>9.2%}{split.dormant_share:>9.2%}{split.gap:>+9.2%}"
+        # A conditional share over a handful of facts reads as a measurement when
+        # it is noise: the 2023-onward dormant cell is a single-digit denominator
+        # because those filers had already stopped. Print the n instead of a rate.
+        thin = split.dormant_restatable < _MIN_CONDITIONAL_DENOMINATOR
+        dormant_cond = (
+            f"n={split.dormant_restatable}" if thin else f"{split.dormant_conditional_share:.2%}"
         )
+        cond_gap = "     n/a" if thin else f"{split.conditional_gap:>+8.2%}"
+        print(
+            f"  {label:<22}{split.active_share:>8.2%}{split.dormant_share:>8.2%}"
+            f"{split.gap:>+8.2%}{split.active_restatable_share:>9.2%}"
+            f"{split.dormant_restatable_share:>9.2%}"
+            f"{split.active_conditional_share:>8.2%}{dormant_cond:>8}{cond_gap}"
+        )
+    print(f"  (a cohort-band cell with fewer than {_MIN_CONDITIONAL_DENOMINATOR:,} republished")
+    print("   facts prints its count rather than a rate -- there is nothing to rate.)")
     print()
     print(f"cross-grain (cik, concept, period) triples   {spread.triples:>12,}")
     print(f"  reported under >1 unit                     {spread.multi_unit:>12,}")
@@ -339,6 +370,18 @@ def _by_class(by_unit_class: tuple[UnitClass, ...], name: str) -> UnitClass:
     raise SystemExit(f"unit class {name!r} missing from the panel; the classification changed")
 
 
+def _widest_opportunity_gap(by_band: tuple[tuple[str, SurvivalSplit], ...]) -> Decimal:
+    """The largest within-band difference in how often a fact got a second report.
+
+    Sizes the confound the banded table introduces while removing the vintage
+    one. Taken as an absolute value across bands so the figure reads as a spread
+    regardless of which cohort is ahead in any given band.
+    """
+    return max(
+        abs(split.active_restatable_share - split.dormant_restatable_share) for _, split in by_band
+    )
+
+
 def _universe_caveat(
     by_survival: tuple[SurvivalSplit, ...],
     by_band: tuple[tuple[str, SurvivalSplit], ...],
@@ -376,9 +419,16 @@ def _universe_caveat(
         "small either way. NOT CLAIMED: that dormant filers restate more. Pooled, they "
         f"appear to by {max(split.gap for split in by_survival):.2%}, {reversal} -- "
         "dormant filers' facts sit in older periods, which have had longer to be revised, "
-        "so the pooled contrast reads the period mix and reports it as dormancy. Cohort "
-        "and vintage are entangled in this corpus and it cannot separate them, so no "
-        "dormancy effect is asserted in either direction. Selection effects that remain "
+        "so the pooled contrast reads the period mix and reports it as dormancy. NOR is "
+        "the banded view the correction: it carries its own confound, running the other "
+        "way. A filer that went dark stopped filing, so inside a band its facts were "
+        "mostly published once and could not be restated at all -- the share of facts "
+        f"getting a second report differs between the cohorts by up to "
+        f"{_widest_opportunity_gap(by_band):.2%} within a single band. Condition on that "
+        "second report and the sign moves again. Cohort is entangled with BOTH period "
+        "vintage and republication opportunity; stratifying by period removes the first "
+        "and maximises the second, and no stratification this corpus supports breaks both "
+        "at once. No dormancy effect is asserted in either direction. Selection effects that remain "
         "unmeasured: firms already dead before 2011Q4 are absent entirely, firms that "
         "first listed after 2011 are absent, and the $500M floor excludes micro-caps. "
         "Stated, not estimated -- the corpus cannot see companies it does not contain."
