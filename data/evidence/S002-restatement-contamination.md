@@ -89,56 +89,91 @@
     - undefined_relative_change: 84
 - **post_hoc_by_survival**
     - 2018-01-01
+        - active_conditional_share: 0.0899956
         - active_facts: 6,295,185
         - active_only_bias: 0.00049151
+        - active_restatable: 3,474,770
+        - active_restatable_share: 0.55197266
         - active_restated: 312,714
         - active_share: 0.04967511
+        - conditional_gap: 0.03396642
         - cutoff: 2018-01-01
+        - dormant_conditional_share: 0.12396202
         - dormant_facts: 837,885
+        - dormant_restatable: 364,047
+        - dormant_restatable_share: 0.43448325
         - dormant_restated: 45,128
         - dormant_share: 0.05385942
         - gap: 0.00418431
         - pooled_share: 0.05016662
     - 2020-01-01
+        - active_conditional_share: 0.08760107
         - active_facts: 5,883,586
         - active_only_bias: 0.00154100
+        - active_restatable: 3,265,862
+        - active_restatable_share: 0.55508018
         - active_restated: 286,093
         - active_share: 0.04862562
+        - conditional_gap: 0.03762517
         - cutoff: 2020-01-01
+        - dormant_conditional_share: 0.12522624
         - dormant_facts: 1,249,484
+        - dormant_restatable: 572,955
+        - dormant_restatable_share: 0.45855329
         - dormant_restated: 71,749
         - dormant_share: 0.0574229
         - gap: 0.00879728
         - pooled_share: 0.05016662
     - 2022-01-01
+        - active_conditional_share: 0.08707112
         - active_facts: 5,584,543
         - active_only_bias: 0.00166650
+        - active_restatable: 3,110,687
+        - active_restatable_share: 0.55701729
         - active_restated: 270,851
         - active_share: 0.04850012
+        - conditional_gap: 0.03240068
         - cutoff: 2022-01-01
+        - dormant_conditional_share: 0.1194718
         - dormant_facts: 1,548,527
+        - dormant_restatable: 728,130
+        - dormant_restatable_share: 0.47020814
         - dormant_restated: 86,991
         - dormant_share: 0.05617661
         - gap: 0.00767649
         - pooled_share: 0.05016662
     - 2024-01-01
+        - active_conditional_share: 0.08675949
         - active_facts: 5,247,883
         - active_only_bias: 0.00164686
+        - active_restatable: 2,934,849
+        - active_restatable_share: 0.55924437
         - active_restated: 254,626
         - active_share: 0.04851976
+        - conditional_gap: 0.02742154
         - cutoff: 2024-01-01
+        - dormant_conditional_share: 0.11418103
         - dormant_facts: 1,885,187
+        - dormant_restatable: 903,968
+        - dormant_restatable_share: 0.47951105
         - dormant_restated: 103,216
         - dormant_share: 0.05475107
         - gap: 0.00623131
         - pooled_share: 0.05016662
     - 2025-01-01
+        - active_conditional_share: 0.08689518
         - active_facts: 5,105,069
         - active_only_bias: 0.00152555
+        - active_restatable: 2,857,650
+        - active_restatable_share: 0.55976716
         - active_restated: 248,316
         - active_share: 0.04864107
+        - conditional_gap: 0.02473312
         - cutoff: 2025-01-01
+        - dormant_conditional_share: 0.1116283
         - dormant_facts: 2,028,001
+        - dormant_restatable: 981,167
+        - dormant_restatable_share: 0.48380992
         - dormant_restated: 109,526
         - dormant_share: 0.05400688
         - gap: 0.00536581
@@ -176,45 +211,73 @@
         - unit_class: share count
 - **post_hoc_survival_by_period_band**
     - 2015-2018
+        - active_conditional_share: 0.09780816
         - active_facts: 1,306,097
         - active_only_bias: -0.00286486
+        - active_restatable: 793,901
+        - active_restatable_share: 0.6078423
         - active_restated: 77,650
         - active_share: 0.05945194
+        - conditional_gap: 0.00335950
         - cutoff: 2024-01-01
+        - dormant_conditional_share: 0.10116766
         - dormant_facts: 532,503
+        - dormant_restatable: 260,864
+        - dormant_restatable_share: 0.48988269
         - dormant_restated: 26,391
         - dormant_share: 0.04956028
         - gap: -0.00989166
         - pooled_share: 0.05658708
     - 2019-2022
+        - active_conditional_share: 0.06288577
         - active_facts: 1,331,044
         - active_only_bias: -0.00232664
+        - active_restatable: 810,549
+        - active_restatable_share: 0.60895733
         - active_restated: 50,972
         - active_share: 0.03829475
+        - conditional_gap: -0.02040594
         - cutoff: 2024-01-01
+        - dormant_conditional_share: 0.04247983
         - dormant_facts: 159,749
+        - dormant_restatable: 62,359
+        - dormant_restatable_share: 0.39035612
         - dormant_restated: 2,649
         - dormant_share: 0.01658226
         - gap: -0.02171249
         - pooled_share: 0.03596811
     - 2023 onward
+        - active_conditional_share: 0.05324439
         - active_facts: 993,127
         - active_only_bias: -0.00010826
+        - active_restatable: 444,629
+        - active_restatable_share: 0.44770608
         - active_restated: 23,674
         - active_share: 0.02383784
+        - conditional_gap: -0.03831902
         - cutoff: 2024-01-01
+        - dormant_conditional_share: 0.01492537
         - dormant_facts: 4,573
+        - dormant_restatable: 67
+        - dormant_restatable_share: 0.01465121
         - dormant_restated: 1
         - dormant_share: 0.00021867
         - gap: -0.02361917
         - pooled_share: 0.02372958
     - through 2014
+        - active_conditional_share: 0.1155266
         - active_facts: 1,617,615
         - active_only_bias: -0.00035658
+        - active_restatable: 885,770
+        - active_restatable_share: 0.54757776
         - active_restated: 102,330
         - active_share: 0.0632598
+        - conditional_gap: 0.01221201
         - cutoff: 2024-01-01
+        - dormant_conditional_share: 0.12773861
         - dormant_facts: 1,188,362
+        - dormant_restatable: 580,678
+        - dormant_restatable_share: 0.4886373
         - dormant_restated: 74,175
         - dormant_share: 0.06241785
         - gap: -0.00084195
@@ -222,16 +285,16 @@
 
 ## Provenance
 
-- Commit `a028721a328bcd0a11b601b8a29f01cd8c7fe116`
+- Commit `1fafbc28d05efc3f6ce9becf967d2d36e2113518`
 - Config hash `8196c55f22d1ef28b99423e4e51878e6f6307344862555e94c3e9e3b0d5bb6e1`
 - Data vintage 2026-07-27
 - Universe 800 filers sampled with a fixed seed from the SEC Assets/USD/CY2011Q4I frame ($500M floor; 2,998 eligible of 8,166), a 2011 point-in-time cross-section -- not a current-index list
 - Trials in family `restatement-contamination`: **1**
-- Reproducibility hash `4d6fdbff9c57f0ecc58897df6a0e69cba8f059d1bd96404994e1c8b17f44a4f9`
+- Reproducibility hash `95647f78265f0e0d75ba3f7cfc0180dab34af7a481e69184799d683d3924d3f6`
 
 ## Caveats
 
-- Universe: 800 filers sampled with a fixed seed from the SEC's Assets/USD/CY2011Q4I frame -- a 2011 point-in-time cross-section -- filtered to $500M+ total assets (2,998 of the 8,166 filers in the frame qualified). Membership is decided by 2011 filings and nothing else, so a company that went dark in 2014 is in the sample. That makes the relevant question answerable: how much would a universe restricted to still-ACTIVE filers differ from this one? Between 0.05% and 0.17% of facts, depending on the cutoff -- small either way. NOT CLAIMED: that dormant filers restate more. Pooled, they appear to by 0.88%, and the sign REVERSES once accounting period is held fixed -- dormant filers' facts sit in older periods, which have had longer to be revised, so the pooled contrast reads the period mix and reports it as dormancy. Cohort and vintage are entangled in this corpus and it cannot separate them, so no dormancy effect is asserted in either direction. Selection effects that remain unmeasured: firms already dead before 2011Q4 are absent entirely, firms that first listed after 2011 are absent, and the $500M floor excludes micro-caps. Stated, not estimated -- the corpus cannot see companies it does not contain.
+- Universe: 800 filers sampled with a fixed seed from the SEC's Assets/USD/CY2011Q4I frame -- a 2011 point-in-time cross-section -- filtered to $500M+ total assets (2,998 of the 8,166 filers in the frame qualified). Membership is decided by 2011 filings and nothing else, so a company that went dark in 2014 is in the sample. That makes the relevant question answerable: how much would a universe restricted to still-ACTIVE filers differ from this one? Between 0.05% and 0.17% of facts, depending on the cutoff -- small either way. NOT CLAIMED: that dormant filers restate more. Pooled, they appear to by 0.88%, and the sign REVERSES once accounting period is held fixed -- dormant filers' facts sit in older periods, which have had longer to be revised, so the pooled contrast reads the period mix and reports it as dormancy. NOR is the banded view the correction: it carries its own confound, running the other way. A filer that went dark stopped filing, so inside a band its facts were mostly published once and could not be restated at all -- the share of facts getting a second report differs between the cohorts by up to 43.31% within a single band. Condition on that second report and the sign moves again. Cohort is entangled with BOTH period vintage and republication opportunity; stratifying by period removes the first and maximises the second, and no stratification this corpus supports breaks both at once. No dormancy effect is asserted in either direction. Selection effects that remain unmeasured: firms already dead before 2011Q4 are absent entirely, firms that first listed after 2011 are absent, and the $500M floor excludes micro-caps. Stated, not estimated -- the corpus cannot see companies it does not contain.
 - This is a population count, not an inference. There is no sampling distribution, no p-value and no confidence interval, because nothing is being estimated from a sample of a larger frame -- every fact in the corpus is counted. It describes this corpus and generalises only as far as the selection above allows.
 - A restatement here means the VALUE changed after first publication. It does not mean the filer was wrong, and it is not an accounting-fraud measure: reclassifications, adoption of new standards and ordinary revisions all count. Sign flips are reported separately because in XBRL they are usually a presentation convention rather than a change in the underlying figure.
 - Unit changes and taxonomy migrations cannot appear as restatements because unit and taxonomy are inside the grain. They instead split one economic fact into two: 5,825 of 7,126,884 (cik, concept, period) triples are reported under more than one unit and 19 under more than one taxonomy.
