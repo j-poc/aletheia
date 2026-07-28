@@ -453,21 +453,23 @@ def _git_state() -> tuple[str, bool]:
             text=True,
             check=True,
         ).stdout.strip()
+        # The exclusion is a git pathspec rather than string surgery on the
+        # output. The first version sliced each porcelain line at column 3 to
+        # read the path -- correct, except that ``.strip()`` on the whole blob
+        # had already eaten the leading space of the FIRST line, so that one line
+        # was sliced one character short and never matched the prefix. The result
+        # was a flag that read dirty whenever anything changed at all, which is
+        # the exact failure it had just been fixed for. Git knows how to exclude
+        # a directory; parsing its output to do the same job was the mistake.
         status = subprocess.run(
-            ["git", "status", "--porcelain"],  # noqa: S607
+            ["git", "status", "--porcelain", "--", ".", ":(exclude)data"],  # noqa: S607
             capture_output=True,
             text=True,
             check=True,
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return ("unknown", True)
-    code_changes = [
-        line
-        for line in status.splitlines()
-        # Porcelain format is "XY <path>"; the path starts at column 3.
-        if line[3:].strip().strip('"') and not line[3:].strip().strip('"').startswith("data/")
-    ]
-    return (commit, bool(code_changes))
+    return (commit, bool(status))
 
 
 def _distinct_configurations(ledger: TrialLedger, family: str) -> int:
