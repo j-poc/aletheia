@@ -87,6 +87,52 @@
     - rows: 13,447,437
     - sign_flips: 42,157
     - undefined_relative_change: 84
+- **post_hoc_by_survival**
+    - 2018-01-01
+        - active_facts: 6,295,185
+        - active_restated: 312,714
+        - active_share: 0.04967511
+        - cutoff: 2018-01-01
+        - dormant_facts: 837,885
+        - dormant_restated: 45,128
+        - dormant_share: 0.05385942
+        - gap: 0.00418431
+    - 2020-01-01
+        - active_facts: 5,883,586
+        - active_restated: 286,093
+        - active_share: 0.04862562
+        - cutoff: 2020-01-01
+        - dormant_facts: 1,249,484
+        - dormant_restated: 71,749
+        - dormant_share: 0.0574229
+        - gap: 0.00879728
+    - 2022-01-01
+        - active_facts: 5,584,543
+        - active_restated: 270,851
+        - active_share: 0.04850012
+        - cutoff: 2022-01-01
+        - dormant_facts: 1,548,527
+        - dormant_restated: 86,991
+        - dormant_share: 0.05617661
+        - gap: 0.00767649
+    - 2024-01-01
+        - active_facts: 5,247,883
+        - active_restated: 254,626
+        - active_share: 0.04851976
+        - cutoff: 2024-01-01
+        - dormant_facts: 1,885,187
+        - dormant_restated: 103,216
+        - dormant_share: 0.05475107
+        - gap: 0.00623131
+    - 2025-01-01
+        - active_facts: 5,105,069
+        - active_restated: 248,316
+        - active_share: 0.04864107
+        - cutoff: 2025-01-01
+        - dormant_facts: 2,028,001
+        - dormant_restated: 109,526
+        - dormant_share: 0.05400688
+        - gap: 0.00536581
 - **post_hoc_by_unit_class**
     - other
         - downward_share: 0.5560659
@@ -121,16 +167,16 @@
 
 ## Provenance
 
-- Commit `60898b55c635b324440db85524a9eb980c64d4a4`
+- Commit `80bc3456e49b55bc0c9eaa737ae2ea15979a109b`
 - Config hash `8196c55f22d1ef28b99423e4e51878e6f6307344862555e94c3e9e3b0d5bb6e1`
 - Data vintage 2026-07-27
 - Universe 800 filers ingested from EDGAR companyfacts (convenience sample)
 - Trials in family `restatement-contamination`: **1**
-- Reproducibility hash `53f5477a0dd5a73a90df27873ac84e494106e2970c641368d240277f78d9014f`
+- Reproducibility hash `c254e7cab3ff08e4c8e67b12b9f246ee13417bdfba2f61caa7b981fa35e6e6f0`
 
 ## Caveats
 
-- The 800 filers are a convenience sample, ingested in ad-hoc batches during development and drawn in 2026 from a CURRENT ticker map -- so they are alive-today by construction. EDGAR itself is survivorship-free (the SEC never deletes a dead filer's submissions), but this SELECTION is not. Dead filers plausibly restate more than survivors, which would bias this figure DOWN. The warehouse cannot size that: the delistings table holds 100 rows spanning 2026-07-01 to 2026-07-23, and 2 of the 800 appear in it.
+- Universe: 800 filers drawn from the SEC's Assets/USD/CY2011Q4I frame -- a 2011 point-in-time cross-section -- filtered to $500M+ total assets (2,998 of the 8,166 filers in the frame qualified) and sampled with a fixed seed. Membership is decided by 2011 filings and nothing else, so a company that went dark in 2014 is in the sample. Survivorship was therefore MEASURED rather than argued: comparing filers whose last filing predates each cutoff against those still filing, the restatement-rate gap never exceeds 0.88% (largest at 2020-01-01), and the sign is the same at every cutoff. Selection effects that remain: firms already dead before 2011Q4 are absent entirely, firms that first listed after 2011 are absent, and the $500M floor excludes micro-caps whose restatement behaviour may differ. Those are stated, not estimated -- the corpus cannot see companies it does not contain.
 - This is a population count, not an inference. There is no sampling distribution, no p-value and no confidence interval, because nothing is being estimated from a sample of a larger frame -- every fact in the corpus is counted. It describes this corpus and generalises only as far as the selection above allows.
 - A restatement here means the VALUE changed after first publication. It does not mean the filer was wrong, and it is not an accounting-fraud measure: reclassifications, adoption of new standards and ordinary revisions all count. Sign flips are reported separately because in XBRL they are usually a presentation convention rather than a change in the underlying figure.
 - Unit changes and taxonomy migrations cannot appear as restatements because unit and taxonomy are inside the grain. They instead split one economic fact into two: 5,825 of 7,126,884 (cik, concept, period) triples are reported under more than one unit and 19 under more than one taxonomy.

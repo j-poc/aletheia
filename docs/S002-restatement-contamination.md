@@ -200,7 +200,9 @@ SEC's `Assets/USD/CY2011Q4I` frame -- a **2011 point-in-time cross-section** --
 filtered to $500M+ total assets (2,998 of the 8,166 filers in the frame
 qualified) and sampled with a fixed seed. Membership is decided by 2011 filings
 and nothing else, so a company that went dark in 2014 is in the sample because in
-2011 it was there. **349 of the 800 stopped filing before 2024.**
+2011 it was there. **392 of the 800 filed nothing after 2024-01-01**, measured as
+the last date each filer published any fact in this corpus -- the same basis the
+cohort split below uses.
 
 That makes survivorship measurable here rather than merely arguable, so it was
 measured. Comparing filers whose last filing predates a cutoff against those
@@ -282,11 +284,13 @@ sign of the survivorship gap, reporting one survival cutoff instead of five. Eac
 is injected into a copy of the tree and must make a named test fail. All 27 are
 caught; the other 10 belong to earlier decisions and are unrelated to this study.
 
-**Reproducible.** Two runs of identical code at a clean tree produce the same
-reproducibility hash, `53f5477a0dd5a73a90df27873ac84e494106e2970c641368d240277f78d9014f`,
-at commit `60898b55c635b324440db85524a9eb980c64d4a4`, config hash
+**Reproducible.** Runs of identical code at a clean tree produce the same
+reproducibility hash,
+`c254e7cab3ff08e4c8e67b12b9f246ee13417bdfba2f61caa7b981fa35e6e6f0`, at commit
+`80bc3456e49b55bc0c9eaa737ae2ea15979a109b`, config hash
 `8196c55f22d1ef28b99423e4e51878e6f6307344862555e94c3e9e3b0d5bb6e1`, data vintage
-2026-07-27.
+2026-07-27. The card's clean/dirty flag was itself verified in both directions:
+clean at that commit, dirty with a single source file edited.
 
 ## What was found by writing this up
 
