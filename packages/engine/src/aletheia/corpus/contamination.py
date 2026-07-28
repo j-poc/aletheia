@@ -90,11 +90,13 @@ makes the cutoff a free parameter -- and a free parameter reported at one value
 is a result chosen after seeing five. Reporting the whole curve removes the
 choice instead of making it well.
 
-On this corpus the curve happens to be well behaved: the dormant-minus-active
-gap runs +0.42pp to +0.88pp and keeps its sign at every cutoff. That is a
-reassuring answer, not a reason to have asked at one point -- a single-cutoff
-version of this statistic would have looked identical while carrying none of the
-evidence that it holds up.
+On this corpus the pooled gap runs +0.42pp to +0.88pp and keeps its sign at every
+cutoff. **That stability is not evidence of a dormancy effect, and this docstring
+used to claim it was.** Varying the cutoff controls one confound; it says nothing
+about the one that actually decides the answer. See
+:func:`survival_by_period_band` -- stratifying by accounting period reverses the
+sign in every band. The pooled comparison is Simpson's paradox, and reporting
+five cutoffs of it is thorough about the wrong axis.
 """
 
 
@@ -299,12 +301,39 @@ class SurvivalSplit:
     def gap(self) -> Decimal:
         """Dormant rate minus active rate. Positive means dead filers restate more.
 
-        This is the quantity the survivorship caveat is about. A universe drawn
-        from today's index would hold only the active column, so a large positive
-        gap would mean such a universe understates restatement -- and a gap near
-        zero means the selection barely matters.
+        A contrast between cohorts, and **not** the size of any bias. It was once
+        described here as "the quantity the survivorship caveat is about", which
+        was wrong twice over: it is confounded with period vintage (see
+        :func:`survival_by_period_band`), and even taken at face value it is not
+        the counterfactual anyone cares about. For that, use
+        :attr:`active_only_bias`.
         """
         return self.dormant_share - self.active_share
+
+    @property
+    def pooled_share(self) -> Decimal:
+        """Restatement rate over both cohorts -- the headline, recomputed here."""
+        return _share(
+            self.active_restated + self.dormant_restated,
+            self.active_facts + self.dormant_facts,
+        )
+
+    @property
+    def active_only_bias(self) -> Decimal:
+        """How much a still-active-only universe would understate this corpus.
+
+        The actual counterfactual behind the survivorship caveat: a universe
+        drawn from *today's* index would contain the active cohort and nothing
+        else, so its headline would be :attr:`active_share` rather than
+        :attr:`pooled_share`. The difference is this.
+
+        It is much smaller than :attr:`gap`, and necessarily so -- the gap is a
+        difference of rates, while this is that difference weighted by the
+        dormant cohort's share of the corpus. Quoting the gap in its place
+        overstated the effect several-fold, which is the error this property
+        exists to make hard to repeat.
+        """
+        return self.pooled_share - self.active_share
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -316,6 +345,8 @@ class SurvivalSplit:
             "dormant_restated": self.dormant_restated,
             "dormant_share": self.dormant_share,
             "gap": self.gap,
+            "pooled_share": self.pooled_share,
+            "active_only_bias": self.active_only_bias,
         }
 
 
@@ -639,6 +670,81 @@ def contamination_by_survival(warehouse: Warehouse) -> tuple[SurvivalSplit, ...]
             )
         )
     return tuple(splits)
+
+
+PERIOD_BANDS: tuple[tuple[str, str], ...] = (
+    ("through 2014", "2014-12-31"),
+    ("2015-2018", "2018-12-31"),
+    ("2019-2022", "2022-12-31"),
+    ("2023 onward", "9999-12-31"),
+)
+"""Accounting-period bands for :func:`survival_by_period_band`, as (label, end)."""
+
+_BY_PERIOD_BAND = """
+WITH last_filing AS (
+    SELECT cik, max(filed_at) AS last_filed_at FROM v_facts_pit GROUP BY cik
+), per_fact AS (
+    SELECT cik, period_end, max(period_distinct_values) AS distinct_values
+      FROM v_facts_pit
+     GROUP BY cik, taxonomy, concept, unit, period_start, period_end
+), joined AS (
+    SELECT p.distinct_values, p.period_end, l.last_filed_at < CAST(? AS DATE) AS dormant
+      FROM per_fact p JOIN last_filing l USING (cik)
+)
+SELECT
+    count(*) FILTER (WHERE NOT dormant)                          AS active_facts,
+    count(*) FILTER (WHERE NOT dormant AND distinct_values >= 2) AS active_restated,
+    count(*) FILTER (WHERE dormant)                              AS dormant_facts,
+    count(*) FILTER (WHERE dormant AND distinct_values >= 2)     AS dormant_restated
+  FROM joined
+ WHERE period_end > CAST(? AS DATE) AND period_end <= CAST(? AS DATE)
+"""
+
+
+def survival_by_period_band(
+    warehouse: Warehouse, *, cutoff: str = "2024-01-01"
+) -> tuple[tuple[str, SurvivalSplit], ...]:
+    """The same dormant-vs-active split, stratified by accounting period.
+
+    This function exists because :func:`contamination_by_survival` produced a
+    confident answer that was an artefact. Pooled, dormant filers appear to
+    restate *more* -- consistently, across five cutoffs. Stratified by the period
+    the fact describes, they restate *less*, in every band.
+
+    Both are arithmetically correct, which is what makes it Simpson's paradox
+    rather than a bug. A filer that went dark stopped producing new periods, so
+    its facts concentrate in older bands; older periods have had more calendar
+    time in which to be revised, and restate more for that reason alone. The
+    pooled comparison reads the period mix and reports it as a property of
+    dormancy.
+
+    The consequence for the study is a retraction, not a smaller number: cohort
+    and period vintage are entangled here, so this corpus cannot identify a
+    dormancy effect in either direction. What it *can* answer is the narrower
+    question that actually motivated the caveat -- how much a universe restricted
+    to still-active filers would differ from this one -- and that is the
+    pooled-minus-active-only difference, which is small.
+    """
+    bands: list[tuple[str, SurvivalSplit]] = []
+    lower = "0001-01-01"
+    for label, upper in PERIOD_BANDS:
+        row = warehouse.execute(_BY_PERIOD_BAND, [cutoff, lower, upper]).fetchone()
+        if row is None:  # pragma: no cover - an aggregate without GROUP BY returns a row
+            raise RuntimeError("aggregate returned no row")
+        bands.append(
+            (
+                label,
+                SurvivalSplit(
+                    cutoff=cutoff,
+                    active_facts=int(row[0]),
+                    active_restated=int(row[1]),
+                    dormant_facts=int(row[2]),
+                    dormant_restated=int(row[3]),
+                ),
+            )
+        )
+        lower = upper
+    return tuple(bands)
 
 
 def contamination_by_unit_class(warehouse: Warehouse) -> tuple[UnitClass, ...]:

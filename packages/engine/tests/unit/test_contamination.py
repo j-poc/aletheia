@@ -27,12 +27,14 @@ from typing import Any
 import pytest
 
 from aletheia.corpus.contamination import (
+    PERIOD_BANDS,
     SURVIVAL_CUTOFFS,
     THRESHOLDS,
     contamination_by_survival,
     contamination_by_unit_class,
     cross_grain_spread,
     measure_contamination,
+    survival_by_period_band,
 )
 from aletheia.store.db import Warehouse
 from tests._factories import RUN_ID
@@ -517,14 +519,27 @@ class TestTheSplitDecomposition:
         ``ORDER BY facts DESC`` would reorder the panel on a corpus where one
         class overtook another, which makes two runs of the same study look like
         a change in the result.
+
+        The class sizes here are deliberately unequal, and in the exact reverse
+        of the required order: ``other`` largest, ``per-share`` smallest. An
+        earlier version used one fact per class, which made all three counts tie
+        -- so ``ORDER BY facts DESC`` had no defined order to produce and DuckDB
+        was free to return the right one by luck. The mutant for this rule
+        survived intermittently as a result, passing on some runs and failing on
+        others, which is worse than a missing test: a gate whose own verdict is
+        not reproducible cannot be evidence for anything. With unequal counts the
+        two orderings are always different and the mutant always dies.
         """
-        _fact(warehouse, accn="a", value="1", unit="USD")
-        _fact(warehouse, accn="b", value="1", unit="USD/shares")
-        _fact(warehouse, accn="c", value="1", unit="shares")
+        for index in range(3):
+            _fact(warehouse, accn=f"o{index}", value="1", unit="USD", concept=f"C{index}")
+        for index in range(2):
+            _fact(warehouse, accn=f"s{index}", value="1", unit="shares", concept=f"C{index}")
+        _fact(warehouse, accn="p0", value="1", unit="USD/shares")
 
-        order = [row.unit_class for row in contamination_by_unit_class(warehouse)]
+        panel = contamination_by_unit_class(warehouse)
 
-        assert order == ["per-share", "share count", "other"]
+        assert [row.facts for row in panel] == [1, 2, 3], "sizes must be strictly increasing"
+        assert [row.unit_class for row in panel] == ["per-share", "share count", "other"]
 
 
 class TestTheSurvivalSplit:
@@ -593,6 +608,79 @@ class TestTheSurvivalSplit:
             assert split.active_share == Decimal("0")
             assert split.dormant_share == Decimal("0")
             assert split.gap == Decimal("0")
+
+
+class TestTheVintageConfound:
+    """The stratification that retracted the survivorship finding.
+
+    Pooled, dormant filers look like they restate more, at every cutoff. Split by
+    accounting period, they restate less, in every band. Both are arithmetic;
+    the pooled version is reading the period mix and calling it dormancy.
+    """
+
+    def test_every_band_is_reported(self, warehouse: Any) -> None:
+        _fact(warehouse, accn="a", value="100")
+
+        bands = survival_by_period_band(warehouse)
+
+        assert [label for label, _ in bands] == [label for label, _ in PERIOD_BANDS]
+
+    def test_the_bands_partition_the_corpus(self, warehouse: Any) -> None:
+        """No fact may fall between two bands or into both.
+
+        The bands are built from a moving lower bound, which is exactly the shape
+        that produces an off-by-one gap or overlap at a boundary.
+        """
+        _fact(warehouse, accn="a", value="100")
+        _fact(warehouse, accn="b", value="180")
+        _fact(warehouse, accn="c", value="100", concept="Other")
+
+        population = measure_contamination(warehouse)
+        bands = survival_by_period_band(warehouse)
+        total = sum(split.active_facts + split.dormant_facts for _, split in bands)
+        restated = sum(split.active_restated + split.dormant_restated for _, split in bands)
+
+        assert total == population.facts
+        assert restated == population.restated_facts
+
+    def test_the_bias_is_strictly_smaller_than_the_cohort_gap(self, warehouse: Any) -> None:
+        """The conflation the memo made, and the fixture that can actually see it.
+
+        ``active_only_bias`` is ``gap`` scaled by the dormant share of the
+        corpus, so it is strictly smaller whenever any active facts exist.
+        Quoting the gap in its place therefore always overstates -- which is what
+        the memo did, threefold to tenfold.
+
+        The first version of this test used a warehouse with no active filer at
+        all. With an empty active cohort the two quantities coincide, so it
+        passed against the mutation that replaces one with the other, and the
+        mutation gate caught the weak test. Both cohorts are now populated, with
+        deliberately different rates, so the two numbers cannot agree by accident:
+        active 1 of 2 restated (50%), dormant 2 of 2 (100%), pooled 3 of 4 (75%).
+        Gap is 50pp; bias is 25pp.
+
+        ``_fact`` derives ``filed_at`` from the accession length and first
+        letter, so an eight-character accession files in 2018 and a
+        one-character one in 2011 -- which straddles the first cutoff.
+        """
+        _fact(warehouse, accn="aaaaaaa1", value="100", cik=1, concept="A")
+        _fact(warehouse, accn="aaaaaaa2", value="150", cik=1, concept="A")
+        _fact(warehouse, accn="aaaaaaa3", value="100", cik=1, concept="B")
+        _fact(warehouse, accn="a", value="100", cik=2, concept="A")
+        _fact(warehouse, accn="b", value="150", cik=2, concept="A")
+        _fact(warehouse, accn="c", value="100", cik=2, concept="B")
+        _fact(warehouse, accn="d", value="190", cik=2, concept="B")
+
+        split = contamination_by_survival(warehouse)[0]
+
+        assert (split.active_facts, split.active_restated) == (2, 1)
+        assert (split.dormant_facts, split.dormant_restated) == (2, 2)
+        assert split.active_share == Decimal("0.5")
+        assert split.dormant_share == Decimal("1")
+        assert split.pooled_share == Decimal("0.75")
+        assert split.gap == Decimal("0.5")
+        assert split.active_only_bias == Decimal("0.25")
+        assert abs(split.active_only_bias) < abs(split.gap)
 
 
 class TestCrossGrainSpread:

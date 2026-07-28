@@ -315,6 +315,22 @@ MUTANTS: tuple[Mutant, ...] = (
         tests=(f"{TESTS}/test_contamination.py",),
     ),
     Mutant(
+        label="the counterfactual bias is replaced by the cohort gap, the exact conflation",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="        return self.pooled_share - self.active_share",
+        new="        return self.dormant_share - self.active_share",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="the period bands share a lower bound, so facts are counted in several bands",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="        lower = upper",
+        new="        lower = lower",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
         label="the survival gap is signed active-minus-dormant, inverting the bias direction",
         decision="D20",
         path=f"{ENGINE}/corpus/contamination.py",

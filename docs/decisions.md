@@ -969,7 +969,8 @@ being biased **down**. That is false in both halves. `scripts/select_universe.py
 `Assets/USD/CY2011Q4I` frame — a 2011 point-in-time cross-section, $500M asset
 floor, 2,998 eligible of 8,166 in the frame, fixed seed. Membership is decided by
 2011 filings alone, so filers that later went dark are in the sample by
-construction: **349 of the 800 stopped filing before 2024**.
+construction: **392 of the 800 published no fact after 2024-01-01**, measured on
+the same basis the shipped code uses (each filer's last fact in this corpus).
 
 The false sentence appears to have been carried over from `run_bias_study.py`,
 where "the ticker-to-CIK map is a current SEC snapshot" is a genuine caveat about

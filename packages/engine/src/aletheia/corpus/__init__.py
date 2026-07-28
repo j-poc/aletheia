@@ -22,6 +22,7 @@ number.
 """
 
 from aletheia.corpus.contamination import (
+    PERIOD_BANDS,
     QUANTILES,
     SURVIVAL_CUTOFFS,
     THRESHOLDS,
@@ -33,9 +34,11 @@ from aletheia.corpus.contamination import (
     contamination_by_unit_class,
     cross_grain_spread,
     measure_contamination,
+    survival_by_period_band,
 )
 
 __all__ = [
+    "PERIOD_BANDS",
     "QUANTILES",
     "SURVIVAL_CUTOFFS",
     "THRESHOLDS",
@@ -47,4 +50,5 @@ __all__ = [
     "contamination_by_unit_class",
     "cross_grain_spread",
     "measure_contamination",
+    "survival_by_period_band",
 ]

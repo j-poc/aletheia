@@ -204,41 +204,79 @@ and nothing else, so a company that went dark in 2014 is in the sample because i
 the last date each filer published any fact in this corpus -- the same basis the
 cohort split below uses.
 
-That makes survivorship measurable here rather than merely arguable, so it was
-measured. Comparing filers whose last filing predates a cutoff against those
-still filing:
+That makes the question that actually matters answerable: **how much would a
+universe restricted to still-active filers differ from this one?** That is the
+pooled headline minus the active-only rate:
 
-| dormant if last filed before | active | dormant | gap |
+| dormant if last filed before | active-only rate | pooled − active-only |
+|---|---:|---:|
+| 2018-01-01 | 4.97% | +0.05pp |
+| 2020-01-01 | 4.86% | +0.15pp |
+| 2022-01-01 | 4.85% | +0.17pp |
+| 2024-01-01 | 4.85% | +0.16pp |
+| 2025-01-01 | 4.86% | +0.15pp |
+
+A universe drawn from today's index would understate this corpus by **0.05 to
+0.17 percentage points**. Small either way, and the headline is not materially
+deflated by that mechanism.
+
+### What is *not* claimed, and why
+
+Pooled, dormant filers appear to restate **more** — by +0.42pp to +0.88pp,
+consistently across all five cutoffs. That looks like a finding. It is not one,
+and this memo previously reported it as one.
+
+Hold the accounting period fixed and the sign reverses in **every** band:
+
+| period band | active | dormant | gap |
 |---|---:|---:|---:|
-| 2018-01-01 | 4.97% | 5.39% | +0.42pp |
-| 2020-01-01 | 4.86% | 5.74% | +0.88pp |
-| 2022-01-01 | 4.85% | 5.62% | +0.77pp |
-| 2024-01-01 | 4.85% | 5.48% | +0.62pp |
-| 2025-01-01 | 4.86% | 5.40% | +0.54pp |
+| through 2014 | 6.33% | 6.24% | −0.08pp |
+| 2015–2018 | 5.95% | 4.96% | −0.99pp |
+| 2019–2022 | 3.83% | 1.66% | −2.17pp |
+| 2023 onward | 2.38% | 0.02% | −2.36pp |
 
-Filers that went dark do restate more, consistently and by under one percentage
-point. All five cutoffs are reported because "has this filer stopped filing" has
-no natural cutoff, and a free parameter quoted at one value is a result chosen
-after seeing the others.
+Both tables are arithmetically correct, which is what makes this Simpson's
+paradox rather than a bug. A filer that goes dark stops producing new periods, so
+its facts pile up in older bands — and older periods have had more calendar time
+in which to be revised, so they restate more for a reason that has nothing to do
+with dormancy. The pooled comparison reads that period mix and reports it as a
+property of the cohort.
 
-The practical reading: a universe drawn from *today's* index would hold only the
-`active` column and would understate restatement by roughly half a point. This
-universe holds both, so the 5.02% headline is not deflated by that mechanism.
+**So no dormancy effect is claimed in either direction.** Cohort and period
+vintage are entangled in this corpus and it cannot separate them. The
+counterfactual in the first table survives this, because it does not require
+attributing the difference to anything — it asks only what an active-only
+universe would have measured, which is a fact about composition rather than a
+causal claim.
+
+A cautionary note about the method, not just the result: reporting five cutoffs
+looked like rigour and was rigour on the wrong axis. Varying the cutoff date
+controls for one arbitrary choice while leaving untouched the confound that
+decides the answer. Robustness across a parameter is not robustness.
 
 **What the sample still cannot see.** Firms already dead before 2011Q4 are absent
 entirely; firms that first listed after 2011 are absent; and the $500M floor
 excludes micro-caps, whose restatement behaviour may well differ. Those are
 stated, not estimated -- the corpus cannot measure companies it does not contain.
 
-> An earlier version of this memo claimed the universe came from a *current*
+> **Two corrections, both from adversarial review, both recorded rather than
+> quietly deleted** — a project whose subject is unverified claims should show
+> its own.
+>
+> The first version of this section said the universe came from a *current*
 > ticker map and was "alive-today by construction", and argued from that to the
-> headline being biased down. Both halves were wrong: the selection is a 2011
-> cross-section, and the bias it worried about is measured above at under a
-> percentage point. The false sentence appears to have been carried over from a
-> real caveat in the *price* study, where a current ticker map genuinely is used
-> to resolve symbols. An adversarial review caught it. It is recorded here rather
-> than quietly deleted, because a project whose subject is unverified claims
-> should show its own.
+> headline being biased down. Both halves were wrong; the selection is a 2011
+> cross-section. That sentence appears to have been carried over from a real
+> caveat in the *price* study, where a current ticker map genuinely is used to
+> resolve symbols.
+>
+> The fix for it then introduced two errors of its own. It quoted the cohort
+> **gap** (0.42–0.88pp) as though it were the bias an active-only universe would
+> carry; the bias is that gap weighted by the dormant share of the corpus, which
+> is 0.05–0.17pp — overstated three- to tenfold. And it presented the pooled
+> contrast as a finding without checking whether cohort was confounded with
+> period vintage. It is, and controlling for it reverses the sign. The second
+> review caught both.
 
 **Unit and taxonomy changes are invisible by construction.** Both are inside the
 grain, so a fact that migrates between them becomes two facts rather than one
@@ -274,28 +312,45 @@ same treatment `aletheia.store` gets, enforced by a test. That guard is what
 moved this module: it was written in `research/` and the guard failed the build.
 The boundary was tightened rather than bent.
 
-**The claims above are machine-checked against mutants.** The gate carries 27
-deliberate defects, of which **17 target this study's code** -- counting rows
+**The claims above are machine-checked against mutants.** The gate carries 29
+deliberate defects, of which **19 target this study's code** -- counting rows
 instead of facts, dropping `unit` from the grain, taking the smallest value
 instead of the first-published one, dividing by the first value instead of the
 larger magnitude, keeping sign flips in the panel that exists to remove them,
 anchoring the per-share pattern so `USD/shares_unit` escapes it, inverting the
-sign of the survivorship gap, reporting one survival cutoff instead of five. Each
-is injected into a copy of the tree and must make a named test fail. All 27 are
-caught; the other 10 belong to earlier decisions and are unrelated to this study.
+sign of the survivorship gap, quoting the cohort gap in place of the
+counterfactual bias (the error corrected above, now a mutant so it cannot recur).
+Each is injected into a copy of the tree and must make a named test fail. The
+other 10 belong to earlier decisions.
 
-**Reproducible.** Runs of identical code at a clean tree produce the same
-reproducibility hash,
-`c254e7cab3ff08e4c8e67b12b9f246ee13417bdfba2f61caa7b981fa35e6e6f0`, at commit
-`80bc3456e49b55bc0c9eaa737ae2ea15979a109b`, config hash
-`8196c55f22d1ef28b99423e4e51878e6f6307344862555e94c3e9e3b0d5bb6e1`, data vintage
-2026-07-27. The card's clean/dirty flag was itself verified in both directions:
-clean at that commit, dirty with a single source file edited.
+One of them was, for a time, *intermittently* caught. The mutant that reorders
+the unit-class panel by size was killed by a test whose three classes each held
+one fact -- so the mutated `ORDER BY facts DESC` had a three-way tie and no
+defined order, and returned the correct sequence by luck on some runs. The gate
+passed four times here and failed three times under review, which is the worst
+possible failure mode: a verification whose own verdict is not reproducible. The
+test now uses strictly unequal class sizes, so the two orderings always differ.
+
+**Reproducible.** Two runs of identical code at a clean tree produce the same
+reproducibility hash. The exact commit and hash are not transcribed here on
+purpose: any commit that edits this memo changes the commit the *next* run
+reports, so a hash quoted in the memo describes a tree that no longer exists the
+moment the memo is committed. The card carries both, written by the run itself --
+see the Provenance block of
+[`data/evidence/S002-restatement-contamination.md`](../data/evidence/S002-restatement-contamination.md).
+Config hash `8196c55f22d1ef28b99423e4e51878e6f6307344862555e94c3e9e3b0d5bb6e1`,
+data vintage 2026-07-27, both stable across runs. The card's clean/dirty flag was
+verified in both directions: clean at a clean tree, dirty with one source file
+edited.
 
 ## What was found by writing this up
 
-Three defects, each surfaced by reading output rather than code, and each fixed
-before this memo was finished:
+Every defect below was found by reading output, running a check, or being
+reviewed — none by re-reading the code that contained it. They are listed because
+a study about unverified claims that hid its own would be worth less than
+nothing.
+
+Found while writing, before review:
 
 1. **A documented claim that was false.** The undefined-relative-change bucket
    was documented as existing for `0` versus `−0`, "which DuckDB treats as
@@ -310,4 +365,35 @@ before this memo was finished:
    "dirty tree", including runs from a pristine checkout. A flag that is always
    on is one no reader learns anything from. Now it ignores the study's own
    outputs, and it was verified two-sided: clean at HEAD, dirty with one source
-   file edited.
+   file edited. **The fix then broke it again** — it read the path from each
+   `git status` line by slicing at a fixed column, but the leading space of the
+   first line had already been stripped, so that one line was always misread and
+   the flag went back to always-dirty. Caught by testing the flag against a tree
+   where only outputs had changed. Git now does the exclusion itself.
+
+Found by fresh-context adversarial review, in two rounds:
+
+4. **A false claim about how the universe was selected** — see the note in
+   Limitations. Reasoned from a mechanism that did not exist to a bias direction
+   that was not measured.
+5. **The fix for (4) conflated two different quantities.** It quoted the
+   dormant-vs-active *gap* as the bias an active-only universe would carry. The
+   bias is that gap weighted by the dormant share of the corpus — three to ten
+   times smaller. Both are now computed, named separately, and a mutant enforces
+   the distinction.
+6. **The fix for (4) also missed a confound that reverses its sign.** Cohort is
+   entangled with accounting-period vintage; stratifying flips the result in
+   every band. The finding was withdrawn rather than shrunk.
+7. **A mutation-gate result that was not reproducible.** One mutant was killed by
+   a test whose fixture left a three-way tie, so it died on some runs and
+   survived on others — it passed four times locally and failed three times under
+   review. A gate whose verdict is not repeatable is not evidence. Fixed with
+   unequal fixture sizes.
+8. **A weak test caught by the gate itself.** The mutant written for (5) survived,
+   because the new test's fixture had an empty active cohort — and with no active
+   facts the two quantities coincide, so the mutation was invisible. The fixture
+   now populates both cohorts at different rates.
+
+Items 5 through 8 all arrived *after* the study was believed finished and
+committed. That is the argument for the fresh-context review being mandatory
+rather than discretionary: none of them was visible from inside the work.

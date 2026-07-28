@@ -34,6 +34,7 @@ from aletheia.corpus.contamination import (
     contamination_by_unit_class,
     cross_grain_spread,
     measure_contamination,
+    survival_by_period_band,
 )
 from aletheia.research.evidence import EvidenceCard, Provenance
 from trialkeeper import TrialLedger
@@ -103,8 +104,9 @@ def main(argv: list[str] | None = None) -> int:
         spread = cross_grain_spread(app.warehouse)
         by_unit_class = contamination_by_unit_class(app.warehouse)
         by_survival = contamination_by_survival(app.warehouse)
+        by_band = survival_by_period_band(app.warehouse)
 
-    _print_summary(population, spread, by_unit_class, by_survival)
+    _print_summary(population, spread, by_unit_class, by_survival, by_band)
 
     ledger = TrialLedger(LEDGER)
     config_hash = canonical_hash(CONFIG)
@@ -120,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
         spread=spread,
         by_unit_class=by_unit_class,
         by_survival=by_survival,
+        by_band=by_band,
         control=control,
         vintage=vintage,
         config_hash=config_hash,
@@ -152,6 +155,7 @@ def _print_summary(
     spread: Any,
     by_unit_class: tuple[UnitClass, ...],
     by_survival: tuple[SurvivalSplit, ...],
+    by_band: tuple[tuple[str, SurvivalSplit], ...],
 ) -> None:
     print(f"facts (grain)           {population.facts:>12,}")
     print(f"  restated              {population.restated_facts:>12,}   {population.fact_share:.4%}")
@@ -204,11 +208,20 @@ def _print_summary(
         )
     print()
     print("post-hoc: do filers that went dark restate differently?")
-    print(f"  {'dormant if last filed before':<32}{'active':>9}{'dormant':>9}{'gap':>9}")
+    print(f"  {'dormant if last filed before':<32}{'active':>9}{'dormant':>9}{'gap':>9}{'bias':>9}")
     for split in by_survival:
         print(
             f"  {split.cutoff:<32}{split.active_share:>9.2%}"
-            f"{split.dormant_share:>9.2%}{split.gap:>+9.2%}"
+            f"{split.dormant_share:>9.2%}{split.gap:>+9.2%}{split.active_only_bias:>+9.2%}"
+        )
+    print("  'gap' contrasts the cohorts; 'bias' is what an active-only universe would miss.")
+    print()
+    print("  ...but stratified by accounting period the sign reverses in every band,")
+    print("  so the pooled gap is period mix, not dormancy (Simpson's paradox):")
+    print(f"  {'period band':<32}{'active':>9}{'dormant':>9}{'gap':>9}")
+    for label, split in by_band:
+        print(
+            f"  {label:<32}{split.active_share:>9.2%}{split.dormant_share:>9.2%}{split.gap:>+9.2%}"
         )
     print()
     print(f"cross-grain (cik, concept, period) triples   {spread.triples:>12,}")
@@ -222,6 +235,7 @@ def _build_card(
     spread: Any,
     by_unit_class: tuple[UnitClass, ...],
     by_survival: tuple[SurvivalSplit, ...],
+    by_band: tuple[tuple[str, SurvivalSplit], ...],
     control: Contamination,
     vintage: date,
     config_hash: str,
@@ -238,7 +252,11 @@ def _build_card(
             code_dirty=dirty,
             config_hash=config_hash,
             data_vintage=vintage,
-            universe_source="800 filers ingested from EDGAR companyfacts (convenience sample)",
+            universe_source=(
+                "800 filers sampled with a fixed seed from the SEC "
+                "Assets/USD/CY2011Q4I frame ($500M floor; 2,998 eligible of 8,166), "
+                "a 2011 point-in-time cross-section -- not a current-index list"
+            ),
             row_counts={"facts": population.rows, "distinct_facts": population.facts},
         ),
         arms=(),
@@ -246,7 +264,7 @@ def _build_card(
         trial_count=trial_count,
         trial_family=family,
         caveats=(
-            _universe_caveat(by_survival),
+            _universe_caveat(by_survival, by_band),
             "This is a population count, not an inference. There is no sampling "
             "distribution, no p-value and no confidence interval, because nothing is "
             "being estimated from a sample of a larger frame -- every fact in the corpus "
@@ -300,6 +318,9 @@ def _build_card(
             "population": population.as_dict(),
             "post_hoc_by_unit_class": {row.unit_class: row.as_dict() for row in by_unit_class},
             "post_hoc_by_survival": {s.cutoff: s.as_dict() for s in by_survival},
+            "post_hoc_survival_by_period_band": {
+                label: split.as_dict() for label, split in by_band
+            },
             "cross_grain_spread": spread.as_dict(),
             "control_aapl_eps_diluted": control.as_dict(),
             "kill_threshold": (
@@ -318,7 +339,10 @@ def _by_class(by_unit_class: tuple[UnitClass, ...], name: str) -> UnitClass:
     raise SystemExit(f"unit class {name!r} missing from the panel; the classification changed")
 
 
-def _universe_caveat(by_survival: tuple[SurvivalSplit, ...]) -> str:
+def _universe_caveat(
+    by_survival: tuple[SurvivalSplit, ...],
+    by_band: tuple[tuple[str, SurvivalSplit], ...],
+) -> str:
     """State how the universe was actually drawn, and measure the bias rather than argue it.
 
     An earlier version of this caveat said the 800 filers came from a *current*
@@ -330,26 +354,34 @@ def _universe_caveat(by_survival: tuple[SurvivalSplit, ...]) -> str:
     sentence had been imported from a genuine caveat in the *price* study, where
     a current ticker map really is used to resolve symbols.
     """
-    widest = max(by_survival, key=lambda split: abs(split.gap))
-    signs = {split.gap > 0 for split in by_survival}
-    stability = (
-        "the sign is the same at every cutoff"
-        if len(signs) == 1
-        else "the sign is NOT stable across cutoffs, which is why all five are reported"
+    widest_bias = max(by_survival, key=lambda split: abs(split.active_only_bias))
+    smallest_bias = min(by_survival, key=lambda split: abs(split.active_only_bias))
+    band_gaps = [split.gap for _, split in by_band]
+    pooled_positive = all(split.gap > 0 for split in by_survival)
+    banded_positive = all(gap > 0 for gap in band_gaps)
+    reversal = (
+        "and the sign REVERSES once accounting period is held fixed"
+        if pooled_positive and not banded_positive
+        else "and the sign survives stratification by accounting period"
     )
     return (
-        "Universe: 800 filers drawn from the SEC's Assets/USD/CY2011Q4I frame -- a 2011 "
-        "point-in-time cross-section -- filtered to $500M+ total assets (2,998 of the "
-        "8,166 filers in the frame qualified) and sampled with a fixed seed. Membership "
-        "is decided by 2011 filings and nothing else, so a company that went dark in 2014 "
-        "is in the sample. Survivorship was therefore MEASURED rather than argued: "
-        f"comparing filers whose last filing predates each cutoff against those still "
-        f"filing, the restatement-rate gap never exceeds {abs(widest.gap):.2%} "
-        f"(largest at {widest.cutoff}), and {stability}. Selection effects that remain: "
-        "firms already dead before 2011Q4 are absent entirely, firms that first listed "
-        "after 2011 are absent, and the $500M floor excludes micro-caps whose restatement "
-        "behaviour may differ. Those are stated, not estimated -- the corpus cannot see "
-        "companies it does not contain."
+        "Universe: 800 filers sampled with a fixed seed from the SEC's "
+        "Assets/USD/CY2011Q4I frame -- a 2011 point-in-time cross-section -- filtered to "
+        "$500M+ total assets (2,998 of the 8,166 filers in the frame qualified). "
+        "Membership is decided by 2011 filings and nothing else, so a company that went "
+        "dark in 2014 is in the sample. That makes the relevant question answerable: how "
+        "much would a universe restricted to still-ACTIVE filers differ from this one? "
+        f"Between {abs(smallest_bias.active_only_bias):.2%} and "
+        f"{abs(widest_bias.active_only_bias):.2%} of facts, depending on the cutoff -- "
+        "small either way. NOT CLAIMED: that dormant filers restate more. Pooled, they "
+        f"appear to by {max(split.gap for split in by_survival):.2%}, {reversal} -- "
+        "dormant filers' facts sit in older periods, which have had longer to be revised, "
+        "so the pooled contrast reads the period mix and reports it as dormancy. Cohort "
+        "and vintage are entangled in this corpus and it cannot separate them, so no "
+        "dormancy effect is asserted in either direction. Selection effects that remain "
+        "unmeasured: firms already dead before 2011Q4 are absent entirely, firms that "
+        "first listed after 2011 are absent, and the $500M floor excludes micro-caps. "
+        "Stated, not estimated -- the corpus cannot see companies it does not contain."
     )
 
 
