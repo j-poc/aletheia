@@ -75,6 +75,28 @@ QUANTILES: tuple[float, ...] = (0.5, 0.75, 0.9, 0.95, 0.99)
 THRESHOLDS: tuple[str, ...] = ("0.01", "0.05", "0.10")
 """Materiality cutoffs reported side by side. None of them is the headline."""
 
+SURVIVAL_CUTOFFS: tuple[str, ...] = (
+    "2018-01-01",
+    "2020-01-01",
+    "2022-01-01",
+    "2024-01-01",
+    "2025-01-01",
+)
+"""Dates at which a filer is called dormant, for :func:`contamination_by_survival`.
+
+All five are reported, always, and that is the design rather than thoroughness
+for its own sake. "Has this filer stopped filing?" has no natural cutoff, which
+makes the cutoff a free parameter -- and a free parameter reported at one value
+is a result chosen after seeing five. Reporting the whole curve removes the
+choice instead of making it well.
+
+On this corpus the curve happens to be well behaved: the dormant-minus-active
+gap runs +0.42pp to +0.88pp and keeps its sign at every cutoff. That is a
+reassuring answer, not a reason to have asked at one point -- a single-cutoff
+version of this statistic would have looked identical while carrying none of the
+evidence that it holds up.
+"""
+
 
 @dataclass(frozen=True, slots=True)
 class Contamination:
@@ -130,6 +152,14 @@ class Contamination:
     undefined_relative_change: int
     """Restated facts where first and latest are both zero, so the relative change
     has no value. Counted rather than silently dropped from the denominator.
+
+    Post-hoc, like :attr:`restated_from_or_to_zero` below and for the same
+    reason: both were added after the first population run, on seeing a spike the
+    pre-registered statistics could not name. Neither is subtracted from any
+    pre-registered figure -- these facts remain inside the headline and inside
+    the quantiles exactly as D20 specified -- so this is an addition to what is
+    reported, not a change to what was registered. Labelled anyway, because
+    which additions get labelled should not itself be a judgement call.
 
     Reachable because ``distinct_values`` looks at the whole report sequence
     while ``first`` and ``latest`` look only at its ends: a fact reported 0, then
@@ -247,6 +277,49 @@ class UnitClass:
 
 
 @dataclass(frozen=True, slots=True)
+class SurvivalSplit:
+    """Restatement rates for dormant against still-active filers, at one cutoff."""
+
+    cutoff: str
+    """A filer whose last filing predates this date is counted dormant."""
+    active_facts: int
+    active_restated: int
+    dormant_facts: int
+    dormant_restated: int
+
+    @property
+    def active_share(self) -> Decimal:
+        return _share(self.active_restated, self.active_facts)
+
+    @property
+    def dormant_share(self) -> Decimal:
+        return _share(self.dormant_restated, self.dormant_facts)
+
+    @property
+    def gap(self) -> Decimal:
+        """Dormant rate minus active rate. Positive means dead filers restate more.
+
+        This is the quantity the survivorship caveat is about. A universe drawn
+        from today's index would hold only the active column, so a large positive
+        gap would mean such a universe understates restatement -- and a gap near
+        zero means the selection barely matters.
+        """
+        return self.dormant_share - self.active_share
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "cutoff": self.cutoff,
+            "active_facts": self.active_facts,
+            "active_restated": self.active_restated,
+            "active_share": self.active_share,
+            "dormant_facts": self.dormant_facts,
+            "dormant_restated": self.dormant_restated,
+            "dormant_share": self.dormant_share,
+            "gap": self.gap,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class CrossGrainSpread:
     """How much the grain absorbs, so the reader need not take it on trust."""
 
@@ -284,6 +357,14 @@ enumeration of them, not guessed. ``LIKE '%/shares%'`` rather than
 silently filed those into ``other``. The wildcard on both sides still excludes
 ``shares/USD``, which is an inverse (shares *per* dollar) and is correctly not a
 per-share quantity.
+
+Not complete, and here is what it misses: 495 rows carry currency-per-unit forms
+(``USD/PartnershipUnit``, ``USD/Unit`` and case variants) for partnerships and
+trusts, which are economically per-share equivalents and can be adjusted by a
+unit split. They fall into ``other``. At 0.0037% of rows they cannot move the
+5.05% ``other`` rate, so the classification is left simple and the residual is
+stated rather than chased. ``reporting_unit`` and ``business_unit``, which look
+similar, are segment counts and belong in ``other`` on the merits.
 """
 
 # S608: the only interpolation is _UNIT_CLASS_SQL, a module constant written
@@ -501,6 +582,63 @@ def cross_grain_spread(warehouse: Warehouse) -> CrossGrainSpread:
     if row is None:  # pragma: no cover - an aggregate without GROUP BY always returns a row
         raise RuntimeError("aggregate returned no row")
     return CrossGrainSpread(triples=int(row[0]), multi_unit=int(row[1]), multi_taxonomy=int(row[2]))
+
+
+_BY_SURVIVAL = """
+WITH last_filing AS (
+    -- Derived from the facts themselves rather than joined in from ``filings``.
+    -- The first version joined, and the reconciliation test below caught it: an
+    -- inner join drops any fact whose filer is missing from ``filings``, which
+    -- would silently shrink the denominator of a study about numbers going
+    -- silently missing. Every fact carries the date it was filed, so the cohort
+    -- can be decided without leaving the table and nothing can fall out.
+    SELECT cik, max(filed_at) AS last_filed_at FROM v_facts_pit GROUP BY cik
+), per_fact AS (
+    SELECT cik, max(period_distinct_values) AS distinct_values
+      FROM v_facts_pit
+     GROUP BY cik, taxonomy, concept, unit, period_start, period_end
+), joined AS (
+    SELECT p.distinct_values, l.last_filed_at < CAST(? AS DATE) AS dormant
+      FROM per_fact p JOIN last_filing l USING (cik)
+)
+SELECT
+    count(*) FILTER (WHERE NOT dormant)                         AS active_facts,
+    count(*) FILTER (WHERE NOT dormant AND distinct_values >= 2) AS active_restated,
+    count(*) FILTER (WHERE dormant)                             AS dormant_facts,
+    count(*) FILTER (WHERE dormant AND distinct_values >= 2)    AS dormant_restated
+  FROM joined
+"""
+
+
+def contamination_by_survival(warehouse: Warehouse) -> tuple[SurvivalSplit, ...]:
+    """Restatement rates for dormant against still-active filers, at every cutoff.
+
+    Post-hoc, and it exists because a caveat asserted something false. The card
+    used to claim this universe was drawn from a *current* ticker map and was
+    therefore "alive-today by construction", and reasoned from that to the
+    headline being biased down. Neither half held: the universe is a 2011
+    point-in-time cross-section that already contains filers which later went
+    dark, so the bias had to be measured rather than argued about.
+
+    Every cutoff in :data:`SURVIVAL_CUTOFFS` is returned. Reporting one would
+    make the cutoff a choice made after seeing the answer, and on this corpus
+    that choice changes the sign of the result.
+    """
+    splits = []
+    for cutoff in SURVIVAL_CUTOFFS:
+        row = warehouse.execute(_BY_SURVIVAL, [cutoff]).fetchone()
+        if row is None:  # pragma: no cover - an aggregate without GROUP BY returns a row
+            raise RuntimeError("aggregate returned no row")
+        splits.append(
+            SurvivalSplit(
+                cutoff=cutoff,
+                active_facts=int(row[0]),
+                active_restated=int(row[1]),
+                dormant_facts=int(row[2]),
+                dormant_restated=int(row[3]),
+            )
+        )
+    return tuple(splits)
 
 
 def contamination_by_unit_class(warehouse: Warehouse) -> tuple[UnitClass, ...]:

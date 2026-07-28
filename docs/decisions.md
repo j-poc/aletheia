@@ -953,3 +953,48 @@ as a limitation worked around.
 The price-vendor spend stays where D1 and the plan put it: reserved for Jurgis.
 This decision does not route around that question, it removes the flagship's
 dependency on it.
+
+### D20 — correction, 2026-07-28 (appended, original text left intact above)
+
+Two statements in D20's prose were wrong. They are corrected here rather than
+edited in place: a pre-registration whose text can be revised after the result is
+known is not a pre-registration, so the record keeps what it actually said and
+the correction is dated and appended.
+
+**1. The universe was described as a current-ticker-map convenience sample.** D20
+says the 800 filers were "ingested across 37 ad-hoc batches during development,
+drawn in 2026 from a *current* ticker map", and reasons from that to the headline
+being biased **down**. That is false in both halves. `scripts/select_universe.py`
+(committed at `fd14a47`, before D20) draws the 800 from the SEC's
+`Assets/USD/CY2011Q4I` frame — a 2011 point-in-time cross-section, $500M asset
+floor, 2,998 eligible of 8,166 in the frame, fixed seed. Membership is decided by
+2011 filings alone, so filers that later went dark are in the sample by
+construction: **349 of the 800 stopped filing before 2024**.
+
+The false sentence appears to have been carried over from `run_bias_study.py`,
+where "the ticker-to-CIK map is a current SEC snapshot" is a genuine caveat about
+resolving *price* symbols in S001. It does not apply to company selection here.
+
+Consequence: the survivorship bias D20 said could not be sized **can** be sized,
+and now is. `contamination_by_survival` reports restatement rates for dormant
+against still-active filers at five cutoffs. The gap runs +0.42pp to +0.88pp,
+same sign throughout — dormant filers restate somewhat more, and this universe
+already contains them. Reporting all five cutoffs is deliberate: the cutoff is a
+free parameter, and quoting one value would be a choice made after seeing the
+others.
+
+**2. The control's provenance sentence overstates.** D20 says the AAPL 121/25
+figure was "quoted in the plan and the README". It is in the plan; it is not in
+the README, and no plan file is committed to this repo. The claim that matters —
+that the figure was registered before the code that computes it existed — is
+independently verifiable and holds: `ae63862` (D20) precedes `499f38b`, the first
+commit of `contamination.py`. The same overstatement is copied into the module
+docstring of `tests/unit/test_contamination.py` and is corrected there.
+
+Also minor: "37 ad-hoc batches" does not reconcile with `ingest_universe.py
+--batch 25` over 800 names (≈32). The batch count was never load-bearing.
+
+**How both were found.** A fresh-context adversarial review of the finished
+study, run before the memo shipped. Neither was reachable by reading the code:
+the code was right, the prose describing it was wrong. That is the failure mode
+this project exists to catch, and it caught it in its own flagship.

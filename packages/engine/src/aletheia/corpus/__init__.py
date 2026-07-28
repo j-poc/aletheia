@@ -23,10 +23,13 @@ number.
 
 from aletheia.corpus.contamination import (
     QUANTILES,
+    SURVIVAL_CUTOFFS,
     THRESHOLDS,
     Contamination,
     CrossGrainSpread,
+    SurvivalSplit,
     UnitClass,
+    contamination_by_survival,
     contamination_by_unit_class,
     cross_grain_spread,
     measure_contamination,
@@ -34,10 +37,13 @@ from aletheia.corpus.contamination import (
 
 __all__ = [
     "QUANTILES",
+    "SURVIVAL_CUTOFFS",
     "THRESHOLDS",
     "Contamination",
     "CrossGrainSpread",
+    "SurvivalSplit",
     "UnitClass",
+    "contamination_by_survival",
     "contamination_by_unit_class",
     "cross_grain_spread",
     "measure_contamination",

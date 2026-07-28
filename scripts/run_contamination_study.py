@@ -28,7 +28,9 @@ from aletheia.corpus.contamination import (
     QUANTILES,
     THRESHOLDS,
     Contamination,
+    SurvivalSplit,
     UnitClass,
+    contamination_by_survival,
     contamination_by_unit_class,
     cross_grain_spread,
     measure_contamination,
@@ -100,8 +102,9 @@ def main(argv: list[str] | None = None) -> int:
         population = measure_contamination(app.warehouse)
         spread = cross_grain_spread(app.warehouse)
         by_unit_class = contamination_by_unit_class(app.warehouse)
+        by_survival = contamination_by_survival(app.warehouse)
 
-    _print_summary(population, spread, by_unit_class)
+    _print_summary(population, spread, by_unit_class, by_survival)
 
     ledger = TrialLedger(LEDGER)
     config_hash = canonical_hash(CONFIG)
@@ -116,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:
         population=population,
         spread=spread,
         by_unit_class=by_unit_class,
+        by_survival=by_survival,
         control=control,
         vintage=vintage,
         config_hash=config_hash,
@@ -144,7 +148,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _print_summary(
-    population: Contamination, spread: Any, by_unit_class: tuple[UnitClass, ...]
+    population: Contamination,
+    spread: Any,
+    by_unit_class: tuple[UnitClass, ...],
+    by_survival: tuple[SurvivalSplit, ...],
 ) -> None:
     print(f"facts (grain)           {population.facts:>12,}")
     print(f"  restated              {population.restated_facts:>12,}   {population.fact_share:.4%}")
@@ -196,6 +203,14 @@ def _print_summary(
             f"{float(row.median_relative_change):>10.4f}"
         )
     print()
+    print("post-hoc: do filers that went dark restate differently?")
+    print(f"  {'dormant if last filed before':<32}{'active':>9}{'dormant':>9}{'gap':>9}")
+    for split in by_survival:
+        print(
+            f"  {split.cutoff:<32}{split.active_share:>9.2%}"
+            f"{split.dormant_share:>9.2%}{split.gap:>+9.2%}"
+        )
+    print()
     print(f"cross-grain (cik, concept, period) triples   {spread.triples:>12,}")
     print(f"  reported under >1 unit                     {spread.multi_unit:>12,}")
     print(f"  reported under >1 taxonomy                 {spread.multi_taxonomy:>12,}")
@@ -206,6 +221,7 @@ def _build_card(
     population: Contamination,
     spread: Any,
     by_unit_class: tuple[UnitClass, ...],
+    by_survival: tuple[SurvivalSplit, ...],
     control: Contamination,
     vintage: date,
     config_hash: str,
@@ -230,13 +246,7 @@ def _build_card(
         trial_count=trial_count,
         trial_family=family,
         caveats=(
-            "The 800 filers are a convenience sample, ingested in ad-hoc batches during "
-            "development and drawn in 2026 from a CURRENT ticker map -- so they are "
-            "alive-today by construction. EDGAR itself is survivorship-free (the SEC "
-            "never deletes a dead filer's submissions), but this SELECTION is not. Dead "
-            "filers plausibly restate more than survivors, which would bias this figure "
-            "DOWN. The warehouse cannot size that: the delistings table holds 100 rows "
-            "spanning 2026-07-01 to 2026-07-23, and 2 of the 800 appear in it.",
+            _universe_caveat(by_survival),
             "This is a population count, not an inference. There is no sampling "
             "distribution, no p-value and no confidence interval, because nothing is "
             "being estimated from a sample of a larger frame -- every fact in the corpus "
@@ -289,6 +299,7 @@ def _build_card(
         statistics={
             "population": population.as_dict(),
             "post_hoc_by_unit_class": {row.unit_class: row.as_dict() for row in by_unit_class},
+            "post_hoc_by_survival": {s.cutoff: s.as_dict() for s in by_survival},
             "cross_grain_spread": spread.as_dict(),
             "control_aapl_eps_diluted": control.as_dict(),
             "kill_threshold": (
@@ -305,6 +316,41 @@ def _by_class(by_unit_class: tuple[UnitClass, ...], name: str) -> UnitClass:
         if row.unit_class == name:
             return row
     raise SystemExit(f"unit class {name!r} missing from the panel; the classification changed")
+
+
+def _universe_caveat(by_survival: tuple[SurvivalSplit, ...]) -> str:
+    """State how the universe was actually drawn, and measure the bias rather than argue it.
+
+    An earlier version of this caveat said the 800 filers came from a *current*
+    ticker map and were therefore "alive-today by construction", and reasoned
+    from that to the headline being biased down. Both halves were false, and an
+    adversarial review caught it. ``scripts/select_universe.py`` draws from the
+    SEC ``Assets/USD/CY2011Q4I`` frame -- a 2011 point-in-time cross-section --
+    so filers that later went dark are in the sample by construction. The
+    sentence had been imported from a genuine caveat in the *price* study, where
+    a current ticker map really is used to resolve symbols.
+    """
+    widest = max(by_survival, key=lambda split: abs(split.gap))
+    signs = {split.gap > 0 for split in by_survival}
+    stability = (
+        "the sign is the same at every cutoff"
+        if len(signs) == 1
+        else "the sign is NOT stable across cutoffs, which is why all five are reported"
+    )
+    return (
+        "Universe: 800 filers drawn from the SEC's Assets/USD/CY2011Q4I frame -- a 2011 "
+        "point-in-time cross-section -- filtered to $500M+ total assets (2,998 of the "
+        "8,166 filers in the frame qualified) and sampled with a fixed seed. Membership "
+        "is decided by 2011 filings and nothing else, so a company that went dark in 2014 "
+        "is in the sample. Survivorship was therefore MEASURED rather than argued: "
+        f"comparing filers whose last filing predates each cutoff against those still "
+        f"filing, the restatement-rate gap never exceeds {abs(widest.gap):.2%} "
+        f"(largest at {widest.cutoff}), and {stability}. Selection effects that remain: "
+        "firms already dead before 2011Q4 are absent entirely, firms that first listed "
+        "after 2011 are absent, and the $500M floor excludes micro-caps whose restatement "
+        "behaviour may differ. Those are stated, not estimated -- the corpus cannot see "
+        "companies it does not contain."
+    )
 
 
 def _split_caveat(by_unit_class: tuple[UnitClass, ...]) -> str:

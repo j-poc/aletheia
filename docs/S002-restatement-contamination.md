@@ -71,8 +71,9 @@ and worth naming: a fact can change and change back, which leaves the two
 endpoints equal while a backtest reading a middle vintage saw something else.
 
 Revisions run **down** more often than up, 55.1% to 44.9% of directional
-changes. That claim is defended below rather than asserted, because there is a
-mechanical process that would produce it artificially.
+changes. That claim is defended below against one mechanical process that would
+produce it artificially -- stock splits -- and explicitly not against
+reclassification, which the data cannot currently separate.
 
 ### Size of the changes
 
@@ -93,8 +94,16 @@ is the larger magnitude, which bounds the measure at 2.
 | 5% | 200,711 | 56.1% | 158,554 |
 | 10% | 170,816 | 47.7% | 128,659 |
 
-**Nearly half of all restated facts moved by more than 10%.** That is the figure
-that makes this a research problem rather than a rounding detail.
+**Two in five restated facts moved by more than 10%** -- 128,659 of the 315,685
+restatements that are not sign flips, or 40.8%. On the pre-registered basis,
+which includes sign flips, it reads 170,816 of 357,842, or 47.7%. The lower,
+sign-flip-excluded figure is the one quoted here: every sign flip clears a 10%
+cutoff by construction, so the higher number is partly counting the presentation
+conventions this memo has just finished setting aside. Both are shown because
+choosing the flattering basis silently is the exact move this study is about.
+
+Either way it is the figure that makes this a research problem rather than a
+rounding detail.
 
 The p95 and p99 sitting at exactly 2.000 is the cap, not a coincidence: a full
 sign flip of equal magnitude is `2x/x`. In XBRL a sign change is usually a
@@ -104,7 +113,10 @@ change in what happened, so the second column repeats the distribution with the
 and is not part of the D20 registration.** The headline stays the pre-registered
 figure.
 
-Two further shapes were separated rather than left inside the distribution:
+Two further shapes were separated rather than left inside the distribution. Both
+were added after the first run, like the panels above, and neither is subtracted
+from any pre-registered figure -- these facts stay inside the headline and inside
+the quantiles as D20 specified:
 **8,610** facts went from zero to a value or a value to zero -- an appearance or
 disappearance rather than a revision, and every one of them sits at exactly 1.0
 by arithmetic. **84** have zero at both ends, so the relative change has no
@@ -135,9 +147,19 @@ change:
 | share count | 424,487 | 16,252 | 3.83% | 37.3% | 0.404 |
 | **other** (mostly currency) | **6,407,550** | **323,314** | **5.05%** | **55.6%** | **0.076** |
 
-**The objection does not survive.** Split-exposed units are 725,520 of 7,133,070
-facts (10.2%) and 34,528 of 357,842 restatements (9.6%). Units a split cannot
-touch restate at **5.05%**, against a 5.02% headline. Splits are not driving it.
+**The split objection does not survive.** Split-exposed units are 725,520 of
+7,133,070 facts (10.2%) and 34,528 of 357,842 restatements (9.6%). Units a split
+cannot touch restate at **5.05%**, against a 5.02% headline. Splits are not
+driving it.
+
+That closes one mechanical alternative, not the category. A second one is named
+in this repo's README and is *not* tested here: prior-year comparatives
+re-presented under a changed classification in a later annual report. A
+reclassification is not unit-typed, so the decomposition above is blind to it by
+construction. It would inflate the restatement count without being an accounting
+revision in the sense a reader assumes. Sizing it needs statement-level
+structure the corpus does not currently carry, and it is left open rather than
+waved away.
 
 The panel also confirms it is finding what it claims to: a split divides
 per-share values and multiplies share counts, and the two classes skew in exactly
@@ -173,14 +195,48 @@ the number was known.
 
 ## Limitations that could move the number
 
-**Selection, and the direction of its bias.** The 800 filers were ingested in
-ad-hoc batches during development from a *current* ticker map, so they are
-alive-today by construction. EDGAR itself is survivorship-free -- the SEC never
-deletes a dead filer's submissions -- but this selection is not. Dead companies
-plausibly restate more than survivors, so the true figure is more likely above
-5.02% than below it. The warehouse cannot size this: the delistings table holds
-100 rows spanning three weeks, and 2 of the 800 appear in it. Stated, not
-estimated.
+**Selection, and the direction of its bias.** The 800 filers are drawn from the
+SEC's `Assets/USD/CY2011Q4I` frame -- a **2011 point-in-time cross-section** --
+filtered to $500M+ total assets (2,998 of the 8,166 filers in the frame
+qualified) and sampled with a fixed seed. Membership is decided by 2011 filings
+and nothing else, so a company that went dark in 2014 is in the sample because in
+2011 it was there. **349 of the 800 stopped filing before 2024.**
+
+That makes survivorship measurable here rather than merely arguable, so it was
+measured. Comparing filers whose last filing predates a cutoff against those
+still filing:
+
+| dormant if last filed before | active | dormant | gap |
+|---|---:|---:|---:|
+| 2018-01-01 | 4.97% | 5.39% | +0.42pp |
+| 2020-01-01 | 4.86% | 5.74% | +0.88pp |
+| 2022-01-01 | 4.85% | 5.62% | +0.77pp |
+| 2024-01-01 | 4.85% | 5.48% | +0.62pp |
+| 2025-01-01 | 4.86% | 5.40% | +0.54pp |
+
+Filers that went dark do restate more, consistently and by under one percentage
+point. All five cutoffs are reported because "has this filer stopped filing" has
+no natural cutoff, and a free parameter quoted at one value is a result chosen
+after seeing the others.
+
+The practical reading: a universe drawn from *today's* index would hold only the
+`active` column and would understate restatement by roughly half a point. This
+universe holds both, so the 5.02% headline is not deflated by that mechanism.
+
+**What the sample still cannot see.** Firms already dead before 2011Q4 are absent
+entirely; firms that first listed after 2011 are absent; and the $500M floor
+excludes micro-caps, whose restatement behaviour may well differ. Those are
+stated, not estimated -- the corpus cannot measure companies it does not contain.
+
+> An earlier version of this memo claimed the universe came from a *current*
+> ticker map and was "alive-today by construction", and argued from that to the
+> headline being biased down. Both halves were wrong: the selection is a 2011
+> cross-section, and the bias it worried about is measured above at under a
+> percentage point. The false sentence appears to have been carried over from a
+> real caveat in the *price* study, where a current ticker map genuinely is used
+> to resolve symbols. An adversarial review caught it. It is recorded here rather
+> than quietly deleted, because a project whose subject is unverified claims
+> should show its own.
 
 **Unit and taxonomy changes are invisible by construction.** Both are inside the
 grain, so a fact that migrates between them becomes two facts rather than one
@@ -216,13 +272,15 @@ same treatment `aletheia.store` gets, enforced by a test. That guard is what
 moved this module: it was written in `research/` and the guard failed the build.
 The boundary was tightened rather than bent.
 
-**Every claim above is machine-checked against a mutant.** 24 deliberate defects
--- counting rows instead of facts, dropping `unit` from the grain, taking the
-smallest value instead of the first-published one, dividing by the first value
-instead of the larger magnitude, keeping sign flips in the panel that exists to
-remove them, anchoring the per-share pattern so `USD/shares_unit` escapes it --
-are each injected into a copy of the tree, and each must make a named test fail.
-All 24 are caught.
+**The claims above are machine-checked against mutants.** The gate carries 27
+deliberate defects, of which **17 target this study's code** -- counting rows
+instead of facts, dropping `unit` from the grain, taking the smallest value
+instead of the first-published one, dividing by the first value instead of the
+larger magnitude, keeping sign flips in the panel that exists to remove them,
+anchoring the per-share pattern so `USD/shares_unit` escapes it, inverting the
+sign of the survivorship gap, reporting one survival cutoff instead of five. Each
+is injected into a copy of the tree and must make a named test fail. All 27 are
+caught; the other 10 belong to earlier decisions and are unrelated to this study.
 
 **Reproducible.** Two runs of identical code at a clean tree produce the same
 reproducibility hash, `53f5477a0dd5a73a90df27873ac84e494106e2970c641368d240277f78d9014f`,

@@ -3,7 +3,7 @@
 The first test is the one that matters. D20 registered, before any aggregate had
 been run, that the general population query must return **25 restated of 121
 periods** for AAPL ``EarningsPerShareDiluted`` -- a figure measured independently
-on 2026-07-27 and quoted in the plan and the README. It is a known answer the
+on 2026-07-27 and registered in D20 before this code existed. It is a known answer the
 query is fully capable of getting wrong, which is what makes it a control rather
 than a restatement of the same computation.
 
@@ -27,7 +27,9 @@ from typing import Any
 import pytest
 
 from aletheia.corpus.contamination import (
+    SURVIVAL_CUTOFFS,
     THRESHOLDS,
+    contamination_by_survival,
     contamination_by_unit_class,
     cross_grain_spread,
     measure_contamination,
@@ -523,6 +525,74 @@ class TestTheSplitDecomposition:
         order = [row.unit_class for row in contamination_by_unit_class(warehouse)]
 
         assert order == ["per-share", "share count", "other"]
+
+
+class TestTheSurvivalSplit:
+    """Whether filers that went dark restate differently from those still filing.
+
+    Post-hoc, and written to replace a caveat that asserted this without
+    measuring it -- and asserted it from a false premise about how the universe
+    was drawn.
+    """
+
+    def test_every_cutoff_is_reported(self, warehouse: Any) -> None:
+        """Reporting one cutoff would make it a choice made after seeing the answer."""
+        _fact(warehouse, accn="a", value="100")
+
+        splits = contamination_by_survival(warehouse)
+
+        assert [split.cutoff for split in splits] == list(SURVIVAL_CUTOFFS)
+
+    def test_the_two_cohorts_account_for_every_fact(self, warehouse: Any) -> None:
+        """The join must not drop facts.
+
+        A filer missing from the filings table would land in neither cohort, and
+        a study about numbers going quietly missing should not quietly lose any.
+        """
+        _fact(warehouse, accn="a", value="100", cik=1)
+        _fact(warehouse, accn="b", value="180", cik=1)
+        _fact(warehouse, accn="c", value="100", cik=2)
+
+        population = measure_contamination(warehouse)
+        for split in contamination_by_survival(warehouse):
+            assert split.active_facts + split.dormant_facts == population.facts
+            assert split.active_restated + split.dormant_restated == population.restated_facts
+
+    def test_a_filer_that_stopped_filing_lands_in_the_dormant_cohort(self, warehouse: Any) -> None:
+        """``_fact`` derives filed_at from the accession, so the cohort is controllable.
+
+        Single-letter accessions file in 2011, which is before every cutoff, so
+        this whole warehouse is dormant throughout.
+        """
+        _fact(warehouse, accn="a", value="100")
+        _fact(warehouse, accn="b", value="180")
+
+        for split in contamination_by_survival(warehouse):
+            assert (split.dormant_facts, split.dormant_restated) == (1, 1)
+            assert (split.active_facts, split.active_restated) == (0, 0)
+            assert split.dormant_share == Decimal("1")
+
+    def test_the_gap_is_dormant_minus_active(self, warehouse: Any) -> None:
+        """Sign convention: positive means dead filers restate more.
+
+        The caveat reads directly off this sign, so getting it backwards would
+        invert the memo's conclusion about the direction of survivorship bias.
+        """
+        _fact(warehouse, accn="a", value="100")
+        _fact(warehouse, accn="b", value="180")
+
+        split = contamination_by_survival(warehouse)[0]
+
+        assert split.gap == split.dormant_share - split.active_share
+        assert split.gap == Decimal("1"), "all dormant, all restated, none active"
+
+    def test_an_empty_corpus_reports_zero_rather_than_dividing_by_zero(
+        self, warehouse: Any
+    ) -> None:
+        for split in contamination_by_survival(warehouse):
+            assert split.active_share == Decimal("0")
+            assert split.dormant_share == Decimal("0")
+            assert split.gap == Decimal("0")
 
 
 class TestCrossGrainSpread:
