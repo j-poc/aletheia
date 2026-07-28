@@ -102,7 +102,22 @@ class Contamination:
     """Restated facts whose relative change exceeds each of :data:`THRESHOLDS`."""
     undefined_relative_change: int
     """Restated facts where first and latest are both zero, so the relative change
-    has no value. Counted rather than silently dropped from the denominator."""
+    has no value. Counted rather than silently dropped from the denominator.
+
+    Reachable because ``distinct_values`` looks at the whole report sequence
+    while ``first`` and ``latest`` look only at its ends: a fact reported 0, then
+    5, then 0 has two distinct values and two zero endpoints. It is genuinely a
+    restatement -- a backtest reading the middle vintage saw 5 -- with no
+    denominator to express the size of it."""
+    restated_from_or_to_zero: int
+    """Restated facts where exactly one of the two values is zero.
+
+    A different phenomenon from a revision, and worth separating: the fact was
+    reported as zero and later given a value, or reported and later zeroed. Every
+    one of these sits at exactly 1.0 on the relative-change scale, because
+    ``|x - 0| / max(|x|, 0)`` is 1 for any non-zero ``x`` -- so a spike at 1.0 in
+    the distribution is this and nothing else. Counted rather than inferred from
+    the spike."""
     quantiles_excluding_sign_flips: dict[str, Decimal]
     """The same quantiles with sign flips removed. Post-hoc -- see the module
     docstring. The measure is capped at 2, a full sign flip of equal magnitude
@@ -139,6 +154,7 @@ class Contamination:
             "restatable_facts": self.restatable_facts,
             "restatable_share": self.restatable_share,
             "sign_flips": self.sign_flips,
+            "restated_from_or_to_zero": self.restated_from_or_to_zero,
             "revised_up": self.revised_up,
             "revised_down": self.revised_down,
             "undefined_relative_change": self.undefined_relative_change,
@@ -220,6 +236,10 @@ SELECT
     count(*) FILTER (WHERE n_reports = 1)                           AS reported_once,
     count(*) FILTER (WHERE n_reports > 1)                           AS restatable,
     count(*) FILTER (WHERE distinct_values >= 2 AND is_sign_flip)   AS sign_flips,
+    count(*) FILTER (
+        WHERE distinct_values >= 2
+          AND (first_value = 0) <> (latest_value = 0)
+    )                                                               AS zero_endpoint,
     count(*) FILTER (
         WHERE distinct_values >= 2 AND relative_change IS NULL
     )                                                               AS undefined_change,
@@ -306,6 +326,7 @@ def measure_contamination(
         facts_reported_once=int(tally["reported_once"]),
         restatable_facts=int(tally["restatable"]),
         sign_flips=int(tally["sign_flips"]),
+        restated_from_or_to_zero=int(tally["zero_endpoint"]),
         quantiles={f"p{int(q * 100)}": _round(tally[_quantile_key(q)]) for q in QUANTILES},
         threshold_counts={threshold: int(tally[f"above_{threshold}"]) for threshold in THRESHOLDS},
         quantiles_excluding_sign_flips={

@@ -252,6 +252,14 @@ MUTANTS: tuple[Mutant, ...] = (
         tests=(f"{TESTS}/test_contamination.py",),
     ),
     Mutant(
+        label="zero-endpoint count uses OR, so a 0 -> 0 pair would qualify",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="          AND (first_value = 0) <> (latest_value = 0)",
+        new="          AND (first_value = 0 OR latest_value = 0)",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
         label="the post-hoc quantile panel keeps the sign flips it exists to remove",
         decision="D20",
         path=f"{ENGINE}/corpus/contamination.py",

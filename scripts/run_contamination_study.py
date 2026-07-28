@@ -145,6 +145,7 @@ def _print_summary(population: Contamination, spread: Any) -> None:
     print(f"revised up              {population.revised_up:>12,}")
     print(f"revised down            {population.revised_down:>12,}")
     print(f"sign flips              {population.sign_flips:>12,}")
+    print(f"zero <-> non-zero       {population.restated_from_or_to_zero:>12,}")
     print(f"undefined rel. change   {population.undefined_relative_change:>12,}")
     print()
     print("relative change among restated facts       (post-hoc: excluding sign flips)")

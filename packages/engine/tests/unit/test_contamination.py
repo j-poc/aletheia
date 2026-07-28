@@ -248,11 +248,7 @@ class TestTheDistribution:
         assert result.undefined_relative_change == 0
         assert result.quantiles["p50"] == Decimal("1")
 
-    def test_zero_to_zero_has_no_relative_change_and_is_counted(self, warehouse: Any) -> None:
-        """Both values zero cannot be a restatement, so it never reaches the
-        denominator -- but a fact whose values are 0 and 0 is not restated at all,
-        so the undefined bucket stays empty. The bucket exists for the case where
-        distinct values are 0 and -0, which DuckDB treats as distinct decimals."""
+    def test_zero_republished_as_zero_is_not_restated_at_all(self, warehouse: Any) -> None:
         _fact(warehouse, accn="a", value="0")
         _fact(warehouse, accn="b", value="0")
 
@@ -260,6 +256,37 @@ class TestTheDistribution:
 
         assert result.restated_facts == 0
         assert result.undefined_relative_change == 0
+
+    def test_a_value_that_leaves_zero_and_returns_is_the_undefined_case(
+        self, warehouse: Any
+    ) -> None:
+        """What the undefined bucket is actually for.
+
+        A fact reported 0, then 5, then 0 has two distinct values, so it *is*
+        restated -- a backtest reading the middle vintage saw 5 -- but its first
+        and latest are both zero, so relative change has no denominator. It is
+        also the case that distinguishes ``exactly one endpoint is zero`` from
+        ``either endpoint is zero``: this fact must not be counted as a
+        zero-endpoint transition, because nothing appeared or vanished between
+        the endpoints.
+
+        (An earlier version of this test claimed the bucket existed for ``0``
+        versus ``-0``. It does not: DuckDB normalises negative zero in DECIMAL,
+        so those are one distinct value. Checked directly rather than reasoned
+        about.)
+        """
+        _fact(warehouse, accn="a", value="0")
+        _fact(warehouse, accn="b", value="5")
+        _fact(warehouse, accn="c", value="0")
+
+        result = measure_contamination(warehouse)
+
+        assert result.restated_facts == 1
+        assert result.undefined_relative_change == 1
+        assert result.restated_from_or_to_zero == 0
+        assert (result.revised_up, result.revised_down) == (0, 0), (
+            "it ended where it started, so it is neither"
+        )
 
 
 class TestTheSignFlipExcludedPanel:
@@ -319,6 +346,37 @@ class TestTheSignFlipExcludedPanel:
         assert result.threshold_counts_excluding_sign_flips == result.threshold_counts, (
             "with no sign flips present the two panels are the same numbers"
         )
+
+    def test_a_fact_that_appears_from_zero_is_counted_as_such(self, warehouse: Any) -> None:
+        """The spike at exactly 1.0, counted rather than inferred from its position.
+
+        ``|x - 0| / max(|x|, 0)`` is 1 for every non-zero x, so every zero-endpoint
+        restatement lands on the same point of the scale. That is a fact appearing
+        or vanishing, not a fact being revised, and the two read very differently.
+        """
+        _fact(warehouse, accn="a", value="0")
+        _fact(warehouse, accn="b", value="5")
+
+        result = measure_contamination(warehouse)
+
+        assert result.restated_from_or_to_zero == 1
+        assert result.quantiles["p50"] == Decimal("1")
+
+    def test_an_ordinary_revision_is_not_a_zero_endpoint(self, warehouse: Any) -> None:
+        _fact(warehouse, accn="a", value="100")
+        _fact(warehouse, accn="b", value="150")
+
+        assert measure_contamination(warehouse).restated_from_or_to_zero == 0
+
+    def test_both_endpoints_zero_is_neither_restated_nor_counted(self, warehouse: Any) -> None:
+        """``exactly one`` is load-bearing: a naive ``OR`` would count this."""
+        _fact(warehouse, accn="a", value="0")
+        _fact(warehouse, accn="b", value="0")
+
+        result = measure_contamination(warehouse)
+
+        assert result.restated_facts == 0
+        assert result.restated_from_or_to_zero == 0
 
     def test_a_revision_through_zero_is_not_treated_as_a_flip(self, warehouse: Any) -> None:
         """``sign(0)`` is 0, so a value that lands on zero would compare unequal to
