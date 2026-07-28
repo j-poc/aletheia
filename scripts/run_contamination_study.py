@@ -120,8 +120,15 @@ def main(argv: list[str] | None = None) -> int:
         vintage=vintage,
         config_hash=config_hash,
         trial_count=_distinct_configurations(ledger, args.family),
-        registrations=ledger.count(family=args.family),
         family=args.family,
+    )
+    # Printed rather than written into the card. It grows by one per execution,
+    # so putting it on the card would make two runs of identical code produce
+    # different cards and defeat the reproducibility hash.
+    print(
+        f"\nledger: {ledger.count(family=args.family)} registration(s) in "
+        f"{args.family!r}, {_distinct_configurations(ledger, args.family)} distinct "
+        f"configuration(s)"
     )
     CARD_JSON.parent.mkdir(parents=True, exist_ok=True)
     CARD_JSON.write_bytes(card.to_json())
@@ -203,7 +210,6 @@ def _build_card(
     vintage: date,
     config_hash: str,
     trial_count: int,
-    registrations: int,
     family: str,
 ) -> EvidenceCard:
     commit, dirty = _git_state()
@@ -257,13 +263,15 @@ def _build_card(
             "saturation -- it is post-hoc and is not part of the D20 registration, "
             "which is why the headline is still the pre-registered figure.",
             _split_caveat(by_unit_class),
-            f"The trial count above is DISTINCT CONFIGURATIONS in this family, not ledger "
-            f"rows: the append-only ledger holds {registrations} registration(s) of which "
-            f"{trial_count} differ in configuration. Re-running a byte-identical config "
-            f"spends no new degree of freedom and is not a second attempt at finding "
-            f"something; changing any knob is, and is counted. Nothing is ever removed "
-            f"from the ledger to make this number smaller -- it is deduplicated at read "
-            f"time, so the failures the ledger exists to remember stay in it.",
+            "The trial count above is DISTINCT CONFIGURATIONS in this family, not ledger "
+            "rows. Re-running a byte-identical config spends no new degree of freedom and "
+            "is not a second attempt at finding something; changing any knob is, and is "
+            "counted. Nothing is ever removed from the ledger to make this number smaller "
+            "-- the ledger is append-only and holds every registration, including the "
+            "re-runs, and the count is deduplicated when it is read. The raw row count is "
+            "deliberately not quoted here: it grows by one on every execution, which would "
+            "make this card differ from itself between two runs of identical code and "
+            "break the reproducibility hash above.",
             f"Control: the same aggregate, narrowed to AAPL "
             f"{CONFIG['control']['concept']}, returns {control.facts} facts and "
             f"{control.restated_facts} restated -- the figures measured independently on "
