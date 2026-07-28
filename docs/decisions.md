@@ -950,9 +950,9 @@ arguable and its magnitude is not measured — stated, not estimated.
 fundamentals-only by design, and the memo says that rather than letting it read
 as a limitation worked around.
 
-The price-vendor spend stays where D1 and the plan put it: reserved for Jurgis.
-This decision does not route around that question, it removes the flagship's
-dependency on it.
+The price-vendor spend stays where D1 and the plan put it: reserved for the
+principal. This decision does not route around that question, it removes the
+flagship's dependency on it.
 
 ### D20 — correction, 2026-07-28 (appended, original text left intact above)
 
@@ -1057,3 +1057,21 @@ measurement. (c) came from a fourth fresh-context review of the commit that fixe
 worth carrying forward is that corrections are written with more confidence and
 less scrutiny than the code they replace, and that a claim can be correct in the
 prose and wrong in the artifact.
+
+### D21 — publication redaction, 2026-07-28
+
+This log is append-only: every prior correction was appended, and no earlier
+sentence has been edited. One exception is recorded here so the edit is not
+silent. D20's scope paragraph named the repository owner's first name in the
+sentence reserving the price-vendor spend. That name has been replaced in place
+with "the principal". The redaction changes no decision, no number and no
+argument — only an identifier — and this repository publishes under a pseudonym,
+so leaving it would have defeated that choice.
+
+The same name survives in the commit message of `ae63862`, and is not removable.
+Commit messages are covered by the hash, so redacting one rewrites every
+descendant commit — including `7f9b6d8`, which the S002 evidence card names as
+its `code_commit`. A published card citing a commit that does not exist in the
+published history would break the provenance guarantee this system is built to
+demonstrate, to hide a first name. The trade is not worth making, and the
+residual exposure is stated here rather than quietly accepted.
