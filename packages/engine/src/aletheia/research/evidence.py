@@ -258,27 +258,35 @@ class EvidenceCard:
             f"**Hypothesis.** {self.hypothesis}",
             "",
             f"**Verdict.** {self.verdict}",
-            "",
-            "## Arms",
-            "",
-            "| Arm | Periods | Gross p.a. | Net p.a. | Net p.a. (arith.) | Vol p.a. "
-            "| Sharpe p.a. | Turnover | Excluded |",
-            "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
-        lines.extend(
-            f"| `{arm.label}` | {arm.n_periods} | {arm.gross_annualised:+.2%} | "
-            f"{arm.net_annualised:+.2%} | {arm.net_arithmetic_annualised:+.2%} | "
-            f"{arm.net_stdev_annualised:.2%} | {arm.annualised_sharpe:.2f} | "
-            f"{arm.mean_turnover:.2f}x | {arm.n_excluded:,} |"
-            for arm in self.arms
-        )
-        lines += [
-            "",
-            "Gross and net returns are geometric. The arithmetic column and the "
-            "volatility are on a matched basis with the Sharpe ratio, whose "
-            "numerator is an arithmetic mean -- quoting the geometric return "
-            "against that Sharpe would compare two different quantities.",
-        ]
+
+        # A study with no return arms is not a degenerate backtest -- a population
+        # statistic has no periods, no turnover and no Sharpe. Emitting the header
+        # row and the geometric-vs-arithmetic note over an empty table would
+        # describe a methodology the result does not use.
+        if self.arms:
+            lines += [
+                "",
+                "## Arms",
+                "",
+                "| Arm | Periods | Gross p.a. | Net p.a. | Net p.a. (arith.) | Vol p.a. "
+                "| Sharpe p.a. | Turnover | Excluded |",
+                "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+            ]
+            lines.extend(
+                f"| `{arm.label}` | {arm.n_periods} | {arm.gross_annualised:+.2%} | "
+                f"{arm.net_annualised:+.2%} | {arm.net_arithmetic_annualised:+.2%} | "
+                f"{arm.net_stdev_annualised:.2%} | {arm.annualised_sharpe:.2f} | "
+                f"{arm.mean_turnover:.2f}x | {arm.n_excluded:,} |"
+                for arm in self.arms
+            )
+            lines += [
+                "",
+                "Gross and net returns are geometric. The arithmetic column and the "
+                "volatility are on a matched basis with the Sharpe ratio, whose "
+                "numerator is an arithmetic mean -- quoting the geometric return "
+                "against that Sharpe would compare two different quantities.",
+            ]
 
         if self.comparisons:
             lines += [
@@ -302,7 +310,8 @@ class EvidenceCard:
 
         if self.statistics:
             lines += ["", "## Statistical treatment", ""]
-            lines.extend(f"- **{key}**: {value}" for key, value in sorted(self.statistics.items()))
+            for key, value in sorted(self.statistics.items()):
+                lines.extend(_stat_lines(key, value, depth=0))
 
         lines += [
             "",
@@ -346,6 +355,34 @@ def _canonicalise(value: Any) -> Any:
     if isinstance(value, list | tuple):
         return [_canonicalise(item) for item in value]
     return value
+
+
+def _stat_lines(key: str, value: Any, *, depth: int) -> list[str]:
+    """Render one statistic as markdown bullets, recursing into nested blobs.
+
+    Recursion is not decoration. A statistics blob two levels deep -- a study's
+    populations, each holding a dict of quantiles -- used to bottom out at
+    ``str(dict)`` and put ``{'p50': Decimal('0.75')}`` in front of the reader,
+    which is a Python repr rather than a number. Anything a card renders has to
+    be readable by someone who has never seen the code that produced it.
+    """
+    indent = "    " * depth
+    if isinstance(value, dict):
+        lines = [f"{indent}- **{key}**" if depth == 0 else f"{indent}- {key}"]
+        for inner_key, inner_value in sorted(value.items()):
+            lines.extend(_stat_lines(str(inner_key), inner_value, depth=depth + 1))
+        return lines
+    label = f"**{key}**" if depth == 0 else key
+    return [f"{indent}- {label}: {_render_scalar(value)}"]
+
+
+def _render_scalar(value: Any) -> str:
+    """Integers grouped for legibility, Decimals plain, everything else as written."""
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, int):
+        return f"{value:,}"
+    return str(value)
 
 
 def _as_plain(value: Any) -> Any:

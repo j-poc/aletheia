@@ -35,7 +35,17 @@ PACKAGE_ROOT = Path(aletheia.__file__).parent
 # Packages that must never touch the warehouse directly. Everything they read
 # has to arrive through aletheia.pit, which applies the knowledge-date filter.
 RESEARCH_PACKAGES = ("features", "research", "book")
-FORBIDDEN_IMPORTS = ("aletheia.store", "duckdb")
+FORBIDDEN_IMPORTS = ("aletheia.store", "aletheia.corpus", "duckdb")
+"""``aletheia.corpus`` is on this list for the same reason ``aletheia.store`` is.
+
+It measures the revision history itself, so by construction it sees every vintage
+of a fact at once. That is legitimate for a study of the corpus and disqualifying
+for anything that produces a signal, since the latest value of a fact is not
+knowable on the date a signal would trade it. Study scripts import it directly;
+research code must not. This entry was added when
+``research/contamination.py`` was written, and this guard is what caught it --
+the module moved to ``corpus/`` rather than the rule bending.
+"""
 
 AAPL = 320193
 

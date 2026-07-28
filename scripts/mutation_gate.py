@@ -200,6 +200,73 @@ MUTANTS: tuple[Mutant, ...] = (
         ),
         tests=(f"{TK_TESTS}/test_pbo_and_cv.py",),
     ),
+    Mutant(
+        label="contamination headline counts rows instead of facts",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="     GROUP BY cik, taxonomy, concept, unit, period_start, period_end",
+        new="     GROUP BY cik, taxonomy, concept, unit, period_start, period_end, accn",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="contamination grain drops unit, so a unit change reads as a restatement",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="     GROUP BY cik, taxonomy, concept, unit, period_start, period_end",
+        new="     GROUP BY cik, taxonomy, concept, period_start, period_end",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="restated <- republished at all (the denominator D20 warns about)",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="    count(*) FILTER (WHERE distinct_values >= 2)                    AS restated_facts,",
+        new="    count(*) FILTER (WHERE n_reports >= 2)                          AS restated_facts,",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="first-published <- smallest value (arg_min's silent lookalike)",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old='        arg_min("value", report_seq)                AS first_value,',
+        new='        min("value")                                AS first_value,',
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="relative change divided by the first value, not the larger magnitude",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="                 / CAST(greatest(abs(first_value), abs(latest_value)) AS DOUBLE)\n"
+        "        END AS relative_change",
+        new="                 / CAST(abs(first_value) AS DOUBLE)\n        END AS relative_change",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="sign flip forgets the non-zero guards, so a revision to zero reads as a flip",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old="        sign(first_value) <> sign(latest_value)\n"
+        "            AND first_value <> 0\n"
+        "            AND latest_value <> 0                       AS is_sign_flip",
+        new="        sign(first_value) <> sign(latest_value)      AS is_sign_flip",
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="the post-hoc quantile panel keeps the sign flips it exists to remove",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old=' FILTER (WHERE {restated} AND NOT is_sign_flip)"',
+        new=' FILTER (WHERE {restated})"',
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
+    Mutant(
+        label="the post-hoc threshold panel keeps the sign flips it exists to remove",
+        decision="D20",
+        path=f"{ENGINE}/corpus/contamination.py",
+        old='f"count(*) FILTER (WHERE {restated} AND NOT is_sign_flip"',
+        new='f"count(*) FILTER (WHERE {restated}"',
+        tests=(f"{TESTS}/test_contamination.py",),
+    ),
 )
 
 
