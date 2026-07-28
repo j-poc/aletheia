@@ -119,7 +119,8 @@ def main(argv: list[str] | None = None) -> int:
         control=control,
         vintage=vintage,
         config_hash=config_hash,
-        trial_count=ledger.count(family=args.family),
+        trial_count=_distinct_configurations(ledger, args.family),
+        registrations=ledger.count(family=args.family),
         family=args.family,
     )
     CARD_JSON.parent.mkdir(parents=True, exist_ok=True)
@@ -183,7 +184,9 @@ def _print_summary(
         print(
             f"  {row.unit_class:<12}{row.facts:>12,}{row.restated_facts:>10,}"
             f"{row.fact_share:>7.2%}{row.downward_share:>8.1%}"
-            f"{row.median_relative_change:>10}"
+            # Rounded for the console only. The card carries the full Decimal,
+            # which is 8 places wide and ran into the column to its left.
+            f"{float(row.median_relative_change):>10.4f}"
         )
     print()
     print(f"cross-grain (cik, concept, period) triples   {spread.triples:>12,}")
@@ -200,6 +203,7 @@ def _build_card(
     vintage: date,
     config_hash: str,
     trial_count: int,
+    registrations: int,
     family: str,
 ) -> EvidenceCard:
     commit, dirty = _git_state()
@@ -253,6 +257,13 @@ def _build_card(
             "saturation -- it is post-hoc and is not part of the D20 registration, "
             "which is why the headline is still the pre-registered figure.",
             _split_caveat(by_unit_class),
+            f"The trial count above is DISTINCT CONFIGURATIONS in this family, not ledger "
+            f"rows: the append-only ledger holds {registrations} registration(s) of which "
+            f"{trial_count} differ in configuration. Re-running a byte-identical config "
+            f"spends no new degree of freedom and is not a second attempt at finding "
+            f"something; changing any knob is, and is counted. Nothing is ever removed "
+            f"from the ledger to make this number smaller -- it is deduplicated at read "
+            f"time, so the failures the ledger exists to remember stay in it.",
             f"Control: the same aggregate, narrowed to AAPL "
             f"{CONFIG['control']['concept']}, returns {control.facts} facts and "
             f"{control.restated_facts} restated -- the figures measured independently on "
@@ -369,6 +380,18 @@ def _data_vintage(app: Application) -> date:
 
 
 def _git_state() -> tuple[str, bool]:
+    """The commit this ran at, and whether the CODE differed from it.
+
+    ``data/`` is excluded from the dirtiness check, and that exclusion is the
+    whole point rather than a convenience. This script writes its evidence card
+    and appends to the trial ledger, both under ``data/``, before the card is
+    built -- so a check over the whole tree reports dirty on every run, including
+    a run from a pristine checkout. The first version did exactly that, and a
+    reproducibility flag that is always on is one no reader learns anything from.
+
+    What the flag is asked to mean is: were the numbers produced by code that
+    matches the named commit? So it looks at everything except the outputs.
+    """
     try:
         commit = subprocess.run(
             ["git", "rev-parse", "HEAD"],  # noqa: S607
@@ -384,7 +407,35 @@ def _git_state() -> tuple[str, bool]:
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return ("unknown", True)
-    return (commit, bool(status))
+    code_changes = [
+        line
+        for line in status.splitlines()
+        # Porcelain format is "XY <path>"; the path starts at column 3.
+        if line[3:].strip().strip('"') and not line[3:].strip().strip('"').startswith("data/")
+    ]
+    return (commit, bool(code_changes))
+
+
+def _distinct_configurations(ledger: TrialLedger, family: str) -> int:
+    """Distinct configurations registered in this family -- the multiple-testing count.
+
+    Not the number of ledger rows. Re-running a byte-identical configuration is
+    not a second attempt at finding something: no new degree of freedom was
+    spent, and inflating the count would make every correction downstream of it
+    wrong in the lenient direction's opposite. What *does* count is any change to
+    a knob, because that is a second look at the data with a different lens.
+
+    Deduplicating here rather than pruning the ledger is deliberate. The ledger
+    stays append-only -- the failures it exists to remember cannot be edited out
+    -- and the statistic reads it correctly instead.
+    """
+    return len(
+        {
+            canonical_hash(entry.config)
+            for entry in ledger.read()
+            if entry.family == family and "amends" not in entry.config
+        }
+    )
 
 
 if __name__ == "__main__":
