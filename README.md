@@ -80,7 +80,9 @@ Reproduce with `make stats`. The key is
 Not all of those are formal restatements — many are prior-year comparatives
 re-presented under a changed classification in the next annual report, which the
 revision explorer separates by publication lag. That distinction was measured, not
-assumed, and it is why the flagship study's hypothesis was swapped (D6 → D7).
+assumed, and it is why the return study's hypothesis was swapped (D6 → D7). It is
+also the largest open limitation of the study below, and is disclosed there rather
+than resolved.
 
 ---
 
@@ -156,6 +158,63 @@ infers a spread from a range that is mostly volatility. Discarding them truncate
 only the low tail. Measured on a simulated path with **no spread imposed at all**,
 the discard version reports **128 basis points out of pure noise**. Averaging the
 raw estimates and flooring the mean reports approximately zero, which is the truth.
+
+---
+
+## The flagship study
+
+**S002 — how much of a modern fundamentals panel did not exist at the time.**
+Registered in [D20](docs/decisions.md) with a **1% kill threshold** *before* any
+aggregate was run: below 1% the hypothesis was to be published as dead. It came
+back at **5.02%**, clearing the threshold by a factor of five.
+
+Full memo: [`docs/S002-restatement-contamination.md`](docs/S002-restatement-contamination.md).
+Evidence card: [`data/evidence/S002-restatement-contamination.md`](data/evidence/S002-restatement-contamination.md).
+Reproduce: `make ingest` (~80 min), then `make study` (tens of minutes).
+
+| | |
+|---|---|
+| Facts whose value changed after first publication | **357,842 / 7,133,070 (5.02%)** |
+| At row grain | 516,187 / 13,447,437 (3.84%) |
+| Among facts ever republished | 9.32% |
+| Direction | 156,058 up · **191,687 down** · 10,097 changed and returned |
+| Moved >10% of the larger value | 170,816 (47.7%) |
+| Distinct configurations in this trial family | **1** |
+| Reproduction hash | `2e4799e47d1e…` (full hash in the card) |
+
+Revisions run **down** more often than up. The obvious objection is that stock
+splits retroactively rewrite per-share history, so the skew is a corporate action
+rather than an accounting one. It is not: restricting to units a split cannot
+mechanically touch leaves the rate at **5.05%** against a headline of 5.02%, and
+the skew at 55.6% down. Splits cannot drive it.
+
+**What the study does not claim, stated as prominently as what it does.** This is
+a population count, not an inference — every fact is counted, so there is no
+p-value and none is quoted. "Restated" means the value changed, not that anyone
+was wrong: reclassifications and new-standard adoption count.
+
+**The largest unsized component is reclassification.** A prior-year comparative
+re-presented under a changed classification in the next annual report is a genuine
+point-in-time change — the number a vendor shows you today was not the number on
+the wire then, which is what the study measures — but it is not a restatement in
+the sense most readers will hear. It sits inside the 357,842 and is not separated
+out. A reclassification is not unit-typed, so the split decomposition above is
+blind to it by construction. Sizing it is a live open question, not a closed one,
+and the headline should be read as *how much of a modern panel is retroactive*
+rather than *how often filers were wrong*. And the survivorship
+question came back **three-sided** — dormant filers appear to restate more when
+pooled, less once accounting period is held fixed, and more again once you
+condition on a second report ever existing. Cohort is entangled with both period
+vintage and republication opportunity, and none of the three views computed breaks
+both at once. **No dormancy effect is asserted in either direction.** What survives
+is the counterfactual that was actually asked: an active-filers-only universe would
+have measured between **0.05 and 0.17 percentage points** lower.
+
+Two panels — the sign-flip exclusion and the split decomposition — were added
+*after* the first population run and are labelled post-hoc in the card. The
+headline remains the pre-registered figure. The study took four rounds of
+fresh-context adversarial review, and every correction is in the memo's
+twelve-item self-audit, including the ones introduced by a previous correction.
 
 ---
 
@@ -243,11 +302,11 @@ Nothing else is required. `FRED_API_KEY` and `FMP_API_KEY` unlock macro vintages
 and prices; both sources return `None` when unconfigured rather than failing at
 startup, because an EDGAR-only run is legitimate and is what `make demo` does.
 
-For the full 800-filer universe and the study:
+For the full 800-filer universe and the flagship study:
 
 ```bash
 make ingest               # ~80 min, resumable
-make study                # needs a price entitlement — see "the flagship study" below
+make study                # S002: rewrites the evidence card from the warehouse (tens of minutes)
 ```
 
 `make test-live` runs the contract tests against the real APIs. They cost quota and
@@ -279,27 +338,40 @@ both migrations above, so they are not optional before trusting a change to a so
   it stops being an assumption for everything captured forward from today via the
   daily index. `002_dissemination.sql` carries the full note.
 
-### The flagship study has not run
+### The return-predictive study has not run
 
-It is built, tested and blocked on data, and that is stated rather than papered
-over. The fundamentals landed — 800 filers, 13.4M facts — and symbol resolution
-produced 226 tradable names. The price vendor's **daily quota** ran out after 8 of
-them, and the two free alternatives are unusable (Yahoo's chart API now demands a
+Two studies were pre-registered. The one that measures **how much of a vendor
+panel is wrong** ran and is reported above as S002. The one that would measure
+**whether that pays** — S001, restatement magnitude as a return predictor — is
+built, tested, and blocked on data, and that is stated rather than papered over.
+
+The fundamentals landed — 800 filers, 13.4M facts — and symbol resolution produced
+226 tradable names. The price vendor's **daily quota** ran out after 8 of them, and
+the two free alternatives are unusable (Yahoo's chart API now demands a
 cookie-and-crumb handshake and rate-limits the crumb endpoint itself; Stooq puts a
 JavaScript proof-of-work wall in front of its CSV).
 
 Eight symbols cannot populate five quantiles. Running it anyway would produce
-noise dressed as a finding, so it was not run. `docs/decisions.md` D9 records what
-unblocks it. The failure did earn a fix: batch ingest now trips a circuit breaker
-after five consecutive failures instead of spending twenty-two minutes retrying an
-exhausted quota and exiting `0`.
+noise dressed as a finding, so it was not run — `make study-returns` still stops
+there today. `docs/decisions.md` D9 records what unblocks it: a survivorship-free
+price panel, which costs money rather than effort. The failure did earn a fix:
+batch ingest now trips a circuit breaker after five consecutive failures instead
+of spending twenty-two minutes retrying an exhausted quota and exiting `0`.
+
+The order matters and was not chosen for convenience. A return study on a corpus
+whose contamination rate is unknown cannot separate a real effect from a data
+artefact. S002 establishes the artefact's size first. It is also the study a flat
+vendor panel makes impossible to run at all, which is the point of the platform.
 
 ---
 
 ## Decisions
 
 Architectural decisions, including the ones that were reversed and why, are in
-[`docs/decisions.md`](docs/decisions.md). The flagship study's hypothesis was
+[`docs/decisions.md`](docs/decisions.md). The return study's hypothesis was
 swapped before implementation once measurement showed the original was mostly
 detecting the annual reporting cycle rather than restatements; that reversal is
-written up as D6 → D7 rather than quietly deleted.
+written up as D6 → D7 rather than quietly deleted. D20 then re-scoped the flagship
+to a fundamentals-only study so it did not depend on a price entitlement, and D20's
+own prose was corrected twice afterwards — both corrections appended, neither
+edited in place.

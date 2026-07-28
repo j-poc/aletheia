@@ -54,7 +54,10 @@ web:  ## Run the Next.js frontend on :3000 (needs `make api` in another shell)
 web-build:  ## Type-check and build the frontend
 	cd apps/web && pnpm install && pnpm build
 
-study:  ## Run the flagship data-vintage study end to end
+study:  ## Run the flagship study (S002, fundamentals-only — needs `make ingest` first)
+	$(UV) run python scripts/run_contamination_study.py
+
+study-returns:  ## S001, the return-predictive study. BLOCKED: needs a price entitlement (D9).
 	$(UV) run python scripts/run_bias_study.py --stage symbols
 	$(UV) run python scripts/run_bias_study.py --stage prices
 	$(UV) run python scripts/run_bias_study.py --stage study
