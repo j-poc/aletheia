@@ -868,3 +868,88 @@ The convention, from here:
 Not mechanically enforced here: this repo has no hook that can see another
 session's writes. It is a convention, and it is written down because the last
 time it held, it held by accident.
+
+## D20 — The flagship study drops prices and measures restatement contamination instead
+
+**Taken:** 2026-07-28. **Reversal cost:** none — D6 anticipated this swap ("reversal
+cost: none — swap before P8 begins"), and P8 has not begun. **Status when written:
+pre-registration. No aggregate had been run and no result was known.**
+
+D6 named restatement magnitude *as a return predictor* as the flagship. That
+needs a price panel. The panel is 8 symbols, and it is 8 by entitlement, not by
+effort: a live probe of six universe tickers on 2026-07-27 returned HTTP 402 on
+all six —
+
+    probing: ['A', 'AA', 'AAAU', 'AAC', 'AAC-UN', 'AACB']
+    402  Premium Query Parameter: 'Special Endpoint : This value set for
+         'symbol' is not available under your current subscription'
+
+against 10,430 tickers in the universe. That is a whitelist wall, not a quota
+that patience clears. An eight-name cross-section cannot support a
+cross-sectional anomaly claim, and no survivorship disclosure repairs n=8. A
+study run anyway would be a study whose headline is its own caveat.
+
+So the flagship changes rather than waits. The new question needs no prices and
+is the one the corpus is uniquely built to answer:
+
+> **How much of a modern fundamentals panel did not exist at the time?**
+
+This is a better flagship than the one it replaces, not a consolation. It is
+measurable today at no spend, it is a population statistic rather than a
+backtest (so it cannot be p-hacked by construction), and it states the
+platform's premise as a number instead of an anecdote. Today that premise rests
+on one company: AAPL FY2008 diluted EPS, 5.36 → 6.78.
+
+### Registered before running anything
+
+**Grain.** A *fact* is `(cik, taxonomy, concept, unit, period_start,
+period_end)`. The primary statistic is computed at that grain, because
+`differs_from_first_report` is a per-row flag and a fact restated five times
+would otherwise count five times. Row-grain is reported too, as a secondary —
+the gap between the two is itself informative and hiding it would be a choice.
+
+**Primary statistic.** Share of facts whose value changed after first
+publication (≥2 distinct values across the report sequence).
+
+**Falsifiable form, with the kill threshold set now.** If the primary statistic
+comes in **below 1%**, restatement contamination is a rounding error, the
+platform's motivating premise is overstated, and the memo says exactly that.
+The AAPL example would then be an outlier presented as an illustration — which
+is the error this whole project exists to make hard. Registered in advance so
+that it cannot be renegotiated afterward.
+
+**Exclusions, declared now, each reported with its count.** Unit changes,
+taxonomy migrations, and sign-convention flips are not economic restatements. A
+number is not "restated" because it moved from one taxonomy to another. What is
+excluded gets counted and shown; an unfiltered number is easy to attack and a
+filtered one with the filter visible is not.
+
+**No single materiality threshold is the headline.** The distribution of
+relative change is reported, plus the share above 1% / 5% / 10%. Picking one
+cutoff after seeing the distribution is the degree of freedom this repo is
+about; it is closed here.
+
+**Positive control, and it gates the number.** The general aggregate is run
+against AAPL `EarningsPerShareDiluted` and must return **25 restated of 121
+periods** — the figure measured independently on 2026-07-27 and quoted in the
+plan and the README. It is a known answer the query is fully capable of
+getting wrong. If it does not reproduce, the population number is wrong, not
+the AAPL one, and nothing ships until it does.
+
+**Selection is a convenience sample and the memo will say so.** The 800 filers
+were ingested across 37 ad-hoc batches during development, drawn in 2026 from a
+*current* ticker map — so they are alive-today by construction. The corpus is
+survivorship-free where EDGAR is (the SEC never deletes a dead filer), but the
+*selection* is not, and dead companies plausibly restate more than survivors,
+which would bias the headline **down**. The warehouse cannot currently size this:
+`delistings` holds 100 rows spanning 2026-07-01 to 2026-07-23, three weeks of one
+vendor page, and only 2 of the 800 appear in it. So the direction of the bias is
+arguable and its magnitude is not measured — stated, not estimated.
+
+**Scope.** No new ingest. The 8-symbol price panel is not touched. The study is
+fundamentals-only by design, and the memo says that rather than letting it read
+as a limitation worked around.
+
+The price-vendor spend stays where D1 and the plan put it: reserved for Jurgis.
+This decision does not route around that question, it removes the flagship's
+dependency on it.
