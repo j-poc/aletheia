@@ -1126,3 +1126,56 @@ cannot talk to EDGAR. Nothing in the tracked source ever hardcoded it, so no cod
 change is needed — but any operator, including a future maintainer, needs a
 working address before `make ingest` or `make demo`, and choosing which one is
 not a decision this log can take.
+
+---
+
+### D23 — the paper book is gated on a signal, not on prices, 2026-07-29
+
+**Status:** open, and not defaultable — starting a book is the principal's call.
+
+The task register carried "recorder wiring pending prices" against P10. That
+records the wrong blocker, and a wrong blocker on disk is worse than none: it
+tells a future reader that buying a price entitlement (D1, D9, ~$50-200/mo)
+starts the live book. It does not.
+
+**Prices are genuinely not the constraint.** D9 blocks S001 because a historical
+backtest needs prices for names that have since delisted, and every free source
+walls those off — FMP returns 402, Yahoo 404, Stooq a proof-of-work page. A
+*forward* book has no such problem. It holds names that are listed on the day it
+marks them, and FMP answers 200 for those. Survivorship bias is a property of
+looking backwards; a record written prospectively cannot have it.
+
+**The actual constraint is that there is nothing to hold.** A book needs
+positions, positions need a signal, and no signal has cleared the harness. One
+evidence card exists, S002, and it is a corpus measurement — 5.02% of facts
+change after first publication — with no Sharpe, no PBO and no position implied.
+S001, the return-predictive study, is the one that would produce holdings, and it
+is price-blocked.
+
+So the only way to start a book today is to trade a signal that has not passed
+the false-discovery gate. That is precisely the thing this platform exists to
+refuse. Every evidence card, the trial ledger, the deflated Sharpe and the PBO
+machinery are there to make "no signal reaches capital without passing a
+false-discovery-controlled gate" a mechanism rather than a slogan. Booking an
+ungated signal to start a clock earlier would falsify the claim the system is
+built to support, which costs more than the clock is worth.
+
+**What is done.** `book/ledger.py` is complete: append-only JSON-lines marks,
+`Decimal` money, back-dated and duplicate dates refused, and a hash chain where
+mark *n* commits to the head of *n-1*. Its tamper evidence is positive-controlled
+in tests rather than asserted — editing a price, editing cash, deleting a mark,
+reordering marks and appending a forged mark are each shown to break `verify()`,
+and a tampered book is shown unable to reproduce a previously published head.
+
+**What is not done, and is not claimed.** No book is running. `data/book/` does
+not exist, no mark has ever been recorded, and outside its own tests nothing in
+the repository imports `PaperBook`. P10's pass bar — record on three consecutive
+days and verify the chain independently — is therefore unmet. The README's
+architecture listing said "live paper book, hash-chained daily marks"; it now
+says the ledger is built and no book is running.
+
+**Consequence.** P10 unblocks when a signal clears the harness, which in the
+current ordering means S001, which means the price question after all — but one
+step further back than the old note implied, and via a study rather than
+directly. Anchoring a chain head in a dated commit remains a publication act and
+stays reserved.

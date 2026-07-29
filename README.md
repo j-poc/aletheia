@@ -230,7 +230,7 @@ packages/engine/
   features/      theory-selected signals; data-vintage policies
   research/      backtest kernel · cost model · panel builder · evidence cards
   surveillance/  daily index poller, forensic scoring
-  book/          live paper book, hash-chained daily marks
+  book/          hash-chained mark ledger for a paper book (built; no book running)
 packages/trialkeeper/    standalone MIT library — deflated Sharpe, PBO, purged CV,
                          BHY multiple-testing haircut, pre-registration ledger.
                          Zero aletheia imports; the boundary is its own tests.
