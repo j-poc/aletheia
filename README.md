@@ -286,7 +286,7 @@ set. Verified two-sided: tie-break removed â†’ four distinct hashes; restored â†
 ```bash
 make setup                # uv sync
 make verify               # ruff + mypy strict + full suite + determinism + mutants
-make demo                 # ~3 min: builds a 25-filer warehouse and prints the proof
+make demo                 # builds a 25-filer warehouse from nothing and prints the proof
 make api                  # read-only HTTP API on :8000
 make web                  # the five pages, on localhost:3000
 ```

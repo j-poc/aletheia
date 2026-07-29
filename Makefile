@@ -41,7 +41,7 @@ ingest:  ## Pull real data into the warehouse
 stats:  ## Recompute every corpus number the README quotes
 	$(UV) run python scripts/corpus_stats.py
 
-demo:  ## Build a small warehouse from scratch (~3 min) and print the proof
+demo:  ## Build a small 25-filer warehouse from scratch and print the proof
 	$(UV) sync
 	$(UV) run python scripts/demo.py
 
