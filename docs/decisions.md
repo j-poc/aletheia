@@ -1075,3 +1075,54 @@ its `code_commit`. A published card citing a commit that does not exist in the
 published history would break the provenance guarantee this system is built to
 demonstrate, to hide a first name. The trade is not worth making, and the
 residual exposure is stated here rather than quietly accepted.
+
+### D22 — the SEC refuses some contact addresses, and says "rate limit" when it does, 2026-07-29
+
+Found by cloning this repository into an empty directory and running it as a
+stranger would, which is also how the README defect in `c09b69e` was found. Both
+are the same lesson: the gate reads the code, and the things that break a new
+user live outside it.
+
+`make demo` failed on step 1 of 4 with `HTTP 403: rate limited by edgar`, retried
+four times, and told the operator to wait ten minutes. Eleven minutes later it
+failed identically. The message was wrong. Measured directly against
+`https://www.sec.gov/files/company_tickers.json`, one request per User-Agent:
+
+| User-Agent | Result |
+|---|---|
+| `j-poc j-poc@users.noreply.github.com` | 403 |
+| `aletheia someone@users.noreply.github.com` | 403 |
+| `aletheia someone@github.com` | 403 |
+| `j-poc test@example.com` | **200** |
+| `aletheia-test test@example.com` | **200** |
+| *(no User-Agent)* | 403 |
+
+**The SEC refuses any User-Agent whose e-mail is at a `github.com` domain**, on
+the first request, with no rate involved. The name half is irrelevant: the same
+`j-poc` name passes with a different domain. This is a permanent refusal, not a
+throttle, and no amount of waiting changes it.
+
+**The refusal is served on the identical page as a real throttle.** Its `<title>`
+is `SEC.gov | Request Rate Threshold Exceeded` — which is what
+`RATE_LIMIT_MARKERS` matches — while the visible heading reads *Automated access
+to our sites must comply with SEC.gov's Privacy and Security Policy* and the body
+never mentions a rate. The captured body is now a test fixture.
+
+**What did not change: the retry.** Classifying this page as retryable is still
+correct. The two causes are not separable from the body, and treating a genuine
+throttle as permanent kills a run that would have recovered — the defect that
+motivated the matching in the first place. Making the page permanent to fix the
+message would trade a confusing error for a broken ingest.
+
+**What changed: the claim.** The error asserted a cause it could not know.
+`sources/http.py` now names both possibilities, `scripts/demo.py` prints the
+current address with a one-line `curl` that separates them in a second, and the
+README says to use an address at your own domain. A test asserts the message does
+not claim a throttle, and it was confirmed to fail against the old wording.
+
+**Consequence for this repository.** Its published identity is a pseudonym whose
+natural contact address is `j-poc@users.noreply.github.com`, and that address
+cannot talk to EDGAR. Nothing in the tracked source ever hardcoded it, so no code
+change is needed — but any operator, including a future maintainer, needs a
+working address before `make ingest` or `make demo`, and choosing which one is
+not a decision this log can take.

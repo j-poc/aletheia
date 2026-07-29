@@ -298,6 +298,18 @@ themselves and throttles those that do not — a 403 with an HTML page, not a 42
 export ALETHEIA_SEC_USER_AGENT="Your Name your@email"
 ```
 
+**Use an address at your own domain.** The SEC refuses some outright, and it
+answers the refusal with the same 403 page it uses for throttling, titled
+*Request Rate Threshold Exceeded* — so a rejected address looks exactly like a
+rate limit that will clear, and never does. Any e-mail at a `github.com` domain
+is refused on the first request, `users.noreply.github.com` included. Check
+before a long run; 200 is healthy, 403 is refused:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" \
+     -A "$ALETHEIA_SEC_USER_AGENT" https://www.sec.gov/files/company_tickers.json
+```
+
 Nothing else is required. `FRED_API_KEY` and `FMP_API_KEY` unlock macro vintages
 and prices; both sources return `None` when unconfigured rather than failing at
 startup, because an EDGAR-only run is legitimate and is what `make demo` does.

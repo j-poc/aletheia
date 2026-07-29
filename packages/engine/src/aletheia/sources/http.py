@@ -34,13 +34,27 @@ SECRET_QUERY_KEYS: Final = frozenset({"apikey", "api_key", "token", "key", "acce
 RETRYABLE_STATUS: Final = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 RATE_LIMIT_MARKERS: Final = ("request rate threshold exceeded", "undeclared automated tool")
-"""Phrases the SEC serves in an HTML **403** when it throttles a client.
+"""Phrases the SEC serves in the HTML **403** it returns instead of a 429.
 
 EDGAR does not answer with 429. It returns 403 and an HTML page, which lands in
 the permanent bucket and kills a run that would have succeeded after a short
-wait. Matching the page turns it back into what it actually is: a retryable
-throttle. Checked against the body rather than the status alone, because a real
-403 -- an entitlement problem -- must stay permanent."""
+wait. Matching the page turns it back into a retryable throttle. Checked against
+the body rather than the status alone, because a real 403 -- an entitlement
+problem -- must stay permanent.
+
+**This page does not prove a throttle.** The SEC serves the identical page, with
+``Request Rate Threshold Exceeded`` in the ``<title>``, when it rejects the
+User-Agent outright -- observed for any e-mail at a ``github.com`` domain, which
+is refused on the very first request. The visible heading then reads
+``Automated access ... must comply with SEC.gov's Privacy and Security Policy``,
+but the title marker matches either way and the two are not reliably separable
+from the body.
+
+Retrying is still the right default: a throttle is common and recoverable, and
+treating it as permanent is the bug this matching exists to fix. What must not
+happen is asserting the cause. Callers surfacing this to a human are expected to
+name both possibilities, because telling someone to wait ten minutes for a
+User-Agent refusal sends them into a loop that never terminates."""
 _MAX_BACKOFF_SECONDS: Final = 30.0
 
 
@@ -174,8 +188,9 @@ class Fetcher:
             if response.status_code >= 400:
                 if _is_rate_limit_page(response):
                     last_error = TransientSourceError(
-                        f"HTTP {response.status_code}: rate limited by {source} "
-                        f"on attempt {attempt}/{self._max_attempts}",
+                        f"HTTP {response.status_code}: {source} served its refusal page "
+                        f"(rate limit, or a User-Agent it will not accept -- the page is "
+                        f"the same for both) on attempt {attempt}/{self._max_attempts}",
                         source=source,
                         uri=safe_url,
                     )

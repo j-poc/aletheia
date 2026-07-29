@@ -235,10 +235,55 @@ class TestSecRateLimitIsRetryable:
 
         with (
             httpx.Client(transport=httpx.MockTransport(handler)) as client,
-            pytest.raises(TransientSourceError, match="rate limited"),
+            pytest.raises(TransientSourceError, match="refusal page"),
         ):
             self._fetcher(payloads, clock, client).get("https://sec.invalid/x", source="edgar")
         assert len(attempts) == 2, "a throttle must be retried, not failed on first sight"
+
+    # The body the SEC actually served on 2026-07-29 when it refused the
+    # User-Agent outright, captured verbatim from the wire. Note what it does NOT
+    # say: nothing about a rate. The rate wording lives only in the <title>, which
+    # is why the marker still matches and why the page cannot be used to tell a
+    # throttle apart from a refusal.
+    UA_REFUSAL_BODY = (
+        "<html><head><title>SEC.gov | Request Rate Threshold Exceeded</title></head>"
+        "<body><div id='content'><h1>Automated access to our sites must comply with "
+        "SEC.gov's Privacy and Security Policy.</h1>"
+        "<p>Please visit www.sec.gov/developer for more developer resources and "
+        "Fair Access guidelines.</p>"
+        "<p>Reference ID: 0.eee1502.1785310434.273540e</p></div></body></html>"
+    )
+
+    def test_a_user_agent_refusal_is_indistinguishable_and_must_not_claim_a_cause(
+        self, payloads: PayloadStore, clock: FrozenClock
+    ) -> None:
+        """The SEC serves this same page when it rejects the User-Agent forever.
+
+        Classifying it as retryable stays correct -- the two cannot be separated
+        from the body, and treating a real throttle as permanent is the defect
+        this matching exists to fix. What must not happen is the error asserting
+        a throttle, because a caller that repeats that to a human sends someone
+        into a wait that never ends. Measured live: any e-mail at a github.com
+        domain is refused on the first request, users.noreply.github.com included.
+        """
+        with (
+            httpx.Client(
+                transport=httpx.MockTransport(
+                    lambda _r: httpx.Response(403, text=self.UA_REFUSAL_BODY)
+                )
+            ) as client,
+            pytest.raises(TransientSourceError) as caught,
+        ):
+            self._fetcher(payloads, clock, client).get("https://sec.invalid/x", source="edgar")
+
+        message = str(caught.value)
+        assert "User-Agent" in message, (
+            "the refusal cause must be named; this page is not proof of a throttle"
+        )
+        assert "rate limited by" not in message, (
+            "must not assert a throttle it cannot know -- that is the wording that "
+            "sent a cold-clone run into a retry loop against a permanent refusal"
+        )
 
     def test_a_throttle_that_clears_succeeds(
         self, payloads: PayloadStore, clock: FrozenClock
