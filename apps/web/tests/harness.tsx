@@ -28,24 +28,22 @@ export const BASE = "http://api.test";
 /** Every URL the page requested, in order, with `BASE` stripped. */
 export type Rendered = { html: string; text: string; requested: string[] };
 
-class UnexpectedRequest extends Error {}
+export class UnexpectedRequest extends Error {}
 
 async function withBackend<T>(backend: Backend, body: () => Promise<T>): Promise<[T, string[]]> {
   const requested: string[] = [];
+  const unexpected: string[] = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (!url.startsWith(BASE)) throw new UnexpectedRequest(`request outside the API base: ${url}`);
-    const path = url.slice(BASE.length);
+    const path = url.startsWith(BASE) ? url.slice(BASE.length) : url;
     requested.push(path);
-    const reply = match(backend, path);
+    const reply = url.startsWith(BASE) ? match(backend, path) : undefined;
     if (reply === undefined) {
-      // Thrown, not returned as a 404: a missing stub is a mistake in the test,
-      // and dressing it up as a backend response would let the page render its
-      // error panel and the assertion pass for the wrong reason.
-      throw new UnexpectedRequest(
-        `no stub for ${path}\n  stubs: ${Object.keys(backend).join(", ") || "(none)"}`,
-      );
+      unexpected.push(path);
+      // Thrown so the page takes a deterministic path rather than hanging, but
+      // the throw is NOT what fails the test -- see below.
+      throw new TypeError("fetch failed");
     }
     if ("unreachable" in reply) throw new TypeError("fetch failed");
     return new Response(JSON.stringify(reply.body), {
@@ -53,11 +51,29 @@ async function withBackend<T>(backend: Backend, body: () => Promise<T>): Promise
       headers: { "content-type": "application/json" },
     });
   }) as typeof globalThis.fetch;
+  // Reported after the render rather than by letting the throw propagate. Every
+  // page wraps its call in `try { ... } catch`, and `api()` converts *any* fetch
+  // rejection into "cannot reach the API" -- so a thrown missing-stub error is
+  // swallowed and rendered as the error panel, and a test asserting on that panel
+  // passes while the page is calling an endpoint the test never described. That
+  // is the exact failure this strictness exists to prevent, and relying on the
+  // throw reintroduced it. Raised on both exits so a caller that does not catch
+  // still reports the missing stub rather than a bare "fetch failed".
+  const missing = () =>
+    new UnexpectedRequest(
+      `no stub for ${unexpected.join(", ")}\n  stubs: ${Object.keys(backend).join(", ") || "(none)"}`,
+    );
+  let result: T;
   try {
-    return [await body(), requested];
+    result = await body();
+  } catch (caught) {
+    if (unexpected.length > 0) throw missing();
+    throw caught;
   } finally {
     globalThis.fetch = realFetch;
   }
+  if (unexpected.length > 0) throw missing();
+  return [result, requested];
 }
 
 /**

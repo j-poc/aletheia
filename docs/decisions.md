@@ -1337,15 +1337,41 @@ through review in the first place.
 a tree of synchronous components — so the suite awaits the page and renders the
 result to static markup under `node`, with no browser emulation. That covers
 exactly what the server sends and nothing after it. The fetch stub is strict: a
-request the test did not stub throws rather than returning `{}`, because a page
-calling the wrong endpoint would otherwise render its error panel and the
-assertion would pass for the wrong reason. `console.error` is fatal, since React
-reports most rendering defects by writing there and continuing.
+request the test did not stub fails the test, because a page calling the wrong
+endpoint would otherwise render its error panel and the assertion would pass for
+the wrong reason. `console.error` is fatal, since React reports most rendering
+defects by writing there and continuing.
 
 Fixtures use the two cases named above at their real values rather than invented
 ones, so a failure reads as "the page now says the wrong thing about Apple".
 
-**58 tests, and the number that matters is 34/34.** A suite that has never been
+**Both of those design claims were written before anything tested them, and one
+of them was false.** They are properties of the harness, not of any page, so no
+mutant and no test touched either — and a claim that has never been observed
+either way is exactly what this decision record is otherwise about. Checked
+afterwards:
+
+- **The strict stub did not work.** It threw on an unstubbed path, but `api()`
+  wraps `fetch` in `try { … } catch` and converts *any* rejection into
+  `ApiError(0, "cannot reach the API")`, which every page then catches and
+  renders as its error panel. The throw was swallowed twice over, so a test
+  asserting on that panel passed while the page requested an endpoint the test
+  never described — the precise failure the strictness exists to prevent.
+  Unstubbed paths are now recorded and raised after the render returns, where no
+  page-level catch can reach them, and on the exception path too so an
+  uncaught one does not surface as a bare `fetch failed`. `tests/harness.test.tsx`
+  makes it observable and three mutants keep it that way, including one that
+  restores the `{}` this paragraph originally claimed impossible.
+- **The `console.error` trap was real but unproven.** No test in the suite writes
+  to `console.error`, so the trap had never fired; and it cannot be checked from
+  inside the suite it guards, because a test that triggered it would fail itself.
+  It is checked from outside instead, two-sided like the import canary: the gate
+  runs one throwaway probe twice, once with `tests/setup.ts` loaded and once with
+  the `setupFiles` line stripped from the sandbox config, and requires FAIL then
+  PASS. Disarming the trap (`ALLOWED = [/.*/]`) makes the gate report
+  `a test writing to console.error PASSED with tests/setup.ts loaded`, observed.
+
+**63 tests, and the number that matters is 37/37.** A suite that has never been
 observed failing is indistinguishable from a suite that asserts nothing, and this
 one passed on its first run. `scripts/web_mutation_gate.mjs` mirrors the Python
 gate: sandbox copy, anchor check, mutate → the named tests must FAIL, restore →
@@ -1427,3 +1453,30 @@ There is also no JavaScript linter or formatter in this repository — `tsc
 --noEmit` under `strict` is the only static check on the front end, and it says
 nothing about style or about the lint classes ESLint would catch. Left out
 deliberately rather than half-added.
+
+**The cold-clone result had to be re-measured, because the bar moved.** The
+fresh-clone walkthrough recorded against P9 ran a `make verify` that was five
+Python targets and needed only `uv`. The same command now also needs `pnpm` and an
+install of the front end's dependency tree. Carrying the old result forward as
+though it covered the new command would be the same error this record is about,
+so it was re-run: a `git clone` into an empty directory, then `make types-web
+test-web mutants-web` with no `node_modules` present.
+
+```
+Lockfile is up to date, resolution step is skipped
+Packages: +90
+Progress: resolved 90, reused 90, downloaded 0, added 90, done
+Done in 16.5s using pnpm v9.15.9
+ Test Files  3 passed (3)
+      Tests  58 passed (58)
+all 34 mutants caught
+COLD_EXIT=0
+```
+
+(58 and 34 because the clone is at `c4c1ecf`, before the harness tests in this
+follow-up.) One thing that proves less than it appears: `reused 90, downloaded 0`
+means every package came from the local pnpm store, so what is verified is that
+the lockfile is complete and `--frozen-lockfile` accepts it from a clean
+checkout — not that a machine with an empty store can fetch them. The
+missing-`pnpm` case is handled separately: `web-deps` fails with an instruction
+and names the Python-only subset.

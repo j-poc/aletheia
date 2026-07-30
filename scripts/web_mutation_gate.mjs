@@ -52,9 +52,12 @@ const FEED = "app/feed/page.tsx";
 const REVISIONS = "app/revisions/page.tsx";
 const EVIDENCE = "app/evidence/page.tsx";
 
+const HARNESS = "tests/harness.tsx";
+
 const ASOF_TESTS = ["tests/asof.test.tsx"];
 const PAGE_TESTS = ["tests/pages.test.tsx"];
 const API_TESTS = ["tests/api.test.ts"];
+const HARNESS_TESTS = ["tests/harness.test.tsx"];
 
 /**
  * @typedef {{label: string, decision: string, path: string, old: string, new: string,
@@ -338,13 +341,49 @@ const MUTANTS = [
     new: "      {false && (",
     tests: PAGE_TESTS,
   },
+  // The harness itself. D26 claimed strict stubbing as a design property while
+  // nothing exercised it, and checking the claim showed it did not hold -- the
+  // page's own catch swallowed the throw. These three keep the fix observable.
+  {
+    label: "a missing stub is answered with an empty object, the failure D26 claims to prevent",
+    decision: "D26",
+    path: HARNESS,
+    old: "      unexpected.push(path);",
+    new: '      return new Response("{}", { headers: { "content-type": "application/json" } });',
+    tests: HARNESS_TESTS,
+  },
+  {
+    label: "a missing stub the page catches is reported as nothing at all (the shipped hole)",
+    decision: "D26",
+    path: HARNESS,
+    old: "  if (unexpected.length > 0) throw missing();\n  return [result, requested];",
+    new: "  return [result, requested];",
+    tests: HARNESS_TESTS,
+  },
+  {
+    label: "a missing stub the page does not catch surfaces as a bare 'fetch failed'",
+    decision: "D26",
+    path: HARNESS,
+    old: "    if (unexpected.length > 0) throw missing();\n    throw caught;",
+    new: "    throw caught;",
+    tests: HARNESS_TESTS,
+  },
 ];
 
 const require = createRequire(path.join(WEB, "noop.js"));
 const VITEST_BIN = path.join(path.dirname(require.resolve("vitest/package.json")), "vitest.mjs");
 
-/** Every file a mutant touches, deduplicated -- hashed before and after to prove none was written. */
-const TARGETS = [...new Set(MUTANTS.map((mutant) => mutant.path))].sort();
+/**
+ * Every file this gate edits, deduplicated -- hashed before and after to prove
+ * none was written. The two literals are not mutant targets: `vitest.config.ts`
+ * is rewritten by the console.error precondition and `tests/setup.ts` is the file
+ * that precondition is about, so leaving them out would have left the "the
+ * working tree is never written to" claim uncovered exactly where a new write was
+ * just introduced.
+ */
+const TARGETS = [
+  ...new Set([...MUTANTS.map((mutant) => mutant.path), "vitest.config.ts", "tests/setup.ts"]),
+].sort();
 
 function digest(relative) {
   return createHash("sha256").update(fs.readFileSync(path.join(WEB, relative))).digest("hex");
@@ -419,6 +458,57 @@ function unredirectedImports(sandbox) {
   return [];
 }
 
+const CONSOLE_PROBE_PATH = "tests/zz_console_error_probe.test.ts";
+const SETUP_ANCHOR = '    setupFiles: ["./tests/setup.ts"],';
+const CONSOLE_PROBE_SOURCE = `/** Written into the sandbox by scripts/web_mutation_gate.mjs; never committed. */
+import { it } from "vitest";
+
+it("writes to console.error the way a React warning does", () => {
+  console.error("Warning: gate probe -- this is what an unnoticed React defect looks like");
+});
+`;
+
+/**
+ * Empty when `tests/setup.ts` actually fails a test that writes to `console.error`.
+ *
+ * D26 claimed this as a property of the suite. It could not be true or false of
+ * any test in it: no test writes to `console.error`, so the trap had never fired,
+ * and a suite green under an armed trap is indistinguishable from one green under
+ * a trap that does nothing. It also cannot be checked from inside the suite it
+ * guards -- a test that triggered the trap would fail itself, which is the whole
+ * design.
+ *
+ * So it is checked from outside, two-sided like the canary above: the same probe
+ * runs twice, once with the setup file loaded and once with the `setupFiles` line
+ * removed from the sandbox config. FAIL then PASS is the only acceptable result.
+ * PASS in the first arm means the trap is disarmed; FAIL in the second means the
+ * probe was failing for some other reason and proves nothing about the trap.
+ */
+function consoleErrorTrapUnarmed(sandbox) {
+  const config = path.join(sandbox, "vitest.config.ts");
+  const original = fs.readFileSync(config, "utf8");
+  fs.writeFileSync(path.join(sandbox, CONSOLE_PROBE_PATH), CONSOLE_PROBE_SOURCE);
+  try {
+    if (!original.includes(SETUP_ANCHOR)) {
+      return ["vitest.config.ts no longer declares setupFiles at the expected line"];
+    }
+    const armed = runVitest(sandbox, [CONSOLE_PROBE_PATH]);
+    fs.writeFileSync(config, original.replace(SETUP_ANCHOR, ""));
+    const unarmed = runVitest(sandbox, [CONSOLE_PROBE_PATH]);
+    const problems = [];
+    if (armed.status === 0) {
+      problems.push("a test writing to console.error PASSED with tests/setup.ts loaded");
+    }
+    if (unarmed.status !== 0) {
+      problems.push("the same probe FAILED with setup removed, so its failure was not the trap");
+    }
+    return problems;
+  } finally {
+    fs.writeFileSync(config, original);
+    fs.rmSync(path.join(sandbox, CONSOLE_PROBE_PATH), { force: true });
+  }
+}
+
 function main() {
   if (!fs.existsSync(VITEST_BIN)) {
     console.log(`FAIL  vitest not installed at ${VITEST_BIN}`);
@@ -443,6 +533,13 @@ function main() {
     if (stray.length > 0) {
       console.log("FAIL  imports do not resolve to the sandbox, so mutants would test nothing:");
       for (const line of stray) console.log(`          ${line}`);
+      return 1;
+    }
+
+    const unarmed = consoleErrorTrapUnarmed(sandbox);
+    if (unarmed.length > 0) {
+      console.log("FAIL  console.error is not fatal, so React's own warnings would go unnoticed:");
+      for (const line of unarmed) console.log(`          ${line}`);
       return 1;
     }
     console.log();
