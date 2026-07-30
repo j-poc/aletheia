@@ -36,7 +36,7 @@ determinism:  ## Prove a re-run reproduces byte-identical results
 mutants:  ## Break each shipped fix on purpose; a test must catch every one
 	$(UV) run python scripts/mutation_gate.py
 
-mutants-web: web-deps  ## The same, for the pages: 31 mutants, every one must be caught
+mutants-web: web-deps  ## The same, for the pages and their harness; every mutant must be caught
 	node scripts/web_mutation_gate.mjs
 
 # The web targets are in the done-bar, not beside it. Leaving them out meant

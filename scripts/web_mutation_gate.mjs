@@ -53,11 +53,13 @@ const REVISIONS = "app/revisions/page.tsx";
 const EVIDENCE = "app/evidence/page.tsx";
 
 const HARNESS = "tests/harness.tsx";
+const STRIP = "app/vintage-strip.tsx";
 
 const ASOF_TESTS = ["tests/asof.test.tsx"];
 const PAGE_TESTS = ["tests/pages.test.tsx"];
 const API_TESTS = ["tests/api.test.ts"];
 const HARNESS_TESTS = ["tests/harness.test.tsx"];
+const FRESHNESS_TESTS = ["tests/freshness.test.tsx"];
 
 /**
  * @typedef {{label: string, decision: string, path: string, old: string, new: string,
@@ -367,6 +369,65 @@ const MUTANTS = [
     old: "    if (unexpected.length > 0) throw missing();\n    throw caught;",
     new: "    throw caught;",
     tests: HARNESS_TESTS,
+  },
+  // The freshness strip. Every one of these restores a surface that keeps
+  // answering confidently about a warehouse it should be warning about -- the
+  // failure D27 exists for, and the one with no exception to assert on.
+  {
+    label: "a stale warehouse renders exactly like a current one (the shipped defect)",
+    decision: "D27",
+    path: STRIP,
+    old: 'if (state === "fresh") return null;',
+    new: "if (true) return null;",
+    tests: FRESHNESS_TESTS,
+  },
+  {
+    label: "the strip becomes furniture: always present, therefore never read",
+    decision: "D27",
+    path: STRIP,
+    old: 'if (state === "fresh") return null;',
+    new: "if (false) return null;",
+    tests: FRESHNESS_TESTS,
+  },
+  {
+    label: "an unreachable API is reported as silence rather than as the loudest state",
+    decision: "D27",
+    path: STRIP,
+    old: 'const state: Freshness["state"] = freshness?.state ?? "broken";',
+    new: 'const state: Freshness["state"] = freshness?.state ?? "fresh";',
+    tests: FRESHNESS_TESTS,
+  },
+  {
+    label: "incomplete and out-of-date become indistinguishable, leaving colour alone",
+    decision: "D27",
+    path: STRIP,
+    old: '    label: "Incomplete",\n    shape: "rounded-none",',
+    new: '    label: "Incomplete",\n    shape: "rounded-full",',
+    tests: FRESHNESS_TESTS,
+  },
+  {
+    label: "the reader is handed two dates and left to do the subtraction themselves",
+    decision: "D27",
+    path: STRIP,
+    old: "<span className=\"text-[var(--color-muted)]\">{reason}</span>",
+    new: "<span className=\"text-[var(--color-muted)]\">{freshness?.data_vintage}</span>",
+    tests: FRESHNESS_TESTS,
+  },
+  {
+    label: "a study with no returns shows eight empty performance columns (the shipped defect)",
+    decision: "D27",
+    path: EVIDENCE,
+    old: "          {card.arms.length === 0 ? (",
+    new: "          {false ? (",
+    tests: FRESHNESS_TESTS,
+  },
+  {
+    label: "the performance table is suppressed even when the study has arms",
+    decision: "D27",
+    path: EVIDENCE,
+    old: "          {card.arms.length === 0 ? (",
+    new: "          {true ? (",
+    tests: FRESHNESS_TESTS,
   },
 ];
 

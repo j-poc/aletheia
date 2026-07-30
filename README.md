@@ -255,7 +255,7 @@ without any of the rest of this.
 | Costs are never omitted | Every return is reported gross and net, with turnover and the capital assumed |
 | Survivorship is measured | Names the price vendor will not serve are counted with reasons, not skipped |
 | Trials are counted | Hypotheses are registered in an append-only hash chain *before* they run |
-| The tests would notice | `make mutants` reintroduces 39 defects in the engine and `make mutants-web` 37 in the pages and their test harness — each reverted to the exact form the bug had, most of them defects that actually shipped — and requires a test to fail on every one, then to pass again once it is restored |
+| The tests would notice | `make mutants` reintroduces 39 defects in the engine and `make mutants-web` 44 in the pages and their test harness — each reverted to the exact form the bug had, most of them defects that actually shipped — and requires a test to fail on every one, then to pass again once it is restored |
 | The pages claim only what the data supports | Every page is rendered server-side in the suite and asserted on the sentence a reader sees, not on the branch taken. The three occasions this application printed a confident false claim about a real company are each pinned by a test ([D26](docs/decisions.md)) |
 
 A green suite says the tests pass; it does not say they would have failed. Those
