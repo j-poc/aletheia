@@ -36,3 +36,4 @@ data/study/
 
 # Session-continuity notes: where a session left off, not part of the product.
 CHECKPOINT.md
+FINISH-PROMPT.md
