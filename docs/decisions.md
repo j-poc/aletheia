@@ -1303,3 +1303,127 @@ renders current numbers. `export const dynamic = "force-dynamic"` is set on the
 pages and the client uses `cache: "no-store"`. This was an in-process dev-server
 cache, not shipped behaviour. Production rendering was not exercised, so nothing
 is claimed about it.
+
+### D26 — the front end had no tests, and `make verify` did not mention it, 2026-07-30
+
+D24 flagged it and deliberately left it: *"apps/web has no tests of any kind."*
+Closing it now, because the gap was worse than a missing suite. `make verify`
+described itself as "everything the done-bar requires" and ran `lint types test
+determinism mutants` — five Python targets over 49 source files. The web
+application was not in it. So the command whose job is to say whether this
+repository is in a shippable state returned green while the only surface a reader
+ever looks at was entirely unchecked, and had been since P6.
+
+**What the pages actually do is derive claims, not display fields.** The two value
+cards on the as-of viewer print whatever the API sends and are the easy part. The
+paragraph underneath them is the product: it decides, from four booleans, which
+of four sentences to print about a company's reported history, and those booleans
+do not mean what a first reading suggests. Three defects have shipped in that
+derivation, each documented in a source comment written when it was fixed and
+none of them carrying a regression test:
+
+| Case | What the page printed | Why the obvious test would not have caught it |
+|---|---|---|
+| AAPL FY2008 EPS read after 2010-01-25 | "This period's value was never revised" | The branch was keyed on `is_restated`, which compares accessions. Once the restated filing is *also* the latest one a reader would have had, the accessions match and the flag goes false — on the single example the README is built around |
+| A period revised twice | "the left column shows it too", above two visibly different numbers | True whenever the reader's date is after *a* revision; false when another followed it. 4.8% of revised periods carry three or more distinct values |
+| AAR Corp, 174.2m → 148.3m → 174.2m | "The value never moved", beside a left column reading 148300000 and a right column reading 174200000 | `value_changed` compares first-reported against current, so a period revised and revised back falls straight through it. 10,080 of 357,101 revised periods end where they started |
+
+Each of those is now pinned by a test that asserts the rendered sentence rather
+than the branch taken. A test checking "the `value_changed` branch ran" would
+still pass if that branch printed something false, which is how all three got
+through review in the first place.
+
+**Design.** These are React Server Components — `async function Page()` returning
+a tree of synchronous components — so the suite awaits the page and renders the
+result to static markup under `node`, with no browser emulation. That covers
+exactly what the server sends and nothing after it. The fetch stub is strict: a
+request the test did not stub throws rather than returning `{}`, because a page
+calling the wrong endpoint would otherwise render its error panel and the
+assertion would pass for the wrong reason. `console.error` is fatal, since React
+reports most rendering defects by writing there and continuing.
+
+Fixtures use the two cases named above at their real values rather than invented
+ones, so a failure reads as "the page now says the wrong thing about Apple".
+
+**58 tests, and the number that matters is 34/34.** A suite that has never been
+observed failing is indistinguishable from a suite that asserts nothing, and this
+one passed on its first run. `scripts/web_mutation_gate.mjs` mirrors the Python
+gate: sandbox copy, anchor check, mutate → the named tests must FAIL, restore →
+they must PASS, and the working tree is hashed before and after to prove it was
+never written to. The redirection check is a canary rather than a resolved path —
+`import.meta.resolve` answers from Node's resolver and never sees Vite's alias,
+so it can only report failures that are not real; instead an export that exists
+only in the copy must be visible to the suite, which cannot pass against the
+working tree because the working tree does not contain the string.
+
+**The gate found a hole on its first run, which is the whole argument for having
+one.** The mutant that renders an undefined relative change as a number survived.
+Two things were wrong at once. `pct(null)` does not produce `NaN`: in JavaScript
+`null >= 0` is true and `null * 100` is 0, so an absent change formats as
+`+0.00%` — a confident claim that the value did not move, on a period where the
+change is undefined and indistinguishable from one that genuinely did not move.
+And the assertion meant to catch it, `expect(text).toContain("—")`, passed against
+that page anyway, because the summary line above the table joins the company name
+to the revision count with an em-dash. A vacuous assertion sitting on top of a
+real trap.
+
+Both fixed. The assertion now reads the table cells rather than the page text
+(`cells()` in the harness), and `pct` refuses a non-finite value outright:
+
+```ts
+if (!Number.isFinite(value)) {
+  throw new TypeError(`pct() received ${JSON.stringify(value)}; an absent change must render as absent`);
+}
+```
+
+Every caller is typed against that, but the payloads arrive as JSON and the type
+annotation is a compile-time promise about a runtime value nothing validates.
+Absent must render as absent — callers holding a nullable figure show a dash —
+and a loud failure is worth more than a plausible number a reader cannot tell
+from a real one.
+
+**A second finding, from rendering the pages afterwards rather than from the
+suite.** Hardening `pct` is a runtime change, so the pages were re-rendered
+against the real warehouse to see it. That render turned up a live cell reading
+`+0.00%` on Apple's FY2023 long-term debt — revised from `105,100,000,000` to
+`105,103,000,000`, a genuine $3m move that is 0.0029% and rounds to zero at two
+decimal places. Every row in that table has `value <> prior_value` by
+construction, so `+0.00%` there can only ever mean *rounds to* zero and never
+*is* zero, which makes it wrong rather than coarse: a table of values that
+changed, reporting one that did not.
+
+Fixed with `pctChange`, kept separate from `pct` rather than folded into it,
+because a genuine zero is meaningful elsewhere — an evidence card reporting a
+0.00% difference between two arms is stating a result, not rounding one away. The
+two callers where the figure is already known to have moved use it; the evidence
+card does not. Observed live, both directions: the AAPL change column now reads
+`+<0.01%` and `-<0.01%` on those two rows with no `+0.00%` cell remaining, and
+Howmet's single zero-base revision still renders as a dash.
+
+That second finding is the argument for the render step in one line. The suite
+was green and the gate was 31/31 when the page was still printing it.
+
+**Positive control on the render probe itself.** The first pass asserted that
+`min_change=0` exercised the undefined-change path. It did not — Apple has no
+zero-base revision in its top 50, so the check passed while testing nothing. The
+path is real (`prior_value = 0 AND value <> 0`; 4,449 of the warehouse's 394,320
+revisions) and was re-probed on Howmet Aerospace, whose FY2023
+`PaymentsForProceedsFromOtherInvestingActivities` went from `0` to `-2,000,000`:
+one null from the API, one dash on the page, no `+0.00%`.
+
+**Wired into the bar, not beside it.** `make verify` now runs `types-web
+test-web mutants-web` alongside the Python targets, and `web-deps` fails with an
+instruction rather than a stack trace when `pnpm` is absent, naming the
+Python-only subset for a contributor who does not want the toolchain.
+
+**What this does not cover, stated so it is not mistaken for covered.** Nothing
+here exercises a browser: no hydration, no client-side navigation, no form
+submission, no layout, no styling, no accessibility. `app/layout.tsx` is not
+rendered by the suite at all. A page could satisfy every test above and be
+unreadable on a phone. Browser-level testing is a separate workstream and has not
+been started. What is covered is what the server sends and what it claims.
+
+There is also no JavaScript linter or formatter in this repository — `tsc
+--noEmit` under `strict` is the only static check on the front end, and it says
+nothing about style or about the lint classes ESLint would catch. Left out
+deliberately rather than half-added.

@@ -125,5 +125,43 @@ export function edgarUrl(cik: number, accn: string): string {
   return `https://www.sec.gov/Archives/edgar/data/${cik}/${accn.replace(/-/g, "")}/${accn}-index.htm`;
 }
 
-export const pct = (value: number) =>
-  `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%`;
+/**
+ * A signed percentage, or a loud failure -- never a quiet zero.
+ *
+ * The guard is not defensive clutter. `null >= 0` is true in JavaScript and
+ * `null * 100` is 0, so an absent value formats as `+0.00%`: a confident claim
+ * that the number did not move, printed on a period where the change is
+ * undefined. Every caller is typed against that, but the payloads come from JSON
+ * and the type annotation is a compile-time promise about a runtime value that
+ * nothing validates. Absent has to render as absent -- callers with a nullable
+ * figure show a dash -- and reaching here with one is a bug that should say so
+ * rather than fabricate a number the reader cannot tell from a real one.
+ */
+export const pct = (value: number) => {
+  if (!Number.isFinite(value)) {
+    throw new TypeError(`pct() received ${JSON.stringify(value)}; an absent change must render as absent`);
+  }
+  return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%`;
+};
+
+/**
+ * The same, for a figure already known to have moved -- so rounding cannot say it did not.
+ *
+ * Apple's FY2023 long-term debt was revised from 105,100,000,000 to
+ * 105,103,000,000. That is 0.0029%, which `toFixed(2)` renders as `+0.00%`: a
+ * row in a table of values that changed, reporting that nothing changed. Every
+ * row in that table has `value <> prior_value` by construction, so `+0.00%`
+ * there can only ever mean "rounds to zero" and never "is zero" -- which makes
+ * the display unambiguously wrong rather than merely coarse.
+ *
+ * Kept separate from `pct` rather than folded into it, because a genuine zero is
+ * meaningful elsewhere: an evidence card reporting a 0.00% difference between two
+ * arms is stating a result, not rounding one away.
+ */
+export const pctChange = (value: number) => {
+  const rendered = pct(value);
+  if (value !== 0 && /^[+-]?0\.00%$/.test(rendered)) {
+    return `${value > 0 ? "+" : "-"}<0.01%`;
+  }
+  return rendered;
+};

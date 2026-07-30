@@ -1,4 +1,4 @@
-import { api, ApiError, edgarUrl, pct, type Revision } from "@/lib/api";
+import { api, ApiError, edgarUrl, pct, pctChange, type Revision } from "@/lib/api";
 import { ErrorPanel } from "../error-panel";
 
 /** Every value this filer changed after publishing it. */
@@ -114,7 +114,12 @@ export default async function Page({
                         {row.new_value}
                       </Td>
                       <Td align="right" className="tabular">
-                        {row.relative_change === null ? "—" : pct(row.relative_change)}
+                        {/* `pctChange`, not `pct`: every row here has
+                            `value <> prior_value` by construction, so a cell
+                            reading "+0.00%" could only ever mean "rounds to
+                            zero" -- and it read that way on a genuine $3m
+                            revision to Apple's $105.1bn long-term debt. */}
+                        {row.relative_change === null ? "—" : pctChange(row.relative_change)}
                       </Td>
                       <Td align="right" className="tabular">
                         {row.days_to_revision}d

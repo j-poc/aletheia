@@ -1,4 +1,4 @@
-import { api, ApiError, edgarUrl, pct, type AsOf } from "@/lib/api";
+import { api, ApiError, edgarUrl, pctChange, type AsOf } from "@/lib/api";
 import { ErrorPanel } from "./error-panel";
 
 /**
@@ -164,7 +164,10 @@ export default async function Page({ searchParams }: Params) {
                   <>
                     {" "}
                     — a change of{" "}
-                    <strong className="tabular">{pct(data.relative_drift)}</strong>
+                    {/* `pctChange`: this clause only renders inside the branch
+                        where the value moved, so rounding it to "+0.00%" would
+                        contradict the sentence containing it. */}
+                    <strong className="tabular">{pctChange(data.relative_drift)}</strong>
                   </>
                 )}
                 .{" "}

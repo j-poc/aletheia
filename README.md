@@ -234,6 +234,8 @@ packages/engine/
 packages/trialkeeper/    standalone MIT library — deflated Sharpe, PBO, purged CV,
                          BHY multiple-testing haircut, pre-registration ledger.
                          Zero aletheia imports; the boundary is its own tests.
+apps/web/                the five pages. Server components, rendered in the test
+                         suite and asserted on what they claim, not how they look.
 ```
 
 `trialkeeper` is carved out deliberately. `mlfinlab` went commercial and there is
@@ -253,7 +255,8 @@ without any of the rest of this.
 | Costs are never omitted | Every return is reported gross and net, with turnover and the capital assumed |
 | Survivorship is measured | Names the price vendor will not serve are counted with reasons, not skipped |
 | Trials are counted | Hypotheses are registered in an append-only hash chain *before* they run |
-| The tests would notice | `make mutants` reintroduces ten defects that actually shipped — each reverted to the exact form the bug had — and requires a test to fail on every one, then to pass again once it is restored |
+| The tests would notice | `make mutants` reintroduces 39 defects in the engine and `make mutants-web` 34 in the pages — each reverted to the exact form the bug had, most of them defects that actually shipped — and requires a test to fail on every one, then to pass again once it is restored |
+| The pages claim only what the data supports | Every page is rendered server-side in the suite and asserted on the sentence a reader sees, not on the branch taken. The three occasions this application printed a confident false claim about a real company are each pinned by a test ([D26](docs/decisions.md)) |
 
 A green suite says the tests pass; it does not say they would have failed. Those
 are different claims and only the second is evidence. `make mutants` measures the
@@ -271,8 +274,17 @@ catches nothing. That check runs *under pytest*, on the same command line as a
 mutant — pytest builds `sys.path` differently from a bare interpreter, so a
 cheaper probe would have verified a path the real run never takes. Both halves
 are checked — break the redirection with the check in place and the run fails
-naming the two paths that escaped; break it with the check removed and all ten
-mutants survive.
+naming the two paths that escaped; break it with the check removed and every
+mutant survives.
+
+The pages get the same treatment. `make mutants-web` is the same harness in
+JavaScript, and it earned itself on its first run: a mutant rendering an
+undefined revision size as a number survived, because `pct(null)` does not
+produce `NaN` — in JavaScript `null >= 0` is true and `null * 100` is 0, so an
+absent change formatted as a confident `+0.00%` — and the assertion meant to
+catch it passed anyway, since the em-dash it looked for also appears in the prose
+above the table. A vacuous assertion sitting on a real trap, found by the gate
+rather than by reading the test.
 
 That determinism gate immediately earned itself: the backtest kernel sorted on
 signal value alone, and Python's sort is stable, so tied values inherited whatever
@@ -285,7 +297,7 @@ set. Verified two-sided: tie-break removed → four distinct hashes; restored �
 
 ```bash
 make setup                # uv sync
-make verify               # ruff + mypy strict + full suite + determinism + mutants
+make verify               # ruff + mypy strict + both suites + determinism + both mutation gates
 make demo                 # builds a 25-filer warehouse from nothing and prints the proof
 make api                  # read-only HTTP API on :8000
 make web                  # the five pages, on localhost:3000
