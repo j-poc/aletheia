@@ -15,9 +15,17 @@ trusted either.
 Scope, stated honestly: these mutants cover the point-in-time correctness surface
 that decisions D11-D15 are about -- what "restated" means, which report came
 first, and what publication order the schema agrees on -- plus D16, the one
-leak found outside it. That is where every observed defect in this system has
-been. It is not a general mutation-testing sweep, and passing it says nothing
-about code outside the listed files.
+leak found outside it, and D24, the fidelity of a served evidence card. That is
+where every observed defect in this system has been. It is not a general
+mutation-testing sweep, and passing it says nothing about code outside the listed
+files.
+
+Most entries reproduce a defect that actually shipped. The two D24 entries do
+not: no evidence card was ever served with a truncated hash or a rounded
+statistic. They are here because that endpoint had no test at all until D24, and
+the failure it invites is silent -- a rounded statistic still returns 200 and
+still looks like a result. A mutant for a defect that has not happened yet is
+worth less than one for a defect that has, and is worth more than nothing.
 
 One thing this harness structurally cannot test, named so it is not mistaken for
 covered: the sandbox copy is not a git repository, so ``code_version()`` returns
@@ -30,8 +38,8 @@ stated when there is no repository, which is exactly the sandboxed case.
 Why hand-written mutants rather than `mutmut` or `cosmic-ray`: those generate
 mutants uniformly (flip a comparison, drop a statement) and most are trivially
 caught, so the score is dominated by easy kills and the interesting cases are
-diluted. Each mutant here reproduces a defect that actually shipped, cited by
-decision record. The number that matters is 10/10, not a percentage.
+diluted. Each mutant here is hand-picked and cited by decision record. The number
+that matters is that every one of them is caught, not a percentage.
 
 **The working tree is never written to.** An earlier version mutated the real
 files and restored them in a `finally`, which made the source of truth wrong for
@@ -138,6 +146,23 @@ MUTANTS: tuple[Mutant, ...] = (
         path=f"{ENGINE}/api/app.py",
         old='"value_ever_changed": restated.value_ever_changed,',
         new='"value_ever_changed": True,',
+        tests=(f"{TESTS}/test_api.py",),
+    ),
+    Mutant(
+        label="evidence card served with a truncated repro hash",
+        decision="D24",
+        path=f"{ENGINE}/api/app.py",
+        old='"repro_hash": payload.get("repro_hash"),',
+        new='"repro_hash": str(payload.get("repro_hash"))[:16],',
+        tests=(f"{TESTS}/test_api.py",),
+    ),
+    Mutant(
+        label="evidence card statistics rounded on the way out",
+        decision="D24",
+        path=f"{ENGINE}/api/app.py",
+        old='"statistics": payload.get("statistics", {}),',
+        new='"statistics": {k: (round(v, 4) if isinstance(v, float) else v)'
+        ' for k, v in payload.get("statistics", {}).items()},',
         tests=(f"{TESTS}/test_api.py",),
     ),
     Mutant(

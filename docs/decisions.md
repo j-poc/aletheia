@@ -1179,3 +1179,59 @@ current ordering means S001, which means the price question after all — but on
 step further back than the old note implied, and via a study rather than
 directly. Anchoring a chain head in a dated commit remains a publication act and
 stays reserved.
+
+---
+
+### D24 — the endpoint that serves evidence cards had no test, 2026-07-30
+
+**Status:** closed by this change.
+
+`/api/evidence` is where "no number leaves the system without an evidence card"
+stops being a design principle and becomes an HTTP response. It is the only form
+of the card most readers will ever see. It had zero test coverage. Every other
+route did: `/api/asof` 21 references across the suite, `/api/quality` 9,
+`/api/search`, `/api/revisions`, `/api/feed` and `/api/health` at least one each.
+This one was simply missed, and nothing in the gate noticed, because the gate
+counts what is asserted and cannot count what nobody thought to assert.
+
+**The endpoint was run before anything was written about it.** Against the real
+warehouse it returns 200 and serves the S002 card with `repro_hash`
+`2e4799e47d1e…`, `provenance.code_commit` `7f9b6d86…` and `trial_count` 1, all
+matching the file on disk. So this is a missing test, not a broken endpoint —
+worth establishing in that order, since the two call for different work.
+
+**What the tests pin is fidelity, not availability.** A 200-and-non-empty-list
+assertion would have caught none of the defects found in this build. The
+invariant is that what goes out on the wire equals what is on disk, exactly: the
+full 64-character repro hash, the full commit sha, the trial count, and a
+statistic carried at full precision. A rounded statistic still returns 200 and
+still looks like a result, which is what makes that failure worth a gate.
+
+Three further behaviours are pinned because each is a plausible wrong answer: an
+empty evidence directory and a missing one must read identically (the study
+creates the directory before it writes a card, so a run that dies in between
+leaves an empty one, and 404 there would report a broken endpoint for a merely
+young warehouse); cards come back newest first; and one truncated card costs its
+own row rather than the whole index, since a study killed mid-write leaves
+exactly that and one bad file must not conceal every good result behind it.
+
+**The fixture is synthetic and lives in a temp directory.** There is one real
+card and it is the by-product of an eighty-minute ingest. A test reading it would
+couple this suite to the warehouse and pass vacuously on any machine where the
+file is absent — green, and measuring nothing.
+
+**Positive control.** Four deliberate breaks of the handler were each confirmed
+to fail a named test, and the handler restored afterwards: truncating the repro
+hash, rounding float statistics, sorting oldest-first, and letting a truncated
+card raise instead of being skipped. All four caught.
+
+**Registered rather than proven once.** The standing mutation gate's existing
+`api/app.py` mutants target the as-of endpoint, so a passing 36/36 said nothing
+about this handler. The two sharpest breaks — truncated hash, rounded statistics
+— are now permanent entries; the gate runs 38. They are the first mutants in that
+file that do not reproduce a defect that actually shipped, and its docstring has
+been corrected to stop claiming they all do.
+
+**Known gap, not addressed here.** `apps/web` has no tests of any kind. Standing
+up a JavaScript test harness is a new workstream rather than a hole in an
+existing deliverable, and is not started on this authority.

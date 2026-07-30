@@ -10,8 +10,10 @@ the database, which is the thing least likely to be wrong.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from datetime import date
+from pathlib import Path
 from typing import ClassVar
 
 import pytest
@@ -1040,3 +1042,128 @@ class TestAPeriodRevisedAndThenRevisedBack:
         assert payload["is_restated"] is False, "the latest filing is the one a reader holds"
         assert payload["value_ever_changed"] is False
         assert payload["value_changed"] is False
+
+
+class TestEvidenceCardsAreServedFaithfully:
+    """The evidence index, which had no test at all until this one.
+
+    This endpoint is where "no number leaves the system without an evidence card"
+    stops being a design principle and becomes an HTTP response. What it serves is
+    the only form of the card most readers will ever see, so the property worth
+    pinning is fidelity: the values on the wire equal the values on disk, exactly.
+    Rounding a statistic or truncating a hash here would silently break the audit
+    trail while every status code stayed 200.
+
+    A synthetic card in a temp directory, not the real one. There is exactly one
+    real card and it is the by-product of an eighty-minute ingest; a test that read
+    it would couple this suite to the warehouse and pass vacuously the day the file
+    is not there.
+    """
+
+    REPRO_HASH: ClassVar[str] = "2e4799e47d1e2ad4d027d38350340ac5772564bd2f33efc085f26db13049dd4a"
+    CODE_COMMIT: ClassVar[str] = "7f9b6d866e352fdbebbfce799cbecb6dbc40aa45"
+
+    @staticmethod
+    def _card(study_id: str, generated_at: str) -> dict[str, object]:
+        return {
+            "study_id": study_id,
+            "hypothesis": "values change after first publication",
+            "verdict": "5.02% of facts carry a value that changed after first publication",
+            "trial_count": 1,
+            "trial_family": "restatement-contamination",
+            "repro_hash": TestEvidenceCardsAreServedFaithfully.REPRO_HASH,
+            "generated_at": generated_at,
+            "provenance": {
+                "code_commit": TestEvidenceCardsAreServedFaithfully.CODE_COMMIT,
+                "code_dirty": False,
+                "data_vintage": "2026-07-27",
+            },
+            "arms": [{"name": "all-facts", "restated": 357842}],
+            "comparisons": [{"name": "row-grain", "restated": 516187}],
+            "caveats": ["reclassification is the largest unsized component"],
+            "statistics": {
+                "population": {"distinct_facts": 7133070, "facts": 13447437},
+                # Deliberately more precision than any display would keep.
+                "restatable_share": 0.09321674,
+                "kill_threshold": 0.01,
+            },
+        }
+
+    @pytest.fixture
+    def evidence_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        directory = tmp_path / "evidence"
+        directory.mkdir()
+        monkeypatch.setenv("ALETHEIA_DATA_DIR", str(tmp_path))
+        return directory
+
+    def test_a_card_survives_the_round_trip_without_losing_precision(
+        self, client: TestClient, evidence_dir: Path
+    ) -> None:
+        card = self._card("S002-restatement-contamination", "2026-07-28T12:00:00+00:00")
+        (evidence_dir / "S002.json").write_text(json.dumps(card), encoding="utf-8")
+
+        payload = client.get("/api/evidence").json()
+
+        assert len(payload["cards"]) == 1
+        served = payload["cards"][0]
+        assert served["repro_hash"] == self.REPRO_HASH, (
+            "a truncated repro hash cannot be checked against a rerun, which is the "
+            "only thing the hash is for"
+        )
+        assert served["provenance"]["code_commit"] == self.CODE_COMMIT
+        assert served["trial_count"] == 1
+        assert served["statistics"]["restatable_share"] == 0.09321674
+        assert served["statistics"]["population"]["facts"] == 13447437
+        assert served["arms"] == card["arms"]
+        assert served["caveats"] == card["caveats"]
+
+    def test_no_study_yet_is_reported_as_such_not_as_an_error(
+        self, client: TestClient, evidence_dir: Path
+    ) -> None:
+        """An empty directory and a missing one must read the same.
+
+        The study creates the directory before it writes a card, so a run that dies
+        in between leaves an empty one. Returning 404 there would tell a reader the
+        endpoint is broken when the warehouse is merely young.
+        """
+        assert not any(evidence_dir.iterdir())
+        empty = client.get("/api/evidence")
+        assert empty.status_code == 200
+        assert empty.json() == {"cards": [], "note": "no study has been run in this warehouse yet"}
+
+        evidence_dir.rmdir()
+        missing = client.get("/api/evidence")
+        assert missing.status_code == 200
+        assert missing.json() == empty.json()
+
+    def test_cards_are_newest_first(self, client: TestClient, evidence_dir: Path) -> None:
+        for study_id, generated_at in (
+            ("S001-older", "2026-07-01T00:00:00+00:00"),
+            ("S003-newest", "2026-07-29T00:00:00+00:00"),
+            ("S002-middle", "2026-07-15T00:00:00+00:00"),
+        ):
+            (evidence_dir / f"{study_id}.json").write_text(
+                json.dumps(self._card(study_id, generated_at)), encoding="utf-8"
+            )
+
+        served = client.get("/api/evidence").json()["cards"]
+
+        assert [card["study_id"] for card in served] == ["S003-newest", "S002-middle", "S001-older"]
+
+    def test_one_unreadable_card_does_not_hide_the_others(
+        self, client: TestClient, evidence_dir: Path
+    ) -> None:
+        """A half-written card must cost its own row, not the whole index.
+
+        A study killed mid-write leaves truncated JSON. Failing the request would
+        make one bad file conceal every good result behind it.
+        """
+        (evidence_dir / "good.json").write_text(
+            json.dumps(self._card("S002-good", "2026-07-28T00:00:00+00:00")), encoding="utf-8"
+        )
+        (evidence_dir / "truncated.json").write_text('{"study_id": "S00', encoding="utf-8")
+
+        response = client.get("/api/evidence")
+
+        assert response.status_code == 200, response.text
+        assert [card["study_id"] for card in response.json()["cards"]] == ["S002-good"]
