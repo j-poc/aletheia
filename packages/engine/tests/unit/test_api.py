@@ -502,6 +502,88 @@ class TestRevisionCoverageCountsPeriodsNotEndDates:
         assert payload["periods_with_a_changed_value"] == 2
 
 
+class TestRevisionCoverageCountsTaxonomiesSeparately:
+    """The same defect as the class above, one column over.
+
+    ``taxonomy`` was missing from this endpoint's grouping while ``pit/view.py``
+    and every query in ``corpus/contamination.py`` had it. This warehouse holds
+    ``us-gaap``, ``dei`` and ``ifrs-full``; a concept name occurring in two of them
+    is two different concepts, and merging them reported the difference between the
+    two as a value that changed after publication.
+
+    Measured on the real warehouse before the fix: 19 groups collide, shrinking the
+    denominator from 7,133,070 to 7,133,051, and 12 of them carry different values,
+    inflating the count from 357,842 to 357,854. The size is small. The direction is
+    not — it flattered the contamination rate the flagship study reports, on the
+    page whose whole job is letting someone check that study's corpus.
+    """
+
+    @pytest.fixture
+    def two_taxonomies(self, client: TestClient, warehouse: Warehouse) -> TestClient:
+        """One concept name, one period, two taxonomies, two different values."""
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value="500",
+                    filed_at=date(2016, 2, 1),
+                    accn="0000320193-16-000002",
+                    concept="EntityCommonStockSharesOutstanding",
+                    unit="shares",
+                    period_start=None,
+                    period_end=date(2015, 12, 31),
+                    taxonomy="us-gaap",
+                ),
+                make_fact(
+                    value="900",
+                    filed_at=date(2016, 2, 1),
+                    accn="0000320193-16-000002",
+                    concept="EntityCommonStockSharesOutstanding",
+                    unit="shares",
+                    period_start=None,
+                    period_end=date(2015, 12, 31),
+                    taxonomy="dei",
+                ),
+            ]
+        )
+        return client
+
+    def test_one_concept_name_in_two_taxonomies_is_not_a_revision(
+        self, two_taxonomies: TestClient
+    ) -> None:
+        payload = two_taxonomies.get("/api/quality").json()["revision_coverage"]
+        # The AAPL fixture contributes exactly one genuine revision (5.36 -> 6.78).
+        assert payload["periods_with_a_changed_value"] == 1, (
+            "us-gaap:X and dei:X are different concepts; the difference between "
+            "them is not a restatement of either"
+        )
+
+    def test_both_taxonomies_are_still_counted_as_periods(self, two_taxonomies: TestClient) -> None:
+        """Control: two distinct facts, so the denominator sees both."""
+        payload = two_taxonomies.get("/api/quality").json()["revision_coverage"]
+        assert payload["distinct_periods"] == 3  # AAPL FY2008 + one per taxonomy
+
+    def test_a_genuine_restatement_within_one_taxonomy_still_counts(
+        self, two_taxonomies: TestClient, warehouse: Warehouse
+    ) -> None:
+        """The other side: the guard must not suppress real revisions."""
+        warehouse.write_facts(
+            [
+                make_fact(
+                    value="600",
+                    filed_at=date(2017, 2, 1),
+                    accn="0000320193-17-000002",
+                    concept="EntityCommonStockSharesOutstanding",
+                    unit="shares",
+                    period_start=None,
+                    period_end=date(2015, 12, 31),
+                    taxonomy="us-gaap",
+                )
+            ]
+        )
+        payload = two_taxonomies.get("/api/quality").json()["revision_coverage"]
+        assert payload["periods_with_a_changed_value"] == 2
+
+
 class TestARefilingIsNotAutomaticallyARestatement:
     """Whether a later filing supersedes the earlier one, and whether the number
     moved, are two questions. Over the whole warehouse they have very different

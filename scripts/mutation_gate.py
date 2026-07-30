@@ -149,6 +149,14 @@ MUTANTS: tuple[Mutant, ...] = (
         tests=(f"{TESTS}/test_api.py",),
     ),
     Mutant(
+        label="taxonomy dropped from the fact identity (the shipped bug)",
+        decision="D25",
+        path=f"{ENGINE}/api/app.py",
+        old='FACT_IDENTITY = "cik, taxonomy, concept, unit, period_start, period_end"',
+        new='FACT_IDENTITY = "cik, concept, unit, period_start, period_end"',
+        tests=(f"{TESTS}/test_api.py",),
+    ),
+    Mutant(
         label="evidence card served with a truncated repro hash",
         decision="D24",
         path=f"{ENGINE}/api/app.py",

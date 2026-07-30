@@ -1235,3 +1235,71 @@ been corrected to stop claiming they all do.
 **Known gap, not addressed here.** `apps/web` has no tests of any kind. Standing
 up a JavaScript test harness is a new workstream rather than a hole in an
 existing deliverable, and is not started on this authority.
+
+---
+
+### D25 — the data-quality page disagreed with the study it exists to corroborate, 2026-07-30
+
+**Status:** closed by this change.
+
+Found by rendering the five pages against the real warehouse, which is P6's pass
+bar and had been inherited rather than observed. The Data quality page reported
+
+    357,854 of 7,133,051 ... carry a value that changed after it was first published
+
+against the evidence card and the README, which say **357,842 of 7,133,070**. Two
+surfaces, one warehouse, one vintage, two answers — and the page whose entire job
+is letting a human check the corpus was the one that was wrong.
+
+**Cause.** `/api/quality` grouped facts by
+`cik, concept, unit, period_start, period_end`. Every other consumer — `pit/view.py`
+and all four queries in `corpus/contamination.py` — groups by those *plus*
+`taxonomy`. It was an omission in one place, not a difference of definition.
+
+**Measured, not inferred.** Both groupings were run over the same warehouse:
+
+| Grouping | distinct | changed |
+|---|---:|---:|
+| API, without `taxonomy` | 7,133,051 | 357,854 |
+| Study, with `taxonomy` | 7,133,070 | 357,842 |
+| Evidence card / README | 7,133,070 | 357,842 |
+
+The warehouse holds three taxonomies — `us-gaap` (13,389,929 facts), `dei`
+(41,721) and `ifrs-full` (15,787). Exactly **19** groups have one concept name
+spanning more than one of them, and 7,133,070 − 7,133,051 = 19, so the denominator
+gap is fully accounted for. Twelve of those 19 carry different values across
+taxonomies, which the endpoint reported as twelve restatements that never
+happened.
+
+**Why it is worth a decision record despite being twelve rows.** It is the same
+defect shape as the `period_start` bug already documented here, which manufactured
+667,003 spurious revisions and turned a true 5.0% into a published 16.4%. It ran
+in the direction that flatters the flagship study's headline. And it appeared on
+the corroboration surface, where a reader goes precisely to check the number.
+
+**The fix is one shared key, not two copies that happen to agree.** `FACT_IDENTITY`
+is now a module constant, interpolated into both queries, documenting what makes
+two rows the same fact reported twice. The regression test is behavioural rather
+than a comparison of SQL strings: a fixture puts one concept name in `us-gaap` and
+`dei` for the same period with different values and asserts the endpoint counts
+two periods and zero revisions, with the reverse case — a genuine restatement
+inside one taxonomy — asserted alongside it so the guard cannot pass by
+suppressing everything.
+
+**Positive control.** With `taxonomy` removed from the key the new tests fail and
+the pre-existing `period_start` tests still pass, which is the point: the old
+tests could not have caught this. Restored, both pass. The break is registered in
+the mutation gate, which now runs 39.
+
+**Verified at the rendered surface, not only the endpoint.** With the fix live the
+page reads `357,842 of 7,133,070`, matching the card.
+
+**One observation that is not a defect, recorded so it is not rediscovered as
+one.** During this work the running Next dev server kept serving a cached render
+after the API restarted, and continued to show a full page of numbers with the
+backend stopped. On a freshly started dev server the same request with no API
+running renders the error panel — "cannot reach the API" — and a live request
+renders current numbers. `export const dynamic = "force-dynamic"` is set on the
+pages and the client uses `cache: "no-store"`. This was an in-process dev-server
+cache, not shipped behaviour. Production rendering was not exercised, so nothing
+is claimed about it.

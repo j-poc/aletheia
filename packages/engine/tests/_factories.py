@@ -40,10 +40,11 @@ def make_fact(
     cik: int = AAPL_CIK,
     form: str = "10-K",
     run_id: str = RUN_ID,
+    taxonomy: str = "us-gaap",
 ) -> Fact:
     return Fact(
         cik=Cik(cik),
-        taxonomy="us-gaap",
+        taxonomy=taxonomy,
         concept=concept,
         unit=unit,
         period_start=period_start,

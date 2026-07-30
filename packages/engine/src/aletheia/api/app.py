@@ -38,6 +38,17 @@ DEFAULT_CONCEPT = "EarningsPerShareDiluted"
 LAG_ELIGIBLE_FORMS = PERIODIC_FORMS
 """Only these consult filer history, so only these need it fetched."""
 
+FACT_IDENTITY = "cik, taxonomy, concept, unit, period_start, period_end"
+"""What makes two rows the same fact reported twice, rather than two facts.
+
+Every column earns its place, and dropping any of them turns unrelated rows into
+a restatement. This is stated once and interpolated rather than retyped, because
+the defect it guards against is a copy drifting from the others: the quality
+endpoint was grouping without ``taxonomy`` while ``pit/view.py`` and every query
+in ``corpus/contamination.py`` grouped with it, so the page reporting corpus
+contamination disagreed with the study measuring it.
+"""
+
 
 class _State:
     """Holds the single read-only warehouse handle for the process.
@@ -433,17 +444,26 @@ def quality(warehouse: Warehouse = Depends(get_warehouse)) -> dict[str, Any]:
     # numbers; grouping without the start date reads that as a revision. On this
     # warehouse that mistake manufactured 667,003 of them -- it turned a true 5.0%
     # into a false 16.4%.
+    #
+    # taxonomy is part of it for the same reason, and was missing here while every
+    # other consumer -- pit/view.py and all four queries in corpus/contamination.py
+    # -- already had it. This warehouse holds us-gaap, dei and ifrs-full; a concept
+    # name occurring in two of them is two different concepts, and merging them
+    # reported the difference between the two as a restatement. Measured: 19 groups
+    # collide, which shrank the denominator from 7,133,070 to 7,133,051, and 12 of
+    # them carry different values, which inflated the count from 357,842 to 357,854.
+    # Small, and wrong in the direction that flatters the flagship study's headline,
+    # which is the direction that matters most to get right.
     revised = warehouse.execute(
-        """
+        f"""
         SELECT count(*) FROM (
-            SELECT cik, concept, unit, period_start, period_end
+            SELECT {FACT_IDENTITY}
               FROM facts GROUP BY ALL HAVING count(DISTINCT value) > 1
         )
-        """
+        """  # noqa: S608 - FACT_IDENTITY is a module constant, not caller input
     ).fetchone()
     periods = warehouse.execute(
-        "SELECT count(*) FROM ("
-        "SELECT cik, concept, unit, period_start, period_end FROM facts GROUP BY ALL)"
+        f"SELECT count(*) FROM (SELECT {FACT_IDENTITY} FROM facts GROUP BY ALL)"  # noqa: S608
     ).fetchone()
 
     runs = warehouse.execute(
