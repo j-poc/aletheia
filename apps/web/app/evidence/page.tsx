@@ -97,6 +97,24 @@ export default async function Page() {
             {card.verdict}
           </p>
 
+          {/*
+            Absent rendered as absent. A study with no return arms -- S002 is
+            fundamentals-only by design, since the survivorship-free price panel
+            is an unbought entitlement (D1) -- was rendering the full header row
+            over an empty body: eight column titles, Sharpe among them, and
+            nothing beneath. A reader sees a performance table that failed to
+            load, or a strategy that earned nothing, and neither is what
+            happened. The empty state has to say which.
+          */}
+          {card.arms.length === 0 ? (
+            <p className="rounded-md border border-dashed border-[var(--color-edge)] p-4 text-sm text-[var(--color-muted)]">
+              No return arms. This study is measured on fundamentals alone, so it
+              reports no Sharpe, no turnover and no cost-adjusted return — those
+              are absent, not zero, and not pending. A return-predictive study
+              needs a survivorship-free price panel, which this build does not
+              have.
+            </p>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase tracking-wide text-[var(--color-muted)]">
@@ -144,6 +162,7 @@ export default async function Page() {
               mean.
             </p>
           </div>
+          )}
 
           {card.comparisons.length > 0 && (
             <section>

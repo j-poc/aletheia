@@ -110,8 +110,30 @@ export type Feed = {
   }[];
 };
 
+/**
+ * How old the warehouse is, judged server-side.
+ *
+ * `state` arrives already decided rather than as a date the page subtracts from
+ * today. That is deliberate: a renderer handed `"stale"` cannot present it as
+ * current, whereas a renderer handed `"2026-07-27"` has to know the contract, and
+ * will go on quietly rendering fresh-looking pages on the day the contract
+ * changes. The arithmetic belongs where the clock is injected and testable.
+ */
+export type Freshness = {
+  state: "fresh" | "stale" | "partial" | "broken";
+  /** Written for a reader, not a log: what is wrong, and what to do about it. */
+  reason: string;
+  data_vintage: string;
+  observed_on: string;
+  age_days: number;
+  fresh_within_days: number;
+  /** Missing inputs, named. Reported at every state so `stale` cannot mask them. */
+  gaps: string[];
+};
+
 export type Quality = {
   data_vintage: string;
+  freshness: Freshness;
   row_counts: Record<string, number>;
   revision_coverage: {
     distinct_periods: number;

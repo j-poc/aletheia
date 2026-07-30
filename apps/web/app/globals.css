@@ -7,6 +7,13 @@
   --color-muted: #8b97a8;
   --color-known: #4ade80;
   --color-restated: #f97316;
+  /* The freshness states. Named for what they mean to a viewer rather than for
+     their colour, because colour is the weakest of the three signals the strip
+     uses: a reader who cannot distinguish them still has the word and the shape. */
+  --color-ok: #4ade80;
+  --color-warn: #f97316;
+  --color-bad: #f87171;
+  --color-bad-wash: #1d1214;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 }
 

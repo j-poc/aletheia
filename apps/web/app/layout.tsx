@@ -1,6 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { VintageStrip } from "./vintage-strip";
+
+/**
+ * Uncached, because the layout now carries a freshness claim.
+ *
+ * Next would happily render this shell once at build time and serve it for the
+ * life of the deployment, which would pin the strip to whatever the warehouse
+ * looked like when the container was built -- a stale banner asserting the data
+ * is current, which is worse than no banner at all.
+ */
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "ALETHEIA",
@@ -19,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        <VintageStrip />
         <header className="border-b border-[var(--color-edge)]">
           <div className="mx-auto flex max-w-6xl flex-wrap items-baseline gap-x-6 gap-y-2 px-6 py-4">
             <Link href="/" className="text-lg font-semibold tracking-tight">

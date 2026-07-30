@@ -1,4 +1,4 @@
-import type { AsOf, Fact, Feed, Quality, Revision } from "@/lib/api";
+import type { AsOf, Fact, Feed, Freshness, Quality, Revision } from "@/lib/api";
 
 /**
  * Fixtures built from cases observed in the warehouse, not invented ones.
@@ -119,9 +119,28 @@ export function feed(overrides: Partial<Feed> = {}): Feed {
   };
 }
 
+/**
+ * The freshness verdict as the API ships it. Defaults to `fresh`, so a test that
+ * does not care about staleness is not silently exercising the stale path -- and
+ * a test that does care has to say so, in the state it means.
+ */
+export function freshness(overrides: Partial<Freshness> = {}): Freshness {
+  return {
+    state: "fresh",
+    reason: "the newest filing is 0 day(s) old, inside the 4-day contract.",
+    data_vintage: "2026-07-27",
+    observed_on: "2026-07-27",
+    age_days: 0,
+    fresh_within_days: 4,
+    gaps: [],
+    ...overrides,
+  };
+}
+
 export function quality(overrides: Partial<Quality> = {}): Quality {
   return {
     data_vintage: "2026-07-27",
+    freshness: freshness(),
     row_counts: { facts: 13_447_437, filings: 1_364_574, filers: 800 },
     revision_coverage: {
       distinct_periods: 7_133_070,

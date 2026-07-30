@@ -89,7 +89,11 @@ function match(backend: Backend, path: string): Reply | undefined {
 }
 
 export async function render<P>(
-  Page: (props: P) => Promise<ReactElement>,
+  // `| null` because rendering nothing is a legitimate outcome, not an error:
+  // the freshness strip returns null when the warehouse is current, and a
+  // component whose whole job is to be absent most of the time still needs its
+  // absence asserted.
+  Page: (props: P) => Promise<ReactElement | null>,
   props: P,
   backend: Backend,
 ): Promise<Rendered> {

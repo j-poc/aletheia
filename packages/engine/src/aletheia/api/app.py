@@ -26,9 +26,11 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from aletheia.core.clock import Clock, SystemClock
 from aletheia.core.config import load_settings
 from aletheia.core.errors import AmbiguousPeriod, InsufficientData
 from aletheia.core.formatting import plain
+from aletheia.core.freshness import assess as assess_freshness
 from aletheia.core.types import Cik
 from aletheia.pit import INSTANT, PeriodStart, PitFiling, PitView, as_of
 from aletheia.store.db import Warehouse
@@ -80,6 +82,16 @@ def get_warehouse() -> Iterator[Warehouse]:
     if state.warehouse is None:
         raise HTTPException(status_code=503, detail="warehouse is not open")
     yield state.warehouse
+
+
+def get_clock() -> Clock:
+    """The composition root's clock, and the only wall-clock read in this module.
+
+    A dependency rather than a direct call so a test can pin it. Asserting that a
+    four-day-old warehouse reads `stale` is only meaningful if the assertion still
+    holds next week, and `date.today()` inline would make every such test expire.
+    """
+    return SystemClock()
 
 
 app = FastAPI(
@@ -422,7 +434,10 @@ def feed(
 
 
 @app.get("/api/quality")
-def quality(warehouse: Warehouse = Depends(get_warehouse)) -> dict[str, Any]:
+def quality(
+    warehouse: Warehouse = Depends(get_warehouse),
+    clock: Clock = Depends(get_clock),
+) -> dict[str, Any]:
     """Coverage and lineage. What is actually in here, and where it came from."""
     counts = {}
     for table in (
@@ -474,8 +489,32 @@ def quality(warehouse: Warehouse = Depends(get_warehouse)) -> dict[str, Any]:
     ).fetchall()
     indexed, on_disk = warehouse.payload_ledger_coverage(load_settings().raw_dir)
 
+    # Named here rather than inferred by the reader. A table at zero rows is the
+    # partial state, and the alternative -- letting a `0` card sit in the grid
+    # looking like every other card -- is precisely how absent gets read as
+    # measured. `prices` and `macro_observations` are excluded on purpose: prices
+    # are entitlement-limited (D1) and macro is optional, so zero there is a known
+    # boundary rather than a gap, and crying partial over it would train the
+    # reader to ignore the state.
+    load_bearing = ("entities", "entity_identifiers", "filings", "facts")
+    gaps = tuple(f"{table}: 0 rows" for table in load_bearing if counts[table] == 0)
+
+    # The payload ledger's under-count is deliberately NOT a gap, though it looks
+    # like the obvious candidate. Payloads fetched before indexing moved into the
+    # fetcher are on disk and addressable by hash but not enumerated, which is a
+    # permanent, documented condition of this warehouse rather than something a
+    # reader can act on -- it was 2,281 files at the time of writing and will not
+    # go to zero. Flagging it would paint the real surface `partial` on every load
+    # forever, and a badge that is always amber is a badge nobody reads. It stays
+    # reported in `payload_ledger` with its own note, where a reader who cares can
+    # find it. This is the "say what is deliberately absent" rule, not an omission.
+
+    vintage = _data_vintage(warehouse)
+    freshness = assess_freshness(data_vintage=vintage, observed_on=clock.today(), gaps=gaps)
+
     return {
-        "data_vintage": _data_vintage(warehouse).isoformat(),
+        "data_vintage": vintage.isoformat(),
+        "freshness": freshness.as_dict(),
         "row_counts": counts,
         "revision_coverage": {
             "distinct_periods": int(periods[0]) if periods else 0,
