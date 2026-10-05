@@ -35,7 +35,7 @@ AAPL · EarningsPerShareDiluted · as known on 2009-12-01
     2008-09-27                5.36  2009-10-27    1  0001193125-09-214859
 
 as it stands today (LOOKAHEAD — what a vendor panel would give you):
-  6.78  published 2010-10-27
+  6.78  published 2010-01-25
   difference vs. what was knowable on 2009-12-01: +26.49% — the error a conventional backtest would make
 
 $ aletheia asof AAPL --concept EarningsPerShareDiluted --period-end 2008-09-27 \
@@ -170,6 +170,7 @@ back at **5.02%**, clearing the threshold by a factor of five.
 
 Full memo: [`docs/S002-restatement-contamination.md`](docs/S002-restatement-contamination.md).
 Evidence card: [`data/evidence/S002-restatement-contamination.md`](data/evidence/S002-restatement-contamination.md).
+Reader's case study: [`docs/point-in-time-data-and-financial-ai.md`](docs/point-in-time-data-and-financial-ai.md).
 Reproduce: `make ingest` (~80 min), then `make study` (tens of minutes).
 
 | | |
