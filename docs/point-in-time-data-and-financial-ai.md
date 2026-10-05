@@ -11,8 +11,11 @@ for every date, silently putting later knowledge into an earlier period.
 
 Aletheia stores both the period a fact describes and the date that filing became
 knowable. Its as-of query asks what the stored evidence supported on a specified
-date. The Apple example is documented in the [repository README](../README.md),
-and the source filings are identified there by SEC accession number.
+date. The original value appears in Apple's [2009 Form 10-K filed 27 October
+2009](https://www.sec.gov/Archives/edgar/data/320193/000119312509214859/0001193125-09-214859-index.htm).
+The later value appears in Apple's [Form 10-K/A filed 25 January
+2010](https://www.sec.gov/Archives/edgar/data/320193/000119312510012091/0001193125-10-012091-index.htm).
+The example and as-of query are also documented in the [repository README](../README.md).
 
 ## Measuring the size of the data-vintage problem
 
